@@ -2,11 +2,11 @@
 
 import React, { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { useFormStatus } from 'react-dom'
+// import { useFormStatus } from 'react-dom'
 import DateInput from './DateInput'
 import { CreateSubmitButton, DeleteConfirmButton, SaveSubmitButton } from '@/components/shared/form-actions'
 
-type Row = Record<string, any>
+type Row = Record<string, unknown>
 
 export interface BasicBenefitsTableProps {
   rows: Row[]
@@ -21,14 +21,27 @@ export function BasicBenefitsTable({ rows, columns, pkField, createAction, updat
   const [adding, setAdding] = useState(false)
 
   const isDateField = (field: string) => field === 'start_date' || field === 'end_date'
-  const toDateInputValue = (value: any): string => {
-    if (!value) return ''
-    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
-    const d = new Date(value)
-    if (isNaN(d.getTime())) return ''
-    // format to YYYY-MM-DD
-    const iso = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString()
-    return iso.slice(0, 10)
+  const toDateInputValue = (value: unknown): string => {
+    if (value == null) return ''
+    if (typeof value === 'string') {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+      const parsed = new Date(value)
+      if (Number.isNaN(parsed.getTime())) return ''
+      const iso = new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())).toISOString()
+      return iso.slice(0, 10)
+    }
+    if (typeof value === 'number') {
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return ''
+      const iso = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString()
+      return iso.slice(0, 10)
+    }
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) return ''
+      const iso = new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate())).toISOString()
+      return iso.slice(0, 10)
+    }
+    return ''
   }
 
   const dateFields = useMemo(() => columns.filter((c) => isDateField(c)), [columns])
@@ -113,7 +126,7 @@ export function BasicBenefitsTable({ rows, columns, pkField, createAction, updat
                         {otherFields.map((c) => (
                           <div key={`${String(r[pkField])}-${c}`} className="flex items-center gap-2">
                             <label className="w-28 shrink-0 text-xs text-gray-600">{c}</label>
-                            <input name={c} defaultValue={r[c] ?? ''} className="w-full rounded border px-2 py-1 text-sm" />
+                           <input name={c} defaultValue={String(r[c] ?? '')} className="w-full rounded border px-2 py-1 text-sm" />
                           </div>
                         ))}
                       </div>

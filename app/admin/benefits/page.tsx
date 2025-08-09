@@ -16,14 +16,14 @@ export default async function BenefitsAdminPage() {
   }
 
   // 동적 컬럼 처리
-  type Row = Record<string, any>
+  type Row = Record<string, unknown>
   const rows: Row[] = (benefits as Row[]) ?? []
   const hasName = rows[0] ? Object.prototype.hasOwnProperty.call(rows[0], 'name') : true
   const hasDescription = rows[0] ? Object.prototype.hasOwnProperty.call(rows[0], 'description') : false
 
   const pkCandidates = ['id', 'benefit_id', 'code', 'uuid']
   const getPkField = (row: Row) => pkCandidates.find((k) => Object.prototype.hasOwnProperty.call(row, k)) || 'id'
-  const getPkValue = (row: Row) => String(row[getPkField(row)])
+  const getPkValue = (row: Row) => String((row as Record<string, unknown>)[getPkField(row)] as string)
 
   return (
     <div className="space-y-6">
@@ -67,10 +67,10 @@ export default async function BenefitsAdminPage() {
                         <input type="hidden" name="pkField" value={pkField} />
                         <input type="hidden" name="pkValue" value={pkValue} />
                         {hasName && (
-                          <input name="name" defaultValue={b.name ?? ''} className="rounded border px-2 py-1 text-sm" />
+                          <input name="name" defaultValue={String(b.name ?? '')} className="rounded border px-2 py-1 text-sm" />
                         )}
                         {hasDescription && (
-                          <input name="description" defaultValue={b.description ?? ''} className="rounded border px-2 py-1 text-sm w-64" />
+                          <input name="description" defaultValue={String(b.description ?? '')} className="rounded border px-2 py-1 text-sm w-64" />
                         )}
                         <button className="rounded bg-gray-100 px-3 py-1.5 text-sm">저장</button>
                       </form>
@@ -123,7 +123,7 @@ async function updateBenefit(formData: FormData) {
   const name = ((formData.get('name') as string) ?? '').trim()
   const description = ((formData.get('description') as string) ?? '').trim()
   const supabase = createServiceRoleClient()
-  const updates: Record<string, any> = {}
+  const updates: Record<string, unknown> = {}
   if (name) updates.name = name
   if (formData.get('description') !== null) updates.description = description
   if (Object.keys(updates).length > 0) {

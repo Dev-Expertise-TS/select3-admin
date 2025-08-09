@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { BenefitPickerInput } from '../_components/benefit-picker-input'
 import { ClientSaveButton } from '../_components/save-controls'
+import { BasicBenefitsManager, type BenefitRow as BBRow } from '../_components/basic-benefits-manager'
 
 interface PageProps {
   params: Promise<{ sabre_paragon: string }>
@@ -29,9 +29,29 @@ export default async function HotelEditPage({ params }: PageProps) {
   const { data, error } = await query.single()
   if (error || !data) return notFound()
 
-  // Benefit column keys present on the row
-  const allBenefitKeys = ['benefit', 'benefit_1', 'benefit_2', 'benefit_3', 'benefit_4', 'benefit_5', 'benefit_6'] as const
-  const benefitKeys = allBenefitKeys.filter((k) => Object.prototype.hasOwnProperty.call(data, k))
+  // Load Benefits via mapping (select_hotel_benefits_map → select_hotel_benefits)
+  type MapRow = { benefit_id: string; sort: number | null }
+  type BenefitRow = { benefit_id: string | number; benefit: string | null; benefit_description: string | null; start_date: string | null; end_date: string | null }
+  let mappedBenefits: BenefitRow[] = []
+  if (sabreId) {
+    const { data: mapRows } = await supabase
+      .from('select_hotel_benefits_map')
+      .select('benefit_id, sort')
+      .eq('sabre_id', sabreId)
+      .order('sort', { ascending: true, nullsFirst: true })
+
+    const ids = (mapRows as MapRow[] | null)?.map((r) => String(r.benefit_id)).filter(Boolean) ?? []
+    if (ids.length > 0) {
+      const { data: benefitRows } = await supabase
+        .from('select_hotel_benefits')
+        .select('benefit_id, benefit, benefit_description, start_date, end_date')
+        .in('benefit_id', ids)
+      mappedBenefits = (benefitRows as BenefitRow[] | null) ?? []
+      // keep original order of ids
+      const order = new Map(ids.map((id, i) => [id, i]))
+      mappedBenefits.sort((a, b) => (order.get(String(a.benefit_id)) ?? 0) - (order.get(String(b.benefit_id)) ?? 0))
+    }
+  }
 
   // 최소 편집 폼 스텁: 이후 세부 필드 연결 예정
   return (
@@ -75,18 +95,10 @@ export default async function HotelEditPage({ params }: PageProps) {
           <input name="rate_plan_codes" className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={(data.rate_plan_codes ?? []).join(', ')} />
         </div>
 
-        {/* Basic Benefits columns from select_hotels */}
+        {/* Benefits (mapped with client manager) */}
         <div>
-          <div className="mb-2 text-sm font-medium">Basic Benefits</div>
-          {benefitKeys.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-              {benefitKeys.map((key) => (
-                <BenefitPickerInput key={key} name={key} defaultValue={(data as any)[key] ?? ''} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">Benefit 컬럼이 없습니다.</div>
-          )}
+          <div className="mb-2 text-sm font-medium">Benefits</div>
+          <BasicBenefitsManager initial={mappedBenefits as BBRow[]} />
         </div>
 
         <div className="flex items-center gap-2 pt-2">
@@ -115,37 +127,52 @@ async function saveAction(formData: FormData) {
   const rate_plan_codes = ratePlanCodesParsed.length > 0 ? ratePlanCodesParsed : null
 
   const supabase = createServiceRoleClient()
-  // Collect benefit columns from form data
-  const benefitKeys = ['benefit', 'benefit_1', 'benefit_2', 'benefit_3', 'benefit_4', 'benefit_5', 'benefit_6']
-  const benefitUpdates: Record<string, string | null> = {}
-  for (const key of benefitKeys) {
-    const current = formData.get(key)
-    if (typeof current === 'string') {
-      const cur = current.trim()
-      benefitUpdates[key] = cur.length === 0 ? null : cur
-    }
-  }
-  // debug: log inbound and outbound values for benefit_6
-  try {
-    // eslint-disable-next-line no-console
-    console.log('[debug] server inbound benefit_6 =', (formData.get('benefit_6') as string | null) ?? '(missing)')
-    // eslint-disable-next-line no-console
-    console.log('[debug] server update benefit_6 =', benefitUpdates['benefit_6'])
-  } catch {}
+  // Collect mapped benefits from hidden fields
+  const mappedIds = formData.getAll('mapped_benefit_id').map((v) => String(v))
+  const mappedSortPairs: Array<{ id: string; sort: number }> = mappedIds.map((id, idx) => {
+    const key = `mapped_sort__${id}`
+    const raw = formData.get(key) as string | null
+    const sort = raw != null ? Number(raw) : idx
+    return { id, sort: Number.isFinite(sort) ? sort : idx }
+  })
+  // no-op: debug logs removed for clarity
 
-  const updatePayload = { property_name_kor, property_name_eng, rate_plan_codes, ...benefitUpdates }
+  const updatePayload = { property_name_kor, property_name_eng, rate_plan_codes }
   // Build match condition by original identifiers
   let update = supabase.from('select_hotels').update({ ...updatePayload, sabre_id: sabreIdEditable, paragon_id: paragonIdEditable })
   if (sabreId) update = update.eq('sabre_id', sabreId)
   else if (paragonId) update = update.eq('paragon_id', paragonId)
 
-  const { data: updatedRow, error: updateError } = await update
+  const { data: _xUpdatedRow, error: _xUpdateError } = await update
     .select('sabre_id, benefit, benefit_1, benefit_2, benefit_3, benefit_4, benefit_5, benefit_6')
     .single()
-  try {
-    // eslint-disable-next-line no-console
-    console.log('[debug] server after update row benefit_6 =', (updatedRow as any)?.benefit_6, ' error =', updateError?.message)
-  } catch {}
-  return { ok: true, updatedRow }
+  // debug log removed
+  // Replace mappings with robust handling
+  const targetSabreId = sabreIdEditable || sabreId || null
+  if (targetSabreId) {
+    try {
+      // If sabre id changed, clean up old mappings under original sabreId
+      if (sabreId && sabreId !== targetSabreId) {
+        const { error: delOldErr } = await supabase.from('select_hotel_benefits_map').delete().eq('sabre_id', sabreId)
+        if (delOldErr) console.error('[benefits_map] delete old error:', delOldErr.message)
+      }
+
+      const uniqueIds = Array.from(new Set(mappedIds.map((v) => String(v))))
+
+      const { error: delErr } = await supabase.from('select_hotel_benefits_map').delete().eq('sabre_id', targetSabreId)
+      if (delErr) console.error('[benefits_map] delete target error:', delErr.message)
+
+      if (uniqueIds.length > 0) {
+        // Merge sort values
+        const sortMap = new Map(mappedSortPairs.map((p) => [p.id, p.sort]))
+        const rows = uniqueIds.map((id) => ({ sabre_id: targetSabreId, benefit_id: id, sort: sortMap.get(id) ?? 0 }))
+        const { error: insErr } = await supabase.from('select_hotel_benefits_map').insert(rows)
+        if (insErr) console.error('[benefits_map] insert error:', insErr.message)
+      }
+    } catch (e) {
+      console.error('[benefits_map] unexpected error:', (e instanceof Error ? e.message : String(e)))
+    }
+  }
+  return { ok: true, sabre_id: targetSabreId, paragon_id: paragonIdEditable || paragonId }
 }
 

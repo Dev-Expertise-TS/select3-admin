@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json<SuggestResponse>({ success: true, data: suggestions }, { status: 200 })
-  } catch (err) {
+  } catch {
     return NextResponse.json<SuggestResponse>({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

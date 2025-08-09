@@ -55,8 +55,8 @@ export function SearchForm({ initialQ }: SearchFormProps) {
 
   useEffect(() => {
     if (!openSuggest || highlightIndex < 0) return
-    const el = listRef.current?.querySelector(`li[data-index="${highlightIndex}"]`)
-    ;(el as HTMLElement | null)?.scrollIntoView({ block: 'nearest' })
+    const el = listRef.current?.querySelector(`li[data-index="${highlightIndex}"]`) as HTMLElement | null
+    el?.scrollIntoView({ block: 'nearest' })
   }, [openSuggest, highlightIndex])
 
   const onSubmit = (e: React.FormEvent) => {
@@ -184,6 +184,17 @@ export function SearchForm({ initialQ }: SearchFormProps) {
         </button>
       </div>
       <p id="hotel-update-search-desc" className="text-xs text-gray-500 mt-1">한글명, 영문명, Sabre ID 로 검색할 수 있습니다</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button type="button" className="inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
+          Sabre ID 체크
+        </button>
+        <button type="button" className="inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
+          Benefits 체크
+        </button>
+        <button type="button" className="inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
+          호텔 체인 체크
+        </button>
+      </div>
     </form>
   )
 }

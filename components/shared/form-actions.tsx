@@ -51,8 +51,10 @@ export function DeleteConfirmButton({
     setSubmitting(true)
     // Use requestSubmit if available for proper submit event
     try {
-      // @ts-expect-error requestSubmit not in all TS libs
-      form.requestSubmit ? form.requestSubmit() : form.submit()
+      const submitFn = (form as unknown as { requestSubmit?: () => void }).requestSubmit
+        ? () => (form as unknown as { requestSubmit: () => void }).requestSubmit()
+        : () => form.submit()
+      submitFn()
     } finally {
       setOpen(false)
       // keep disabled briefly; will re-enable after navigation/re-render

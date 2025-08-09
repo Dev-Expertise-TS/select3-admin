@@ -46,39 +46,45 @@ export async function POST(request: NextRequest) {
     const baseSelect = 'sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes'
     const isNumericSearch = /^\d+$/.test(searchTerm)
 
-    const tasks: Promise<{ data: any[] | null; error: any }>[] = []
+    type Row = { sabre_id: string | null; paragon_id: string | null; property_name_kor: string | null; property_name_eng: string | null; rate_plan_codes: string[] | null }
+    type TaskResult = { data: Row[] | null; error: unknown }
+    const tasks: Array<Promise<TaskResult>> = []
     // 한글명
-    tasks.push(
-      supabase
+    tasks.push((async () => {
+      const { data, error } = await supabase
         .from('select_hotels')
         .select(baseSelect)
         .ilike('property_name_kor', `%${searchTerm}%`)
         .limit(200)
-    )
+      return { data: data as Row[] | null, error }
+    })())
     // 영문명
-    tasks.push(
-      supabase
+    tasks.push((async () => {
+      const { data, error } = await supabase
         .from('select_hotels')
         .select(baseSelect)
         .ilike('property_name_eng', `%${searchTerm}%`)
         .limit(200)
-    )
+      return { data: data as Row[] | null, error }
+    })())
     // 숫자일 경우 ID 정확 매치도 포함
     if (isNumericSearch) {
-      tasks.push(
-        supabase
+      tasks.push((async () => {
+        const { data, error } = await supabase
           .from('select_hotels')
           .select(baseSelect)
           .eq('sabre_id', Number(searchTerm))
           .limit(200)
-      )
-      tasks.push(
-        supabase
+        return { data: data as Row[] | null, error }
+      })())
+      tasks.push((async () => {
+        const { data, error } = await supabase
           .from('select_hotels')
           .select(baseSelect)
           .eq('paragon_id', Number(searchTerm))
           .limit(200)
-      )
+        return { data: data as Row[] | null, error }
+      })())
     }
 
     const results = await Promise.all(tasks)
@@ -89,7 +95,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 병합 및 중복 제거 (sabre_id-paragon_id 기준)
-    type Row = { sabre_id: string | null; paragon_id: string | null; property_name_kor: string | null; property_name_eng: string | null; rate_plan_codes: string[] | null }
     const merged: Row[] = []
     const seen = new Set<string>()
     for (const r of results) {

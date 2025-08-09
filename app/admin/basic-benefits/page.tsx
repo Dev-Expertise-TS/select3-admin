@@ -2,14 +2,14 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { BasicBenefitsTable } from './_components/BasicBenefitsTable'
 import { createBasicBenefit, updateBasicBenefitRow, deleteBasicBenefit } from './actions'
 
-type Row = Record<string, any>
+type Row = Record<string, unknown>
 
 export default async function BasicBenefitsPage() {
   const supabase = createServiceRoleClient()
 
-  // select_basic_benefits 테이블 전체 조회
+  // select_hotel_benefits 테이블 전체 조회
   const { data, error } = await supabase
-    .from('select_basic_benefits')
+    .from('select_hotel_benefits')
     .select('*')
 
   if (error) {
@@ -25,8 +25,20 @@ export default async function BasicBenefitsPage() {
   // 정렬: 생성 최신일자(created_at) 내림차순 우선. 없으면 기존 정렬 규칙 사용
   if (originalColumns.includes('created_at')) {
     rows.sort((a, b) => {
-      const ad = a?.created_at ? new Date(a.created_at).getTime() : 0
-      const bd = b?.created_at ? new Date(b.created_at).getTime() : 0
+      const av = (a as Record<string, unknown>)?.['created_at']
+      const bv = (b as Record<string, unknown>)?.['created_at']
+      const ad = ((): number => {
+        if (typeof av === 'string' || typeof av === 'number' || av instanceof Date) {
+          return new Date(av as string | number | Date).getTime()
+        }
+        return 0
+      })()
+      const bd = ((): number => {
+        if (typeof bv === 'string' || typeof bv === 'number' || bv instanceof Date) {
+          return new Date(bv as string | number | Date).getTime()
+        }
+        return 0
+      })()
       return bd - ad
     })
   } else {
@@ -38,7 +50,7 @@ export default async function BasicBenefitsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">셀렉트 기본 혜택 관리</h1>
-        <p className="text-sm text-muted-foreground mt-1">select_basic_benefits 테이블의 항목을 관리합니다.</p>
+        <p className="text-sm text-muted-foreground mt-1">select_hotel_benefits 테이블의 항목을 관리합니다.</p>
       </div>
 
       <BasicBenefitsTable

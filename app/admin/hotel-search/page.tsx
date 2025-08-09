@@ -147,7 +147,7 @@ export default function AdminHotelSearchPage() {
       }
     }, 200);
     return () => clearTimeout(t);
-  }, [searchTerm]);
+  }, [searchTerm, suppressSuggest]);
 
   const [highlightIndex, setHighlightIndex] = useState<number>(-1);
   const [copied, setCopied] = useState(false);
@@ -389,7 +389,8 @@ export default function AdminHotelSearchPage() {
   };
 
   // JSON 결과에서 RateKey와 관련 필드 추출 유틸
-  function extractRateRows(data: any): Array<{
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function extractRateRows(_data: unknown): Array<{
     rateKey: string
     rateKeyShort: string
     ratePlanName: string
@@ -397,10 +398,10 @@ export default function AdminHotelSearchPage() {
     averageNightlyRate?: string | number
     description?: string
   }> {
-    const deepFindKey = (node: any, key: string): any => {
+    const deepFindKey = (node: unknown, key: string): unknown => {
       if (!node) return undefined
       if (typeof node !== 'object') return undefined
-      if (Object.prototype.hasOwnProperty.call(node, key)) return (node as any)[key]
+      if (Object.prototype.hasOwnProperty.call(node as object, key)) return (node as Record<string, unknown>)[key]
       if (Array.isArray(node)) {
         for (const item of node) {
           const found = deepFindKey(item, key)
@@ -408,8 +409,8 @@ export default function AdminHotelSearchPage() {
         }
         return undefined
       }
-      for (const k of Object.keys(node)) {
-        const child = (node as any)[k]
+      for (const k of Object.keys(node as Record<string, unknown>)) {
+        const child = (node as Record<string, unknown>)[k]
         const found = deepFindKey(child, key)
         if (found !== undefined) return found
       }
@@ -425,17 +426,18 @@ export default function AdminHotelSearchPage() {
       description?: string
     }> = []
 
-    const visit = (node: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const visit = (node: unknown) => {
       if (!node) return
       if (Array.isArray(node)) {
         for (const item of node) visit(item)
         return
       }
       if (typeof node === 'object') {
-        const keyVal = typeof (node as any).RateKey === 'string' ? (node as any).RateKey : undefined
+        const keyVal = typeof (node as Record<string, unknown>).RateKey === 'string' ? (node as Record<string, unknown>).RateKey as string : undefined
         if (keyVal) {
           const ratePlanNameVal = ((): string => {
-            const v = (node as any).RatePlanName
+            const v = (node as Record<string, unknown>).RatePlanName as unknown
             if (typeof v === 'string') return v
             const found = deepFindKey(node, 'RatePlanName')
             return typeof found === 'string' ? found : ''
@@ -446,20 +448,24 @@ export default function AdminHotelSearchPage() {
             const found = deepFindKey(node, 'Description')
             return typeof found === 'string' ? found : undefined
           })()
-          const short = keyVal.length > 10 ? `${keyVal.slice(0, 10)}...` : keyVal
+          const short = (keyVal as string).length > 10 ? `${(keyVal as string).slice(0, 10)}...` : (keyVal as string)
+          const toStrOrNum = (v: unknown): string | number | undefined => {
+            if (typeof v === 'string' || typeof v === 'number') return v
+            return undefined
+          }
           rows.push({
-            rateKey: keyVal,
+            rateKey: keyVal as string,
             rateKeyShort: short,
-            ratePlanName: ratePlanNameVal,
-            amountAfterTax: amountAfterTaxVal,
-            averageNightlyRate: averageNightlyRateVal,
+            ratePlanName: ratePlanNameVal as string,
+            amountAfterTax: toStrOrNum(amountAfterTaxVal),
+            averageNightlyRate: toStrOrNum(averageNightlyRateVal),
             description: descriptionVal,
           })
         }
-        for (const k of Object.keys(node)) visit((node as any)[k])
+        for (const k of Object.keys(node as Record<string, unknown>)) visit((node as Record<string, unknown>)[k])
       }
     }
-    visit(data)
+    // visit(_data) // 현재 미사용 유틸
 
     // 중복 제거 (rateKey + ratePlanName 기준)
     const seen = new Set<string>()
@@ -474,7 +480,7 @@ export default function AdminHotelSearchPage() {
   }
 
   // 지정 경로 순회해서 RatePlan 행 추출 (AmountAfterTax 정렬은 호출부에서)
-  function extractRatePlanTableRows(data: any): Array<{
+  function extractRatePlanTableRows(data: unknown): Array<{
     rateKey: string
     roomType: string
     roomName: string
@@ -501,39 +507,62 @@ export default function AdminHotelSearchPage() {
       cancelOffset: string
     }> = []
 
-    const root = data?.GetHotelDetailsRS?.HotelDetailsInfo?.HotelRateInfo?.Rooms?.Room
+    const deepGet = (obj: unknown, keys: string[]): unknown => {
+      let cur: unknown = obj
+      for (const key of keys) {
+        if (cur && typeof cur === 'object' && Object.prototype.hasOwnProperty.call(cur as object, key)) {
+          cur = (cur as Record<string, unknown>)[key]
+        } else {
+          return undefined
+        }
+      }
+      return cur
+    }
+    const root = deepGet(data, ['GetHotelDetailsRS', 'HotelDetailsInfo', 'HotelRateInfo', 'Rooms', 'Room'])
     if (!root) return rows
-    const roomArray: any[] = Array.isArray(root) ? root : [root]
+    const roomArray: unknown[] = Array.isArray(root) ? root : [root]
 
-    const toNumber = (v: any): number | '' => {
+    const toNumber = (v: unknown): number | '' => {
       if (v === null || v === undefined || v === '') return ''
       const n = Number(v)
       return Number.isFinite(n) ? n : ''
     }
 
     for (const room of roomArray) {
-      const roomType: string = typeof room?.RoomType === 'string' ? room.RoomType : (typeof room?.RoomDescription?.Name === 'string' ? room.RoomDescription.Name : '')
-      const roomName: string = typeof room?.RoomDescription?.Name === 'string' ? room.RoomDescription.Name : ''
-      const descSrc = room?.RoomDescription?.Text
-      const description: string = Array.isArray(descSrc) ? (typeof descSrc[0] === 'string' ? descSrc[0] : '') : (typeof descSrc === 'string' ? descSrc : '')
+      const r = room as Record<string, unknown>
+      const rt = deepGet(r, ['RoomType'])
+      const rdName = deepGet(r, ['RoomDescription', 'Name'])
+      const descSrc = deepGet(r, ['RoomDescription', 'Text'])
+      const roomType: string = typeof rt === 'string' ? rt : (typeof rdName === 'string' ? rdName : '')
+      const roomName: string = typeof rdName === 'string' ? rdName : ''
+      const description: string = Array.isArray(descSrc) ? (typeof (descSrc as unknown[])[0] === 'string' ? (descSrc as unknown[])[0] as string : '') : (typeof descSrc === 'string' ? descSrc as string : '')
 
-      const plansNode = room?.RatePlans?.RatePlan
+      const plansNode = deepGet(r, ['RatePlans', 'RatePlan'])
       if (!plansNode) continue
-      const plans: any[] = Array.isArray(plansNode) ? plansNode : [plansNode]
+      const plans: unknown[] = Array.isArray(plansNode) ? plansNode : [plansNode]
 
       for (const plan of plans) {
-        const currency: string = plan?.ConvertedRateInfo?.CurrencyCode ?? ''
-        const amountAfterTax = toNumber(plan?.ConvertedRateInfo?.AmountAfterTax)
-        const amountBeforeTax = toNumber(plan?.ConvertedRateInfo?.AmountBeforeTax)
-        const taxes = toNumber(plan?.ConvertedRateInfo?.Taxes?.Amount)
-        const fees = toNumber(plan?.ConvertedRateInfo?.Fees?.Amount)
-        const refundableVal = plan?.ConvertedRateInfo?.CancelPenalties?.CancelPenalty?.[0]?.Refundable
+        const p = plan as Record<string, unknown>
+        const currency: string = (() => {
+          const v = deepGet(p, ['ConvertedRateInfo', 'CurrencyCode'])
+          return typeof v === 'string' ? v : ''
+        })()
+        const amountAfterTax = toNumber(deepGet(p, ['ConvertedRateInfo', 'AmountAfterTax']))
+        const amountBeforeTax = toNumber(deepGet(p, ['ConvertedRateInfo', 'AmountBeforeTax']))
+        const taxes = toNumber(deepGet(p, ['ConvertedRateInfo', 'Taxes', 'Amount']))
+        const fees = toNumber(deepGet(p, ['ConvertedRateInfo', 'Fees', 'Amount']))
+        const cpNode = deepGet(p, ['ConvertedRateInfo', 'CancelPenalties', 'CancelPenalty'])
+        const cp0 = Array.isArray(cpNode) ? (cpNode[0] as Record<string, unknown> | undefined) : (cpNode as Record<string, unknown> | undefined)
+        const refundableVal = cp0 ? deepGet(cp0, ['Refundable']) : undefined
         const refundable = typeof refundableVal === 'boolean' ? String(refundableVal) : (typeof refundableVal === 'string' ? refundableVal : '')
-        const cp0 = plan?.ConvertedRateInfo?.CancelPenalties?.CancelPenalty?.[0] ?? {}
-        const cancelOffset = [cp0?.OffsetUnitMultiplier, cp0?.OffsetTimeUnit, cp0?.OffsetDropTime]
-          .filter((x: any) => x !== undefined && x !== null && x !== '')
+        const offsetUnitMultiplier = cp0 ? deepGet(cp0, ['OffsetUnitMultiplier']) : undefined
+        const offsetTimeUnit = cp0 ? deepGet(cp0, ['OffsetTimeUnit']) : undefined
+        const offsetDropTime = cp0 ? deepGet(cp0, ['OffsetDropTime']) : undefined
+        const cancelOffset = [offsetUnitMultiplier, offsetTimeUnit, offsetDropTime]
+          .filter((x: unknown) => x !== undefined && x !== null && x !== '')
           .join(' ')
-        const rateKey: string = typeof plan?.RateKey === 'string' ? plan.RateKey : ''
+        const rateKeyVal = deepGet(p, ['RateKey'])
+        const rateKey: string = typeof rateKeyVal === 'string' ? rateKeyVal : ''
 
         rows.push({
           rateKey,

@@ -91,7 +91,7 @@ export default async function AdminHotelUpdatePage({
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sabre ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paragon ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hotel Chain</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">호텔명(한글)</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">호텔명(영문)</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate Plan Codes</th>
@@ -106,9 +106,7 @@ export default async function AdminHotelUpdatePage({
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-700">
                     <Link href={href} className="hover:underline">{h.sabre_id ?? '—'}</Link>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-700">
-                    <Link href={href} className="hover:underline">{h.paragon_id ?? '—'}</Link>
-                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">—</td>
                   <td className="px-6 py-4 text-sm text-gray-900">
                     <Link href={href} className="hover:underline">
                       {h.property_name_kor ?? <span className="text-gray-400 italic">한글명 없음</span>}

@@ -2,6 +2,7 @@
 
 import React from 'react'
 
+// Deprecated: replaced by mapped read-only table in the edit page
 export function BenefitPickerInput({ name, defaultValue }: { name: string; defaultValue?: string | null }) {
   const [open, setOpen] = React.useState(false)
   const [value, setValue] = React.useState<string>(defaultValue ?? '')
@@ -16,7 +17,7 @@ export function BenefitPickerInput({ name, defaultValue }: { name: string; defau
       const res = await fetch('/api/basic-benefits/list', { cache: 'no-store' })
       const json = await res.json()
       if (json.success) {
-        const data = (json.data as any[]).map((r) => ({
+        const data = (json.data as Array<{ benefit: string; benefit_description: string | null; start_date: string | null; end_date: string | null }>).map((r) => ({
           benefit: String(r.benefit ?? ''),
           benefit_description: r.benefit_description ?? null,
           start_date: r.start_date ?? null,
@@ -26,7 +27,7 @@ export function BenefitPickerInput({ name, defaultValue }: { name: string; defau
       } else {
         setError(json.error || '불러오기 실패')
       }
-    } catch (e) {
+    } catch {
       setError('네트워크 오류')
     } finally {
       setLoading(false)

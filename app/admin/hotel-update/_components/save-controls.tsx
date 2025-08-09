@@ -8,13 +8,14 @@ export function ClientSaveButton({ formId }: { formId: string }) {
   const [pendingSubmit, setPendingSubmit] = React.useState(false)
 
   const checkDirty = (form: HTMLFormElement): boolean => {
-    const fields = Array.from(form.elements) as Array<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+          const fields = Array.from(form.elements) as Array<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
     for (const el of fields) {
       if (!el || !('type' in el)) continue
       const tag = el.tagName.toLowerCase()
       if (tag === 'button') continue
       if ((el as HTMLInputElement).type === 'submit') continue
-      if ((el as HTMLInputElement).type === 'hidden') continue
+      // hidden은 기본적으로 스킵하되, __benefits_dirty 마커는 변경 감지에 포함
+      if ((el as HTMLInputElement).type === 'hidden' && (el as HTMLInputElement).name !== '__benefits_dirty') continue
       if ('checked' in el) {
         const input = el as HTMLInputElement
         if (input.type === 'checkbox' || input.type === 'radio') {
@@ -22,10 +23,12 @@ export function ClientSaveButton({ formId }: { formId: string }) {
           continue
         }
       }
-      const current = (el as any).value ?? ''
+      const current = (el as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).value ?? ''
       // 우선 data-initial 속성이 있으면 그것을 기준으로 비교 (controlled input 대비)
       const attrInitial = (el as HTMLElement).getAttribute?.('data-initial')
-      const initial = attrInitial != null ? attrInitial : ((el as any).defaultValue ?? '')
+      const initial = attrInitial != null ? attrInitial : (
+        el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? (el.defaultValue ?? '') : ''
+      )
       if (String(current) !== String(initial)) return true
     }
     return false
@@ -36,11 +39,7 @@ export function ClientSaveButton({ formId }: { formId: string }) {
     const form = document.getElementById(formId) as HTMLFormElement | null
     if (!form) return
     // debug: log current benefit_6 value before submission
-    try {
-      const benefit6El = form.querySelector('input[name="benefit_6"]') as HTMLInputElement | null
-      // eslint-disable-next-line no-console
-      console.log('[debug] client before submit benefit_6 =', benefit6El?.value ?? '(missing)')
-    } catch {}
+    // 디버그 로그 제거
     const dirty = checkDirty(form)
     if (!dirty) {
       setMessage('변경 사항이 없습니다.')
@@ -55,64 +54,88 @@ export function ClientSaveButton({ formId }: { formId: string }) {
 
   const onConfirm = () => {
     setOpen(false)
-    if (pendingSubmit) {
-      const form = document.getElementById(formId) as HTMLFormElement | null
-      if (form) {
-        // collect changed fields NOW and highlight immediately (only on OK)
-        let changed: string[] = []
-        try {
+    const form = document.getElementById(formId) as HTMLFormElement | null
+    if (!form) return
+
+    // 수동 커밋 유틸: 현재 값을 data-initial과 defaultValue로 동기화
+    const commitInputsLocally = () => {
+      try {
           const fields = Array.from(form.elements) as Array<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-          changed = fields
-            .filter((el) => {
-              if (!el || !('type' in el)) return false
-              const tag = el.tagName.toLowerCase()
-              if (tag === 'button') return false
-              if ((el as HTMLInputElement).type === 'submit') return false
-              if ((el as HTMLInputElement).type === 'hidden') return false
-              return true
-            })
-            .map((el) => el as HTMLInputElement)
-            .filter((el) => {
-              let isChanged = false
-              if (el.type === 'checkbox' || el.type === 'radio') {
-                isChanged = el.checked !== el.defaultChecked
-              } else {
-                const cur = el.value ?? ''
-                const initAttr = el.getAttribute('data-initial')
-                const init = initAttr != null ? initAttr : (el as any).defaultValue ?? ''
-                isChanged = String(cur) !== String(init)
-              }
-              return isChanged
-            })
-            .map((el) => el.name)
-        } catch {}
-        // Apply highlight immediately
-        try {
-          const formEl = form as HTMLFormElement
+        fields.forEach((el) => {
+          if (!el || !('type' in el)) return
+          const tag = el.tagName.toLowerCase()
+          if (tag === 'button') return
+          if ((el as HTMLInputElement).type === 'submit') return
+          if ((el as HTMLInputElement).type === 'hidden') return
+          const input = el as HTMLInputElement
+          const cur = input.value ?? ''
+          input.setAttribute('data-initial', String(cur))
+          try { input.defaultValue = cur } catch {}
+        })
+      } catch {}
+    }
+
+    if (pendingSubmit) {
+      // 변경 사항이 있을 때: 하이라이트 + 서버 액션 제출
+      let changed: string[] = []
+      try {
+        const fields = Array.from(form.elements) as Array<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+        changed = fields
+          .filter((el) => {
+            if (!el || !('type' in el)) return false
+            const tag = el.tagName.toLowerCase()
+            if (tag === 'button') return false
+            if ((el as HTMLInputElement).type === 'submit') return false
+            if ((el as HTMLInputElement).type === 'hidden' && (el as HTMLInputElement).name !== '__benefits_dirty') return false
+            return true
+          })
+          .map((el) => el as HTMLInputElement)
+          .filter((el) => {
+            let isChanged = false
+            if (el.type === 'checkbox' || el.type === 'radio') {
+              isChanged = el.checked !== el.defaultChecked
+            } else {
+              const cur = el.value ?? ''
+              const initAttr = el.getAttribute('data-initial')
+                let init = initAttr != null ? initAttr : ''
+                if (!init && (el as HTMLInputElement).defaultValue !== undefined) {
+                  init = (el as HTMLInputElement).defaultValue
+                }
+              isChanged = String(cur) !== String(init)
+            }
+            return isChanged
+          })
+          .map((el) => el.name)
+      } catch {}
+      try {
+        const formEl = form as HTMLFormElement
+        changed.forEach((name) => {
+          const input = formEl.querySelector(`[name="${CSS.escape(name)}"]`) as HTMLInputElement | null
+          if (input) {
+            input.classList.add('bg-yellow-50')
+            input.setAttribute('data-initial', String(input.value ?? ''))
+            try { input.defaultValue = input.value } catch {}
+          }
+        })
+        setTimeout(() => {
           changed.forEach((name) => {
             const input = formEl.querySelector(`[name="${CSS.escape(name)}"]`) as HTMLInputElement | null
-            if (input) {
-              input.classList.add('bg-yellow-50')
-              // update baseline so future diffs compare against saved value
-              input.setAttribute('data-initial', String(input.value ?? ''))
-            }
+            input?.classList.remove('bg-yellow-50')
           })
-          setTimeout(() => {
-            changed.forEach((name) => {
-              const input = formEl.querySelector(`[name="${CSS.escape(name)}"]`) as HTMLInputElement | null
-              input?.classList.remove('bg-yellow-50')
-            })
-          }, 1500)
-        } catch {}
-        try {
-          // @ts-ignore
-          const submit = form.requestSubmit ? () => form.requestSubmit() : () => form.submit()
-          // Allow the browser to paint highlight before submission
-          setTimeout(() => submit(), 50)
-        } catch {
-          setTimeout(() => form.submit(), 50)
-        }
+        }, 1500)
+      } catch {}
+      try {
+        try { window.dispatchEvent(new Event('benefits:commit')) } catch {}
+        const submitFn = (form as unknown as { requestSubmit?: () => void }).requestSubmit
+          ? () => (form as unknown as { requestSubmit: () => void }).requestSubmit()
+          : () => form.submit()
+        setTimeout(() => submitFn(), 50)
+      } catch {
+        setTimeout(() => form.submit(), 50)
       }
+    } else {
+      // 변경 사항 없다고 판단된 경우에도, 사용자가 입력한 현재 값을 로컬로 커밋하여 되돌림 방지
+      commitInputsLocally()
     }
   }
 
@@ -125,10 +148,9 @@ export function ClientSaveButton({ formId }: { formId: string }) {
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
           <div className="absolute left-1/2 top-1/2 w-[min(90vw,420px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-white p-4 shadow-xl">
-            <div className="text-sm">{message}</div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200" onClick={() => setOpen(false)}>취소</button>
-              <button type="button" className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700" onClick={onConfirm}>OK</button>
+            <div className="text-sm text-center">{message}</div>
+            <div className="mt-4 flex justify-center">
+              <button type="button" className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700" onClick={onConfirm}>OK</button>
             </div>
           </div>
         </div>

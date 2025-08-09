@@ -28,7 +28,7 @@ export function Pagination({ currentPage, totalItems, pageSize }: PaginationProp
     const maxButtons = 7
     const half = Math.floor(maxButtons / 2)
     let start = Math.max(1, currentPage - half)
-    let end = Math.min(totalPages, start + maxButtons - 1)
+    const end = Math.min(totalPages, start + maxButtons - 1)
     start = Math.max(1, end - maxButtons + 1)
     for (let p = start; p <= end; p += 1) pages.push(p)
     return pages

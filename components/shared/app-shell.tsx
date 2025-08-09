@@ -6,10 +6,9 @@ import { cn } from '@/lib/utils'
 
 export interface AppShellProps {
   children: React.ReactNode
-  hideSidebarPaths?: string[]
 }
 
-export function AppShell({ children, hideSidebarPaths = [] }: AppShellProps) {
+export function AppShell({ children }: AppShellProps) {
   // Sidebar 숨김 경로 (예: 공개 랜딩 등)이 필요하면 사용
   // 현재는 항상 표시
   return (
