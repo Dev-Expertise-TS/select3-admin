@@ -99,6 +99,44 @@ export function DeleteConfirmButton({
   )
 }
 
+// Button abstraction compatible with shadcn-ui API shape
+type ButtonVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost'
+type ButtonSize = 'xs' | 'sm' | 'md' | 'lg'
+
+const variantClasses: Record<ButtonVariant, string> = {
+  default: 'bg-gray-900 text-white hover:bg-black',
+  secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+  destructive: 'bg-red-600 text-white hover:bg-red-700',
+  outline: 'border bg-white text-gray-700 hover:bg-gray-50',
+  ghost: 'bg-transparent text-gray-700 hover:bg-gray-100',
+}
+
+const sizeClasses: Record<ButtonSize, string> = {
+  xs: 'px-3 py-1.5 text-xs',
+  sm: 'px-3 py-2 text-sm',
+  md: 'px-4 py-2 text-sm',
+  lg: 'px-5 py-2.5 text-base',
+}
+
+export function BaseButton({
+  variant = 'default',
+  size = 'sm',
+  className,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize }) {
+  return (
+    <button
+      {...props}
+      className={cn(
+        'inline-flex items-center justify-center rounded-md font-medium disabled:opacity-60 disabled:cursor-not-allowed',
+        variantClasses[variant],
+        sizeClasses[size],
+        className,
+      )}
+    />
+  )
+}
+
 export function SecondaryButton({
   onClick,
   children,
@@ -115,19 +153,17 @@ export function SecondaryButton({
   type?: 'button' | 'submit' | 'reset'
 }) {
   return (
-    <button
+    <BaseButton
       type={type}
       onClick={onClick}
       aria-label={ariaLabel}
       disabled={disabled}
-      className={cn(
-        'inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium',
-        'bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed',
-        className,
-      )}
+      variant="secondary"
+      size="xs"
+      className={className}
     >
       {children}
-    </button>
+    </BaseButton>
   )
 }
 

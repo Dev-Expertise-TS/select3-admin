@@ -3,7 +3,7 @@
 import React, { useState, FormEvent, useEffect, useRef } from 'react';
 import { Search, Loader2, Building2, AlertCircle, CheckCircle, ChevronDown, ChevronUp, X, Play } from 'lucide-react';
 import { cn, getDateAfterDays, formatJson } from '@/lib/utils';
-import { SecondaryButton } from '@/components/shared/form-actions'
+import { BaseButton } from '@/components/shared/form-actions'
 import { HotelSearchResult, HotelSearchApiResponse, RatePlanCodesApiResponse, ExpandedRowState, HotelDetailsRequest } from '@/types/hotel';
 
 export default function AdminHotelSearchPage() {
@@ -150,6 +150,7 @@ export default function AdminHotelSearchPage() {
   }, [searchTerm]);
 
   const [highlightIndex, setHighlightIndex] = useState<number>(-1);
+  const [copied, setCopied] = useState(false);
   const onSelectSuggestion = (value: string) => {
     setSearchTerm(value);
     setOpenSuggest(false);
@@ -1069,17 +1070,23 @@ export default function AdminHotelSearchPage() {
                                         </pre>
                                       </div>
                                       <div className="mt-2 flex justify-end">
-                                        <SecondaryButton
-                                          ariaLabel="JSON 복사"
+                                        <BaseButton
+                                          aria-label="JSON 복사"
+                                          size="xs"
+                                          className={cn(
+                                            copied ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'
+                                          )}
                                           onClick={() => {
                                             try {
                                               const text = formatJson(expandedRowState.testResult)
                                               navigator.clipboard?.writeText(text)
+                                              setCopied(true)
+                                              setTimeout(() => setCopied(false), 1500)
                                             } catch {}
                                           }}
                                         >
-                                          JSON 복사
-                                        </SecondaryButton>
+                                          {copied ? '복사 완료' : 'JSON 복사'}
+                                        </BaseButton>
                                       </div>
 
                                       
@@ -1122,7 +1129,7 @@ export default function AdminHotelSearchPage() {
                                                 </thead>
                                                 <tbody className="bg-white divide-y divide-gray-100">
                                                   {sorted.map((r, i) => (
-                                                    <tr key={`table-${i}`}>
+                                                    <tr key={`table-${i}`} className="hover:bg-blue-100 transition-colors duration-75">
                                                       <td className="px-4 py-2 align-top text-xs font-mono text-gray-800">{r.rateKey ? (r.rateKey.length > 10 ? `${r.rateKey.slice(0,10)}...` : r.rateKey) : ''}</td>
                                                       <td className="px-4 py-2 align-top text-sm text-gray-900">{r.roomType}</td>
                                                       <td className="px-4 py-2 align-top text-sm text-gray-900">{r.roomName}</td>
