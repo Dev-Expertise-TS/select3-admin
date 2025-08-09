@@ -19,6 +19,7 @@ export default function AdminHotelSearchPage() {
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [suppressSuggest, setSuppressSuggest] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const firstResultRef = useRef<HTMLButtonElement | null>(null);
   
   // 확장 패널 관련 state
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
@@ -157,6 +158,13 @@ export default function AdminHotelSearchPage() {
   const onKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!openSuggest && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       setOpenSuggest(true);
+    }
+    if (e.key === 'Tab') {
+      if (results.length > 0) {
+        e.preventDefault();
+        firstResultRef.current?.focus();
+        return;
+      }
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -611,11 +619,21 @@ export default function AdminHotelSearchPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
-                        {hotel.property_name_kor ? (
-                          <div className="font-medium">{hotel.property_name_kor}</div>
-                        ) : (
-                          <span className="text-gray-400 italic">한글명 없음</span>
-                        )}
+                        <button
+                          type="button"
+                          ref={index === 0 ? firstResultRef : undefined}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRowClick(hotel);
+                          }}
+                          className={cn(
+                            'font-medium text-left focus:outline-none focus:ring-2 focus:ring-blue-500 rounded',
+                            !hotel.property_name_kor ? 'text-gray-400 italic font-normal focus:ring-0' : ''
+                          )}
+                          aria-label="호텔명 선택"
+                        >
+                          {hotel.property_name_kor || '한글명 없음'}
+                        </button>
                       </td>
                           <td className="px-6 py-4 text-sm text-gray-900">
                             {hotel.property_name_eng ? (
