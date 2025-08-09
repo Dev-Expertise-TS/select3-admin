@@ -1,6 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { BenefitPickerInput } from '../_components/benefit-picker-input'
+import { ClientSaveButton } from '../_components/save-controls'
 
 interface PageProps {
   params: Promise<{ sabre_paragon: string }>
@@ -27,18 +29,9 @@ export default async function HotelEditPage({ params }: PageProps) {
   const { data, error } = await query.single()
   if (error || !data) return notFound()
 
-  // Load benefits master list
-  const { data: benefitsData } = await supabase
-    .from('benefits')
-    .select('id, name')
-    .order('name', { ascending: true })
-
-  // Load current hotel's benefit links
-  let hb = supabase.from('hotel_benefits').select('benefit_id')
-  if (sabreId) hb = hb.eq('sabre_id', sabreId)
-  else if (paragonId) hb = hb.eq('paragon_id', paragonId)
-  const { data: selectedBenefitRows } = await hb
-  const selectedBenefitIds = new Set<string>((selectedBenefitRows ?? []).map((r: any) => String(r.benefit_id)))
+  // Benefit column keys present on the row
+  const allBenefitKeys = ['benefit', 'benefit_1', 'benefit_2', 'benefit_3', 'benefit_4', 'benefit_5', 'benefit_6'] as const
+  const benefitKeys = allBenefitKeys.filter((k) => Object.prototype.hasOwnProperty.call(data, k))
 
   // 최소 편집 폼 스텁: 이후 세부 필드 연결 예정
   return (
@@ -52,18 +45,18 @@ export default async function HotelEditPage({ params }: PageProps) {
         <Link href="/admin/hotel-update" className="text-blue-600 hover:underline">← 목록으로 돌아가기</Link>
       </div>
 
-      <form className="space-y-4 rounded-lg border bg-white p-6">
+      <form id="hotel-edit-form" action={saveAction} className="space-y-4 rounded-lg border bg-white p-6">
         {/* hidden identifiers to use in server action */}
         <input type="hidden" name="sabre_id" value={data.sabre_id ?? ''} />
         <input type="hidden" name="paragon_id" value={data.paragon_id ?? ''} />
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Sabre ID</label>
-            <input className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={data.sabre_id ?? ''} disabled />
+            <input name="sabre_id_editable" className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={data.sabre_id ?? ''} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Paragon ID</label>
-            <input className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={data.paragon_id ?? ''} disabled />
+            <input name="paragon_id_editable" className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={data.paragon_id ?? ''} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">호텔명(한글)</label>
@@ -79,31 +72,22 @@ export default async function HotelEditPage({ params }: PageProps) {
           <input name="rate_plan_codes" className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={(data.rate_plan_codes ?? []).join(', ')} />
         </div>
 
-        {/* Benefits selection */}
+        {/* Basic Benefits columns from select_hotels */}
         <div>
-          <div className="mb-2 text-sm font-medium">Benefits</div>
-          {benefitsData && benefitsData.length > 0 ? (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-              {benefitsData.map((b: any) => (
-                <label key={String(b.id)} className="flex items-center gap-2 rounded border p-2">
-                  <input
-                    type="checkbox"
-                    name="benefit_ids"
-                    value={String(b.id)}
-                    defaultChecked={selectedBenefitIds.has(String(b.id))}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <span className="text-sm">{b.name ?? String(b.id)}</span>
-                </label>
+          <div className="mb-2 text-sm font-medium">Basic Benefits</div>
+          {benefitKeys.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {benefitKeys.map((key) => (
+                <BenefitPickerInput key={key} name={key} defaultValue={(data as any)[key] ?? ''} />
               ))}
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground">등록된 Benefit이 없습니다.</div>
+            <div className="text-sm text-muted-foreground">Benefit 컬럼이 없습니다.</div>
           )}
         </div>
 
         <div className="flex items-center gap-2 pt-2">
-          <button formAction={saveAction} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">저장</button>
+          <ClientSaveButton formId="hotel-edit-form" />
           <Link href="/admin/hotel-update" className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">취소</Link>
         </div>
       </form>
@@ -111,38 +95,54 @@ export default async function HotelEditPage({ params }: PageProps) {
   )
 }
 
+// (moved to client file ../_components/benefit-picker-input.tsx)
+
 async function saveAction(formData: FormData) {
   'use server'
   const sabreId = formData.get('sabre_id') as string | null
   const paragonId = formData.get('paragon_id') as string | null
+  const sabreIdEditable = (formData.get('sabre_id_editable') as string | null)?.trim() || null
+  const paragonIdEditable = (formData.get('paragon_id_editable') as string | null)?.trim() || null
   const property_name_kor = (formData.get('property_name_kor') as string | null) ?? null
   const property_name_eng = (formData.get('property_name_eng') as string | null) ?? null
   const ratePlanCodesRaw = (formData.get('rate_plan_codes') as string | null) ?? ''
-  const rate_plan_codes = ratePlanCodesRaw
+  const ratePlanCodesParsed = ratePlanCodesRaw
     ? ratePlanCodesRaw.split(',').map((s) => s.trim()).filter(Boolean)
     : []
+  const rate_plan_codes = ratePlanCodesParsed.length > 0 ? ratePlanCodesParsed : null
 
   const supabase = createServiceRoleClient()
-  let update = supabase.from('select_hotels').update({ property_name_kor, property_name_eng, rate_plan_codes })
+  // Collect benefit columns from form data
+  const benefitKeys = ['benefit', 'benefit_1', 'benefit_2', 'benefit_3', 'benefit_4', 'benefit_5', 'benefit_6']
+  const benefitUpdates: Record<string, string | null> = {}
+  for (const key of benefitKeys) {
+    const current = formData.get(key)
+    if (typeof current === 'string') {
+      const cur = current.trim()
+      benefitUpdates[key] = cur.length === 0 ? null : cur
+    }
+  }
+  // debug: log inbound and outbound values for benefit_6
+  try {
+    // eslint-disable-next-line no-console
+    console.log('[debug] server inbound benefit_6 =', (formData.get('benefit_6') as string | null) ?? '(missing)')
+    // eslint-disable-next-line no-console
+    console.log('[debug] server update benefit_6 =', benefitUpdates['benefit_6'])
+  } catch {}
+
+  const updatePayload = { property_name_kor, property_name_eng, rate_plan_codes, ...benefitUpdates }
+  // Build match condition by original identifiers
+  let update = supabase.from('select_hotels').update({ ...updatePayload, sabre_id: sabreIdEditable, paragon_id: paragonIdEditable })
   if (sabreId) update = update.eq('sabre_id', sabreId)
   else if (paragonId) update = update.eq('paragon_id', paragonId)
 
-  await update.select('sabre_id')
-  // Update benefits links
-  const benefitIds = formData.getAll('benefit_ids').map((v) => String(v))
-  if (sabreId) {
-    await supabase.from('hotel_benefits').delete().eq('sabre_id', sabreId)
-  } else if (paragonId) {
-    await supabase.from('hotel_benefits').delete().eq('paragon_id', paragonId)
-  }
-  if (benefitIds.length > 0) {
-    const rows = benefitIds.map((bid) => ({
-      sabre_id: sabreId,
-      paragon_id: paragonId,
-      benefit_id: bid,
-    }))
-    await supabase.from('hotel_benefits').upsert(rows)
-  }
+  const { data: updatedRow, error: updateError } = await update
+    .select('sabre_id, benefit, benefit_1, benefit_2, benefit_3, benefit_4, benefit_5, benefit_6')
+    .single()
+  try {
+    // eslint-disable-next-line no-console
+    console.log('[debug] server after update row benefit_6 =', (updatedRow as any)?.benefit_6, ' error =', updateError?.message)
+  } catch {}
   redirect('/admin/hotel-update')
 }
 

@@ -18,6 +18,8 @@ export function SearchForm({ initialQ }: SearchFormProps) {
   const [openSuggest, setOpenSuggest] = useState(false)
   const [loadingSuggest, setLoadingSuggest] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  const [highlightIndex, setHighlightIndex] = useState<number>(-1)
+  const listRef = useRef<HTMLUListElement | null>(null)
 
   useEffect(() => {
     if (!q) {
@@ -51,6 +53,12 @@ export function SearchForm({ initialQ }: SearchFormProps) {
     return () => clearTimeout(t)
   }, [q])
 
+  useEffect(() => {
+    if (!openSuggest || highlightIndex < 0) return
+    const el = listRef.current?.querySelector(`li[data-index="${highlightIndex}"]`)
+    ;(el as HTMLElement | null)?.scrollIntoView({ block: 'nearest' })
+  }, [openSuggest, highlightIndex])
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const params = new URLSearchParams(searchParams?.toString() ?? '')
@@ -66,6 +74,48 @@ export function SearchForm({ initialQ }: SearchFormProps) {
   const onSelectSuggestion = (value: string) => {
     setQ(value)
     setOpenSuggest(false)
+  }
+
+  const performSubmit = (value: string) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    value ? params.set('q', value) : params.delete('q')
+    params.delete('sabreId'); params.delete('nameKor'); params.delete('nameEng')
+    params.set('page', '1')
+    setOpenSuggest(false)
+    setSuggestions([])
+    router.push(`${pathname}?${params.toString()}`)
+  }
+
+  const onKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!openSuggest && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      setOpenSuggest(true)
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlightIndex((prev) => {
+        const next = prev + 1
+        return next >= suggestions.length ? 0 : next
+      })
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightIndex((prev) => {
+        if (prev === -1) return Math.max(0, suggestions.length - 1)
+        const next = prev - 1
+        return next < 0 ? Math.max(0, suggestions.length - 1) : next
+      })
+    } else if (e.key === 'Enter') {
+      if (openSuggest && suggestions.length > 0 && highlightIndex !== -1) {
+        e.preventDefault()
+        const chosen = suggestions[highlightIndex]
+        setQ(chosen)
+        setOpenSuggest(false)
+        setHighlightIndex(-1)
+        performSubmit(chosen)
+      }
+    } else if (e.key === 'Escape') {
+      setOpenSuggest(false)
+      setHighlightIndex(-1)
+    }
   }
 
   const onReset = () => {
@@ -89,17 +139,23 @@ export function SearchForm({ initialQ }: SearchFormProps) {
             onChange={(e) => setQ(e.target.value)}
             placeholder="호텔명을 입력하세요 (한글/영문/Sabre ID)"
             autoComplete="off"
+            onKeyDown={onKeyDown}
             className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             aria-describedby="hotel-update-search-desc"
           />
           {openSuggest && suggestions.length > 0 && (
             <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white shadow">
-              <ul className="divide-y">
-                {suggestions.map((s) => (
-                  <li key={s}>
+              <ul ref={listRef} className="divide-y" role="listbox">
+                {suggestions.map((s, idx) => (
+                  <li key={s} data-index={idx} id={`upd-suggest-${idx}`}>
                     <button
                       type="button"
-                      className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-gray-50"
+                      role="option"
+                      aria-selected={idx === highlightIndex}
+                      className={cn(
+                        'block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-gray-50',
+                        idx === highlightIndex ? 'bg-gray-100' : ''
+                      )}
                       onClick={() => onSelectSuggestion(s)}
                     >
                       {s}
