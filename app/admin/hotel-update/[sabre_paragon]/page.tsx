@@ -1,4 +1,4 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { BenefitPickerInput } from '../_components/benefit-picker-input'
@@ -45,18 +45,21 @@ export default async function HotelEditPage({ params }: PageProps) {
         <Link href="/admin/hotel-update" className="text-blue-600 hover:underline">← 목록으로 돌아가기</Link>
       </div>
 
-      <form id="hotel-edit-form" action={saveAction} className="space-y-4 rounded-lg border bg-white p-6">
+      <form id="hotel-edit-form" action={async (formData) => {
+        'use server'
+        await saveAction(formData)
+      }} className="space-y-4 rounded-lg border bg-white p-6">
         {/* hidden identifiers to use in server action */}
         <input type="hidden" name="sabre_id" value={data.sabre_id ?? ''} />
         <input type="hidden" name="paragon_id" value={data.paragon_id ?? ''} />
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Sabre ID</label>
-            <input name="sabre_id_editable" className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={data.sabre_id ?? ''} />
+            <input name="sabre_id_editable" className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={data.sabre_id ?? ''} data-initial={data.sabre_id ?? ''} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Paragon ID</label>
-            <input name="paragon_id_editable" className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={data.paragon_id ?? ''} />
+            <input name="paragon_id_editable" className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={data.paragon_id ?? ''} data-initial={data.paragon_id ?? ''} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">호텔명(한글)</label>
@@ -143,6 +146,6 @@ async function saveAction(formData: FormData) {
     // eslint-disable-next-line no-console
     console.log('[debug] server after update row benefit_6 =', (updatedRow as any)?.benefit_6, ' error =', updateError?.message)
   } catch {}
-  redirect('/admin/hotel-update')
+  return { ok: true, updatedRow }
 }
 

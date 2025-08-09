@@ -58,15 +58,65 @@ export function ClientSaveButton({ formId }: { formId: string }) {
     if (pendingSubmit) {
       const form = document.getElementById(formId) as HTMLFormElement | null
       if (form) {
+        // collect changed fields NOW and highlight immediately (only on OK)
+        let changed: string[] = []
+        try {
+          const fields = Array.from(form.elements) as Array<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+          changed = fields
+            .filter((el) => {
+              if (!el || !('type' in el)) return false
+              const tag = el.tagName.toLowerCase()
+              if (tag === 'button') return false
+              if ((el as HTMLInputElement).type === 'submit') return false
+              if ((el as HTMLInputElement).type === 'hidden') return false
+              return true
+            })
+            .map((el) => el as HTMLInputElement)
+            .filter((el) => {
+              let isChanged = false
+              if (el.type === 'checkbox' || el.type === 'radio') {
+                isChanged = el.checked !== el.defaultChecked
+              } else {
+                const cur = el.value ?? ''
+                const initAttr = el.getAttribute('data-initial')
+                const init = initAttr != null ? initAttr : (el as any).defaultValue ?? ''
+                isChanged = String(cur) !== String(init)
+              }
+              return isChanged
+            })
+            .map((el) => el.name)
+        } catch {}
+        // Apply highlight immediately
+        try {
+          const formEl = form as HTMLFormElement
+          changed.forEach((name) => {
+            const input = formEl.querySelector(`[name="${CSS.escape(name)}"]`) as HTMLInputElement | null
+            if (input) {
+              input.classList.add('bg-yellow-50')
+              // update baseline so future diffs compare against saved value
+              input.setAttribute('data-initial', String(input.value ?? ''))
+            }
+          })
+          setTimeout(() => {
+            changed.forEach((name) => {
+              const input = formEl.querySelector(`[name="${CSS.escape(name)}"]`) as HTMLInputElement | null
+              input?.classList.remove('bg-yellow-50')
+            })
+          }, 1500)
+        } catch {}
         try {
           // @ts-ignore
-          form.requestSubmit ? form.requestSubmit() : form.submit()
+          const submit = form.requestSubmit ? () => form.requestSubmit() : () => form.submit()
+          // Allow the browser to paint highlight before submission
+          setTimeout(() => submit(), 50)
         } catch {
-          form.submit()
+          setTimeout(() => form.submit(), 50)
         }
       }
     }
   }
+
+  // removed sessionStorage-based highlighting; we highlight immediately on OK
 
   return (
     <>
