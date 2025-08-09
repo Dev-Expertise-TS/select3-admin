@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, FormEvent, useEffect } from 'react';
+import React, { useState, FormEvent, useEffect, useRef } from 'react';
 import { Search, Loader2, Building2, AlertCircle, CheckCircle, ChevronDown, ChevronUp, X, Play } from 'lucide-react';
 import { cn, getDateAfterDays, formatJson } from '@/lib/utils';
 import { HotelSearchResult, HotelSearchApiResponse, RatePlanCodesApiResponse, ExpandedRowState, HotelDetailsRequest } from '@/types/hotel';
@@ -13,6 +13,12 @@ export default function AdminHotelSearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [count, setCount] = useState<number>(0);
   const [hasSearched, setHasSearched] = useState(false);
+  // 입력 제안 상태
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [openSuggest, setOpenSuggest] = useState(false);
+  const [loadingSuggest, setLoadingSuggest] = useState(false);
+  const [suppressSuggest, setSuppressSuggest] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   
   // 확장 패널 관련 state
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
@@ -20,19 +26,18 @@ export default function AdminHotelSearchPage() {
   const [allRatePlanCodes, setAllRatePlanCodes] = useState<string[]>([]);
   const [ratePlanCodesLoading, setRatePlanCodesLoading] = useState(false);
 
-  // 검색 핸들러
-  const handleSearch = async (e: FormEvent) => {
-    e.preventDefault();
-    
-    if (!searchTerm.trim()) {
+  // 검색 핸들러 + 외부 호출 함수로 분리 (자동완성 Enter 선택 시 재사용)
+  const performSearch = async (term: string) => {
+    if (!term.trim()) {
       setError('호텔명을 입력해주세요.');
       return;
     }
-
     setLoading(true);
     setError(null);
     setResults([]);
     setHasSearched(true);
+    setOpenSuggest(false);
+    setSuppressSuggest(true);
 
     try {
       const response = await fetch('/api/hotel/search', {
@@ -40,9 +45,7 @@ export default function AdminHotelSearchPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          searching_string: searchTerm
-        }),
+        body: JSON.stringify({ searching_string: term }),
       });
 
       const data: HotelSearchApiResponse = await response.json();
@@ -54,13 +57,19 @@ export default function AdminHotelSearchPage() {
 
       setResults(data.data || []);
       setCount(data.count || 0);
-
     } catch (err) {
       console.error('Search error:', err);
       setError('네트워크 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = async (e: FormEvent) => {
+    e.preventDefault();
+    setOpenSuggest(false);
+    setSuggestions([]);
+    await performSearch(searchTerm);
   };
 
   // 검색 결과 초기화
@@ -72,6 +81,8 @@ export default function AdminHotelSearchPage() {
     setHasSearched(false);
     setExpandedRowId(null);
     setExpandedRowState(null);
+    setSuggestions([]);
+    setOpenSuggest(false);
   };
 
   // Rate Plan Codes 가져오기
@@ -96,6 +107,84 @@ export default function AdminHotelSearchPage() {
 
     fetchRatePlanCodes();
   }, []);
+
+  // 호텔명 입력 제안 - 호텔 업데이트(영문명)과 동일 UX
+  useEffect(() => {
+    if (!searchTerm) {
+      setSuggestions([]);
+      setOpenSuggest(false);
+      abortRef.current?.abort();
+      return;
+    }
+    if (suppressSuggest) {
+      // 검색 직후에는 자동완성 표시를 잠시 억제
+      setOpenSuggest(false);
+      setLoadingSuggest(false);
+      return;
+    }
+    setLoadingSuggest(true);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const t = setTimeout(async () => {
+      try {
+        const url = `/api/hotel/suggest?field=all&q=${encodeURIComponent(searchTerm)}&limit=8`;
+        const res = await fetch(url, { signal: controller.signal });
+        const json = await res.json();
+        if (json.success) {
+          setSuggestions(json.data || []);
+          setOpenSuggest(true);
+        } else {
+          setSuggestions([]);
+          setOpenSuggest(false);
+        }
+      } catch {
+        // ignore
+      } finally {
+        setLoadingSuggest(false);
+      }
+    }, 200);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  const [highlightIndex, setHighlightIndex] = useState<number>(-1);
+  const onSelectSuggestion = (value: string) => {
+    setSearchTerm(value);
+    setOpenSuggest(false);
+    setHighlightIndex(-1);
+  };
+
+  const onKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!openSuggest && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      setOpenSuggest(true);
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex((prev) => {
+        const next = prev + 1;
+        return next >= suggestions.length ? 0 : next;
+      });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex((prev) => {
+        if (prev === -1) return Math.max(0, suggestions.length - 1);
+        const next = prev - 1;
+        return next < 0 ? Math.max(0, suggestions.length - 1) : next;
+      });
+    } else if (e.key === 'Enter') {
+      if (openSuggest && suggestions.length > 0 && highlightIndex !== -1) {
+        e.preventDefault();
+        const chosen = suggestions[highlightIndex];
+        setSearchTerm(chosen);
+        setOpenSuggest(false);
+        setHighlightIndex(-1);
+        await performSearch(chosen);
+      }
+    } else if (e.key === 'Escape') {
+      setOpenSuggest(false);
+      setHighlightIndex(-1);
+    }
+  };
 
   // 행 클릭 핸들러 (확장 패널 토글)
   const handleRowClick = (hotel: HotelSearchResult) => {
@@ -312,22 +401,24 @@ export default function AdminHotelSearchPage() {
         {/* 검색 폼 */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
           <form onSubmit={handleSearch} className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <label 
-                  htmlFor="hotel-search" 
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  호텔명 검색
-                </label>
-                <div className="relative">
+            <div>
+              <label 
+                htmlFor="hotel-search" 
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                호텔명 검색
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                   <input
                     id="hotel-search"
                     type="text"
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="호텔명을 입력하세요 (한글/영문)"
+                    onChange={(e) => { setSearchTerm(e.target.value); setSuppressSuggest(false); }}
+                    placeholder="호텔명을 입력하세요 (한글/영문/Sabre ID)"
+                    autoComplete="off"
+                    onKeyDown={onKeyDown}
                     disabled={loading}
                     className={cn(
                       "w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg",
@@ -337,13 +428,30 @@ export default function AdminHotelSearchPage() {
                     )}
                     aria-describedby="hotel-search-description"
                   />
+                  {openSuggest && suggestions.length > 0 && (
+                    <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white shadow">
+                      <ul className="divide-y">
+                        {suggestions.map((s: string, idx: number) => (
+                          <li key={s}>
+                            <button
+                              type="button"
+                              className={cn(
+                                'block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-gray-50',
+                                idx === highlightIndex ? 'bg-gray-100' : ''
+                              )}
+                              onClick={() => onSelectSuggestion(s)}
+                            >
+                              {s}
+                            </button>
+                          </li>
+                        ))}
+                        {loadingSuggest && suggestions.length === 0 && (
+                          <li className="px-3 py-2 text-xs text-gray-500">불러오는 중...</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
                 </div>
-                <p id="hotel-search-description" className="text-xs text-gray-500 mt-1">
-                  한글명 또는 영문명으로 검색할 수 있습니다
-                </p>
-              </div>
-              
-              <div className="flex gap-2 sm:items-end">
                 <button
                   type="submit"
                   disabled={loading}
@@ -385,6 +493,9 @@ export default function AdminHotelSearchPage() {
                   초기화
                 </button>
               </div>
+              <p id="hotel-search-description" className="text-xs text-gray-500 mt-1">
+                한글명, 영문명, Sabre ID 로 검색할 수 있습니다
+              </p>
             </div>
           </form>
         </div>

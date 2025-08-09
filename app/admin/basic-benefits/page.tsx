@@ -22,9 +22,17 @@ export default async function BasicBenefitsPage() {
   const pkField = pkCandidates.find((k) => originalColumns.includes(k)) || originalColumns[0]
   const excludeSet = new Set<string>(['created_at', 'benefit_id', pkField])
   const columns = originalColumns.filter((c) => !excludeSet.has(c))
-  // 정렬: benefit > name > pk 순서 (존재하는 컬럼 우선)
-  const sortKey = columns.includes('benefit') ? 'benefit' : (columns.includes('name') ? 'name' : pkField)
-  rows.sort((a, b) => String(a?.[sortKey] ?? '').localeCompare(String(b?.[sortKey] ?? '')))
+  // 정렬: 생성 최신일자(created_at) 내림차순 우선. 없으면 기존 정렬 규칙 사용
+  if (originalColumns.includes('created_at')) {
+    rows.sort((a, b) => {
+      const ad = a?.created_at ? new Date(a.created_at).getTime() : 0
+      const bd = b?.created_at ? new Date(b.created_at).getTime() : 0
+      return bd - ad
+    })
+  } else {
+    const sortKey = columns.includes('benefit') ? 'benefit' : (columns.includes('name') ? 'name' : pkField)
+    rows.sort((a, b) => String(a?.[sortKey] ?? '').localeCompare(String(b?.[sortKey] ?? '')))
+  }
 
   return (
     <div className="space-y-6">

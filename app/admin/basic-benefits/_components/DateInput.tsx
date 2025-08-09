@@ -10,9 +10,12 @@ interface Props extends React.InputHTMLAttributes<HTMLInputElement> {
 export default function DateInput({ name, defaultValue, className, ...rest }: Props) {
   const id = useId()
   const ref = useRef<HTMLInputElement>(null)
+  const [hasValue, setHasValue] = React.useState(() => {
+    if (!defaultValue) return false
+    return typeof defaultValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(defaultValue)
+  })
   const openPicker = () => {
     try {
-      // @ts-expect-error showPicker is not in TS lib yet for all targets
       ref.current?.showPicker?.()
     } catch {}
     ref.current?.focus()
@@ -20,6 +23,9 @@ export default function DateInput({ name, defaultValue, className, ...rest }: Pr
 
   return (
     <div className="relative w-full">
+      {!hasValue && (
+        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-400">날짜 선택</span>
+      )}
       <input
         ref={ref}
         id={id}
@@ -27,7 +33,13 @@ export default function DateInput({ name, defaultValue, className, ...rest }: Pr
         name={name}
         defaultValue={defaultValue && /^\d{4}-\d{2}-\d{2}$/.test(defaultValue) ? defaultValue : ''}
         placeholder=""
-        className={['w-full rounded border px-2 py-1 text-sm pr-8', className].filter(Boolean).join(' ')}
+        onClick={openPicker}
+        onChange={(e) => setHasValue(e.currentTarget.value !== '')}
+        className={[
+          'date-input--custom w-full rounded border px-2 py-1 text-sm pr-8 appearance-none',
+          !hasValue ? 'text-transparent caret-transparent selection:bg-transparent' : '',
+          className,
+        ].filter(Boolean).join(' ')}
         {...rest}
       />
       <button
@@ -38,6 +50,11 @@ export default function DateInput({ name, defaultValue, className, ...rest }: Pr
       >
         📅
       </button>
+      <style jsx global>{`
+        input.date-input--custom::-webkit-calendar-picker-indicator { display: none; }
+        input.date-input--custom::-webkit-clear-button { display: none; }
+        input.date-input--custom::-webkit-inner-spin-button { display: none; }
+      `}</style>
     </div>
   )
 }

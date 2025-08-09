@@ -24,9 +24,7 @@ export default async function AdminHotelUpdatePage({
   const params = (await searchParams) ?? {}
   const page = Math.max(1, Number(params.page ?? 1))
   const pageSize = Math.max(1, Math.min(100, Number(params.pageSize ?? DEFAULT_PAGE_SIZE)))
-  const sabreId = (params.sabreId as string | undefined)?.trim()
-  const nameKor = (params.nameKor as string | undefined)?.trim()
-  const nameEng = (params.nameEng as string | undefined)?.trim()
+  const q = (params.q as string | undefined)?.trim()
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
@@ -34,14 +32,12 @@ export default async function AdminHotelUpdatePage({
     .from('select_hotels')
     .select('sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes', { count: 'exact' })
 
-  if (sabreId) {
-    query = query.eq('sabre_id', sabreId)
-  }
-  if (nameKor) {
-    query = query.ilike('property_name_kor', `%${nameKor}%`)
-  }
-  if (nameEng) {
-    query = query.ilike('property_name_eng', `%${nameEng}%`)
+  if (q) {
+    if (/^\d+$/.test(q)) {
+      query = query.or(`property_name_kor.ilike.%${q}%,property_name_eng.ilike.%${q}%,sabre_id.eq.${q}`)
+    } else {
+      query = query.or(`property_name_kor.ilike.%${q}%,property_name_eng.ilike.%${q}%`)
+    }
   }
 
   const { data, error, count } = await query
@@ -81,7 +77,7 @@ export default async function AdminHotelUpdatePage({
       </div>
 
       {/* 검색 폼 */}
-      <SearchForm initial={{ sabreId: sabreId ?? '', nameKor: nameKor ?? '', nameEng: nameEng ?? '' }} />
+      <SearchForm initialQ={q ?? ''} />
 
       <div className="rounded-lg border bg-white">
         <div className="px-6 py-4 border-b flex items-center justify-between">

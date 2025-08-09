@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useFormStatus } from 'react-dom'
 import DateInput from './DateInput'
+import { CreateSubmitButton, DeleteConfirmButton, SaveSubmitButton } from '@/components/shared/form-actions'
 
 type Row = Record<string, any>
 
@@ -71,26 +72,24 @@ export function BasicBenefitsTable({ rows, columns, pkField, createAction, updat
                       ))}
                     </div>
                   )}
-                  {/* 2행: 날짜 필드 */}
-                  {dateFields.length > 0 && (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-                      {dateFields.map((c) => (
-                        <div key={`new-${c}`} className="flex items-center gap-2">
-                          <label className="w-28 shrink-0 text-xs text-gray-600">{c}</label>
-                          <DateInput name={c} />
-                        </div>
-                      ))}
+                  {/* 2행: 날짜 필드 + 버튼을 같은 행의 그리드 셀에 배치 */}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+                    {dateFields.map((c) => (
+                      <div key={`new-${c}`} className="flex items-center gap-2">
+                        <label className="w-28 shrink-0 text-xs text-gray-600">{c}</label>
+                        <DateInput name={c} />
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-end gap-2">
+                      <CreateSubmitButton formId="new-row-form" />
+                      <button
+                        type="button"
+                        onClick={() => setAdding(false)}
+                        className="rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+                      >
+                        취소
+                      </button>
                     </div>
-                  )}
-                  <div className="flex justify-end gap-2 pt-2">
-                    <CreateButton formId="new-row-form" />
-                    <button
-                      type="button"
-                      onClick={() => setAdding(false)}
-                      className="rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
-                    >
-                      취소
-                    </button>
                   </div>
                 </form>
               </td>
@@ -119,26 +118,26 @@ export function BasicBenefitsTable({ rows, columns, pkField, createAction, updat
                         ))}
                       </div>
                     )}
-                    {/* 2행: 날짜 필드 */}
-                    {dateFields.length > 0 && (
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-                        {dateFields.map((c) => (
-                          <div key={`${String(r[pkField])}-${c}`} className="flex items-center gap-2">
-                            <label className="w-28 shrink-0 text-xs text-gray-600">{c}</label>
-                            <DateInput name={c} defaultValue={toDateInputValue(r[c])} />
-                          </div>
-                        ))}
+                    {/* 2행: 날짜 필드 + 같은 행의 마지막 셀에 버튼 배치 */}
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+                      {dateFields.map((c) => (
+                        <div key={`${String(r[pkField])}-${c}`} className="flex items-center gap-2">
+                          <label className="w-28 shrink-0 text-xs text-gray-600">{c}</label>
+                          <DateInput name={c} defaultValue={toDateInputValue(r[c])} />
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-end gap-2">
+                        {/* 요청에 따라 순서 교체: 좌측 저장, 우측 삭제 */}
+                        <SaveSubmitButton formId={formId} />
+                        <DeleteConfirmButton formId={`delete-form-${String(r[pkField])}`} />
                       </div>
-                    )}
+                    </div>
                   </form>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <SaveButton formId={formId} />
-                    <form action={deleteAction}>
-                      <input type="hidden" name="pkField" value={pkField} />
-                      <input type="hidden" name="pkValue" value={String(r[pkField])} />
-                      <button className="rounded bg-red-50 px-3 py-1.5 text-sm text-red-700">삭제</button>
-                    </form>
-                  </div>
+                  {/* 삭제용 별도 폼 (버튼은 위 그리드 셀에서 form 속성으로 제출) */}
+                  <form id={`delete-form-${String(r[pkField])}`} action={deleteAction} className="hidden">
+                    <input type="hidden" name="pkField" value={pkField} />
+                    <input type="hidden" name="pkValue" value={String(r[pkField])} />
+                  </form>
                 </td>
               </tr>
             )
@@ -157,21 +156,5 @@ export function BasicBenefitsTable({ rows, columns, pkField, createAction, updat
   )
 }
 
-function SaveButton({ formId }: { formId?: string }) {
-  const { pending } = useFormStatus()
-  return (
-    <button form={formId} className={cn('rounded px-3 py-1.5 text-sm text-white', pending ? 'bg-gray-400' : 'bg-gray-900 hover:bg-black')} disabled={pending}>
-      {pending ? '저장 중...' : '저장'}
-    </button>
-  )
-}
-
-function CreateButton({ formId }: { formId?: string }) {
-  const { pending } = useFormStatus()
-  return (
-    <button form={formId} className={cn('rounded bg-blue-600 px-3 py-1.5 text-sm text-white', pending ? 'opacity-70' : 'hover:bg-blue-700')} disabled={pending}>
-      {pending ? '추가 중...' : '저장'}
-    </button>
-  )
-}
+// 개별 버튼 컴포넌트는 공통 컴포넌트로 대체되었습니다.
 

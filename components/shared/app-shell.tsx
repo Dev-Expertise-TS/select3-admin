@@ -13,9 +13,9 @@ export function AppShell({ children, hideSidebarPaths = [] }: AppShellProps) {
   // Sidebar 숨김 경로 (예: 공개 랜딩 등)이 필요하면 사용
   // 현재는 항상 표시
   return (
-    <div className={cn('min-h-screen grid grid-cols-[16rem_1fr] bg-background text-foreground')}>
+    <div className={cn('min-h-screen bg-background text-foreground')}>
       <Sidebar />
-      <div className="min-h-screen overflow-x-hidden">
+      <div className="min-h-screen overflow-x-hidden pl-64">
         <header className="sticky top-0 z-10 border-b bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50">
           <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between">

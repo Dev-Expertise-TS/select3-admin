@@ -54,7 +54,7 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="h-full w-64 shrink-0 border-r bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50">
+    <aside className="fixed inset-y-0 left-0 w-64 shrink-0 border-r bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50">
       <div className="px-4 py-4 border-b">
         <Link href="/" className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground grid place-items-center font-bold">
@@ -67,7 +67,7 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <nav className="px-3 py-4 space-y-6">
+      <nav className="px-3 py-4 space-y-6 overflow-y-auto h-[calc(100vh-56px)]">
         {navSections.map((section) => (
           <div key={section.title}>
             <div className="px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-2">

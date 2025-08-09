@@ -123,11 +123,11 @@ async function updateBenefit(formData: FormData) {
   const name = ((formData.get('name') as string) ?? '').trim()
   const description = ((formData.get('description') as string) ?? '').trim()
   const supabase = createServiceRoleClient()
-  const payload: Record<string, any> = {}
-  if (name) payload.name = name
-  if (formData.get('description') !== null) payload.description = description
-  if (Object.keys(payload).length > 0) {
-    await supabase.from('benefits').update(payload).eq(pkField, pkValue)
+  const updates: Record<string, any> = {}
+  if (name) updates.name = name
+  if (formData.get('description') !== null) updates.description = description
+  if (Object.keys(updates).length > 0) {
+    await supabase.from('benefits').update(updates).eq(pkField, pkValue)
   }
 }
 
