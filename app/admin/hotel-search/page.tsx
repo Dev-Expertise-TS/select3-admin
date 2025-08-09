@@ -869,7 +869,22 @@ export default function AdminHotelSearchPage() {
                                         id="startDate"
                                         type="date"
                                         value={expandedRowState.startDate}
-                                        onChange={(e) => updateExpandedRowState({ startDate: e.target.value })}
+                                        onChange={(e) => {
+                                          const v = e.target.value
+                                          if (!v) {
+                                            updateExpandedRowState({ startDate: v })
+                                            return
+                                          }
+                                          const parts = v.split('-').map((n) => Number(n))
+                                          if (parts.length === 3 && parts.every((n) => Number.isFinite(n))) {
+                                            const dt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]))
+                                            dt.setUTCDate(dt.getUTCDate() + 1)
+                                            const next = dt.toISOString().slice(0, 10)
+                                            updateExpandedRowState({ startDate: v, endDate: next })
+                                          } else {
+                                            updateExpandedRowState({ startDate: v })
+                                          }
+                                        }}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                       />
                                     </div>
@@ -1072,7 +1087,14 @@ export default function AdminHotelSearchPage() {
                                       {/* 지정 경로 테이블 (AmountAfterTax 오름차순, 마크다운 스타일) */}
                                       {(() => {
                                         const rows = extractRatePlanTableRows(expandedRowState.testResult)
-                                        if (rows.length === 0) return null
+                                        if (rows.length === 0) {
+                                          return (
+                                            <div className="mt-6 rounded-lg border bg-white">
+                                              <div className="px-4 py-2 border-b text-sm font-medium">RatePlan Table (sorted by AmountAfterTax)</div>
+                                              <div className="p-4 text-sm text-gray-600">선택한 일자와 조건에 요금이 없습니다.</div>
+                                            </div>
+                                          )
+                                        }
                                         const sorted = [...rows].sort((a, b) => {
                                           const ax = a.amountAfterTax === '' ? Number.POSITIVE_INFINITY : (a.amountAfterTax as number)
                                           const bx = b.amountAfterTax === '' ? Number.POSITIVE_INFINITY : (b.amountAfterTax as number)
