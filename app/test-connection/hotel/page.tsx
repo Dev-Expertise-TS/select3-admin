@@ -8,7 +8,7 @@ export default async function HotelTestPage() {
   try {
     // hotel 테이블에서 첫 번째 레코드 하나만 가져오기
     const { data: hotels, error } = await supabase
-      .from('hotel')
+      .from('select_hotels')
       .select('*')
       .limit(1)
 

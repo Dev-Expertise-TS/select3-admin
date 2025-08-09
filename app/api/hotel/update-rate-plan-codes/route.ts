@@ -39,7 +39,7 @@ export async function PATCH(request: NextRequest) {
 
     // 호텔 레코드 찾기 및 업데이트 (sabre_id 또는 paragon_id로 검색)
     let query = supabase
-      .from('hotel')
+      .from('select_hotels')
       .update({ rate_plan_codes: body.rate_plan_codes });
 
     // sabre_id가 우선, 없으면 paragon_id 사용

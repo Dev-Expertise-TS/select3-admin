@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     // property_name_kor, property_name_eng에서 ILIKE 검색 수행
     // paragon_id, sabre_id는 숫자 정확 매치로 검색 (숫자로 변환 가능한 경우만)
     let query = supabase
-      .from('hotel')
+      .from('select_hotels')
       .select('sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes', { count: 'exact' });
 
     // 검색어가 숫자인지 확인

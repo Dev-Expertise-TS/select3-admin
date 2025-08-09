@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceRoleClient()
 
     const { data, error } = await supabase
-      .from('hotel')
+      .from('select_hotels')
       .select(`${column}`)
       .ilike(column, `%${q}%`)
       .not(column, 'is', null)
