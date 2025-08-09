@@ -3,6 +3,7 @@
 import React, { useState, FormEvent, useEffect, useRef } from 'react';
 import { Search, Loader2, Building2, AlertCircle, CheckCircle, ChevronDown, ChevronUp, X, Play } from 'lucide-react';
 import { cn, getDateAfterDays, formatJson } from '@/lib/utils';
+import { SecondaryButton } from '@/components/shared/form-actions'
 import { HotelSearchResult, HotelSearchApiResponse, RatePlanCodesApiResponse, ExpandedRowState, HotelDetailsRequest } from '@/types/hotel';
 
 export default function AdminHotelSearchPage() {
@@ -386,6 +387,171 @@ export default function AdminHotelSearchPage() {
     }
   };
 
+  // JSON 결과에서 RateKey와 관련 필드 추출 유틸
+  function extractRateRows(data: any): Array<{
+    rateKey: string
+    rateKeyShort: string
+    ratePlanName: string
+    amountAfterTax?: string | number
+    averageNightlyRate?: string | number
+    description?: string
+  }> {
+    const deepFindKey = (node: any, key: string): any => {
+      if (!node) return undefined
+      if (typeof node !== 'object') return undefined
+      if (Object.prototype.hasOwnProperty.call(node, key)) return (node as any)[key]
+      if (Array.isArray(node)) {
+        for (const item of node) {
+          const found = deepFindKey(item, key)
+          if (found !== undefined) return found
+        }
+        return undefined
+      }
+      for (const k of Object.keys(node)) {
+        const child = (node as any)[k]
+        const found = deepFindKey(child, key)
+        if (found !== undefined) return found
+      }
+      return undefined
+    }
+
+    const rows: Array<{
+      rateKey: string
+      rateKeyShort: string
+      ratePlanName: string
+      amountAfterTax?: string | number
+      averageNightlyRate?: string | number
+      description?: string
+    }> = []
+
+    const visit = (node: any) => {
+      if (!node) return
+      if (Array.isArray(node)) {
+        for (const item of node) visit(item)
+        return
+      }
+      if (typeof node === 'object') {
+        const keyVal = typeof (node as any).RateKey === 'string' ? (node as any).RateKey : undefined
+        if (keyVal) {
+          const ratePlanNameVal = ((): string => {
+            const v = (node as any).RatePlanName
+            if (typeof v === 'string') return v
+            const found = deepFindKey(node, 'RatePlanName')
+            return typeof found === 'string' ? found : ''
+          })()
+          const amountAfterTaxVal = deepFindKey(node, 'AmountAfterTax')
+          const averageNightlyRateVal = deepFindKey(node, 'AverageNightlyRate')
+          const descriptionVal = ((): string | undefined => {
+            const found = deepFindKey(node, 'Description')
+            return typeof found === 'string' ? found : undefined
+          })()
+          const short = keyVal.length > 10 ? `${keyVal.slice(0, 10)}...` : keyVal
+          rows.push({
+            rateKey: keyVal,
+            rateKeyShort: short,
+            ratePlanName: ratePlanNameVal,
+            amountAfterTax: amountAfterTaxVal,
+            averageNightlyRate: averageNightlyRateVal,
+            description: descriptionVal,
+          })
+        }
+        for (const k of Object.keys(node)) visit((node as any)[k])
+      }
+    }
+    visit(data)
+
+    // 중복 제거 (rateKey + ratePlanName 기준)
+    const seen = new Set<string>()
+    const deduped: typeof rows = []
+    for (const r of rows) {
+      const sig = `${r.rateKey}__${r.ratePlanName}`
+      if (seen.has(sig)) continue
+      seen.add(sig)
+      deduped.push(r)
+    }
+    return deduped
+  }
+
+  // 지정 경로 순회해서 RatePlan 행 추출 (AmountAfterTax 정렬은 호출부에서)
+  function extractRatePlanTableRows(data: any): Array<{
+    rateKey: string
+    roomType: string
+    roomName: string
+    description: string
+    currency: string
+    amountAfterTax: number | ''
+    amountBeforeTax: number | ''
+    taxes: number | ''
+    fees: number | ''
+    refundable: string
+    cancelOffset: string
+  }> {
+    const rows: Array<{
+      rateKey: string
+      roomType: string
+      roomName: string
+      description: string
+      currency: string
+      amountAfterTax: number | ''
+      amountBeforeTax: number | ''
+      taxes: number | ''
+      fees: number | ''
+      refundable: string
+      cancelOffset: string
+    }> = []
+
+    const root = data?.GetHotelDetailsRS?.HotelDetailsInfo?.HotelRateInfo?.Rooms?.Room
+    if (!root) return rows
+    const roomArray: any[] = Array.isArray(root) ? root : [root]
+
+    const toNumber = (v: any): number | '' => {
+      if (v === null || v === undefined || v === '') return ''
+      const n = Number(v)
+      return Number.isFinite(n) ? n : ''
+    }
+
+    for (const room of roomArray) {
+      const roomType: string = typeof room?.RoomType === 'string' ? room.RoomType : (typeof room?.RoomDescription?.Name === 'string' ? room.RoomDescription.Name : '')
+      const roomName: string = typeof room?.RoomDescription?.Name === 'string' ? room.RoomDescription.Name : ''
+      const descSrc = room?.RoomDescription?.Text
+      const description: string = Array.isArray(descSrc) ? (typeof descSrc[0] === 'string' ? descSrc[0] : '') : (typeof descSrc === 'string' ? descSrc : '')
+
+      const plansNode = room?.RatePlans?.RatePlan
+      if (!plansNode) continue
+      const plans: any[] = Array.isArray(plansNode) ? plansNode : [plansNode]
+
+      for (const plan of plans) {
+        const currency: string = plan?.ConvertedRateInfo?.CurrencyCode ?? ''
+        const amountAfterTax = toNumber(plan?.ConvertedRateInfo?.AmountAfterTax)
+        const amountBeforeTax = toNumber(plan?.ConvertedRateInfo?.AmountBeforeTax)
+        const taxes = toNumber(plan?.ConvertedRateInfo?.Taxes?.Amount)
+        const fees = toNumber(plan?.ConvertedRateInfo?.Fees?.Amount)
+        const refundableVal = plan?.ConvertedRateInfo?.CancelPenalties?.CancelPenalty?.[0]?.Refundable
+        const refundable = typeof refundableVal === 'boolean' ? String(refundableVal) : (typeof refundableVal === 'string' ? refundableVal : '')
+        const cp0 = plan?.ConvertedRateInfo?.CancelPenalties?.CancelPenalty?.[0] ?? {}
+        const cancelOffset = [cp0?.OffsetUnitMultiplier, cp0?.OffsetTimeUnit, cp0?.OffsetDropTime]
+          .filter((x: any) => x !== undefined && x !== null && x !== '')
+          .join(' ')
+        const rateKey: string = typeof plan?.RateKey === 'string' ? plan.RateKey : ''
+
+        rows.push({
+          rateKey,
+          roomType,
+          roomName,
+          description,
+          currency,
+          amountAfterTax,
+          amountBeforeTax,
+          taxes,
+          fees,
+          refundable,
+          cancelOffset,
+        })
+      }
+    }
+    return rows
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -550,8 +716,8 @@ export default function AdminHotelSearchPage() {
             </div>
 
             {/* 반응형 테이블 */}
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200" role="table">
+            <div className="overflow-x-hidden">
+              <table className="w-full table-fixed divide-y divide-gray-200" role="table">
                 <thead className="bg-gray-50">
                   <tr>
                     <th 
@@ -672,9 +838,9 @@ export default function AdminHotelSearchPage() {
                         {/* 확장 패널 */}
                         {isExpanded && expandedRowState && (
                           <tr>
-                            <td colSpan={5} className="px-0 py-0">
-                              <div className="bg-gray-50 border-t border-gray-200">
-                                <div className="px-6 py-6">
+                            <td colSpan={5} className="px-0 py-0 w-full max-w-full overflow-x-hidden">
+                              <div className="bg-gray-50 border-t border-gray-200 w-full max-w-full">
+                                <div className="px-6 py-6 w-full max-w-full">
                                   {/* 패널 헤더 */}
                                   <div className="flex items-center justify-between mb-6">
                                     <h3 className="text-lg font-medium text-gray-900">
@@ -693,222 +859,277 @@ export default function AdminHotelSearchPage() {
                                     </button>
                                   </div>
 
-                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* 좌측: 설정 패널 */}
-                                    <div className="space-y-6">
-                                      {/* Currency Code */}
-                                      <div>
-                                        <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
-                                          Currency Code
-                                        </label>
-                                        <input
-                                          id="currency"
-                                          type="text"
-                                          value={expandedRowState.currencyCode}
-                                          onChange={(e) => updateExpandedRowState({ currencyCode: e.target.value })}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                          placeholder="KRW"
-                                        />
-                                      </div>
-
-                                      {/* Adults */}
-                                      <div>
-                                        <label htmlFor="adults" className="block text-sm font-medium text-gray-700 mb-2">
-                                          Adults
-                                        </label>
-                                        <input
-                                          id="adults"
-                                          type="number"
-                                          min="1"
-                                          step="1"
-                                          value={expandedRowState.adults}
-                                          onChange={(e) => updateExpandedRowState({ adults: parseInt(e.target.value) || 1 })}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                      </div>
-
-                                      {/* Start Date */}
-                                      <div>
-                                        <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-2">
-                                          Start Date
-                                        </label>
-                                        <input
-                                          id="startDate"
-                                          type="date"
-                                          value={expandedRowState.startDate}
-                                          onChange={(e) => updateExpandedRowState({ startDate: e.target.value })}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                      </div>
-
-                                      {/* End Date */}
-                                      <div>
-                                        <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-2">
-                                          End Date
-                                        </label>
-                                        <input
-                                          id="endDate"
-                                          type="date"
-                                          value={expandedRowState.endDate}
-                                          onChange={(e) => updateExpandedRowState({ endDate: e.target.value })}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                      </div>
-
-                                      {/* Rate Plan Codes */}
-                                      <div>
-                                        <div className="flex items-center justify-between mb-3">
-                                          <label className="block text-sm font-medium text-gray-700">
-                                            Rate Plan Codes
-                                          </label>
-                                          <div className="flex items-center gap-3 text-xs text-gray-500">
-                                            <div className="flex items-center gap-1">
-                                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                                                DB
-                                              </span>
-                                              <span>현재 설정값</span>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                              <span className="w-3 h-3 bg-gray-300 rounded"></span>
-                                              <span>기타</span>
-                                            </div>
-                                          </div>
-                                        </div>
-                                        {ratePlanCodesLoading ? (
-                                          <div className="flex items-center text-sm text-gray-500">
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                            Loading rate plan codes...
-                                          </div>
-                                        ) : allRatePlanCodes.length > 0 ? (
-                                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded p-3">
-                                            {allRatePlanCodes.map((code) => {
-                                              const isInOriginalDb = expandedRowState.originalRatePlanCodes.includes(code);
-                                              const isCurrentlySelected = expandedRowState.selectedRatePlanCodes.includes(code);
-                                              
-                                              return (
-                                                <label key={code} className="flex items-center space-x-2">
-                                                  <input
-                                                    type="checkbox"
-                                                    checked={isCurrentlySelected}
-                                                    onChange={() => toggleRatePlanCode(code)}
-                                                    className="rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-                                                  />
-                                                  <span className={cn(
-                                                    "text-sm flex items-center gap-1",
-                                                    isInOriginalDb ? "text-gray-900 font-medium" : "text-gray-500"
-                                                  )}>
-                                                    {code}
-                                                    {isInOriginalDb && (
-                                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                                                        DB
-                                                      </span>
-                                                    )}
-                                                  </span>
-                                                </label>
-                                              );
-                                            })}
-                                          </div>
-                                        ) : (
-                                          <div className="text-sm text-gray-500 italic">
-                                            Rate plan codes를 불러올 수 없습니다.
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      {/* 액션 버튼들 */}
-                                      <div className="pt-4 border-t border-gray-200 space-y-3">
-                                        <button
-                                          onClick={handleTestApi}
-                                          disabled={expandedRowState.isLoading}
-                                          className={cn(
-                                            "w-full inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium",
-                                            "bg-green-600 text-white hover:bg-green-700",
-                                            "focus:outline-none focus:ring-2 focus:ring-green-500",
-                                            "disabled:opacity-50 disabled:cursor-not-allowed",
-                                            "transition-colors duration-200"
-                                          )}
-                                        >
-                                          {expandedRowState.isLoading ? (
-                                            <>
-                                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                              Testing...
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Play className="h-4 w-4 mr-2" />
-                                              Test API
-                                            </>
-                                          )}
-                                        </button>
-                                        
-                                        <button
-                                          onClick={handleSaveRatePlanCodes}
-                                          disabled={expandedRowState.isLoading || expandedRowState.isSaving}
-                                          className={cn(
-                                            "w-full inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium",
-                                            expandedRowState.saveSuccess 
-                                              ? "bg-green-600 text-white" 
-                                              : "bg-blue-600 text-white hover:bg-blue-700",
-                                            "focus:outline-none focus:ring-2 focus:ring-blue-500",
-                                            "disabled:opacity-50 disabled:cursor-not-allowed",
-                                            "transition-colors duration-200"
-                                          )}
-                                        >
-                                          {expandedRowState.isSaving ? (
-                                            <>
-                                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                              Saving...
-                                            </>
-                                          ) : expandedRowState.saveSuccess ? (
-                                            <>
-                                              <CheckCircle className="h-4 w-4 mr-2" />
-                                              Saved Successfully!
-                                            </>
-                                          ) : (
-                                            <>
-                                              <CheckCircle className="h-4 w-4 mr-2" />
-                                              Save Rate Plan Codes
-                                            </>
-                                          )}
-                                        </button>
-                                      </div>
+                                  {/* 1행: Start Date, End Date, Adults, Currency Code */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div>
+                                      <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Start Date
+                                      </label>
+                                      <input
+                                        id="startDate"
+                                        type="date"
+                                        value={expandedRowState.startDate}
+                                        onChange={(e) => updateExpandedRowState({ startDate: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
-
-                                    {/* 우측: 결과 표시 */}
-                                    <div className="space-y-4">
-                                      <h4 className="text-sm font-medium text-gray-700">API 테스트 결과</h4>
-                                      
-                                      {/* 에러 표시 */}
-                                      {expandedRowState.error && (
-                                        <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                                          <div className="flex items-start">
-                                            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-                                            <div className="ml-2">
-                                              <h3 className="text-sm font-medium text-red-800">오류</h3>
-                                              <p className="text-sm text-red-700 mt-1">{expandedRowState.error}</p>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* 결과 표시 */}
-                                      {expandedRowState.testResult && (
-                                        <div className="h-96 overflow-auto">
-                                          <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded-md overflow-x-auto">
-                                            {formatJson(expandedRowState.testResult)}
-                                          </pre>
-                                        </div>
-                                      )}
-
-                                      {/* 초기 상태 */}
-                                      {!expandedRowState.testResult && !expandedRowState.error && !expandedRowState.isLoading && (
-                                        <div className="text-center py-8 text-gray-500">
-                                          <Play className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                                          <p className="text-sm">Test 버튼을 클릭하여 API를 테스트하세요</p>
-                                        </div>
-                                      )}
+                                    <div>
+                                      <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-2">
+                                        End Date
+                                      </label>
+                                      <input
+                                        id="endDate"
+                                        type="date"
+                                        value={expandedRowState.endDate}
+                                        onChange={(e) => updateExpandedRowState({ endDate: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label htmlFor="adults" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Adults
+                                      </label>
+                                      <input
+                                        id="adults"
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        value={expandedRowState.adults}
+                                        onChange={(e) => updateExpandedRowState({ adults: parseInt(e.target.value) || 1 })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
+                                        Currency Code
+                                      </label>
+                                      <input
+                                        id="currency"
+                                        type="text"
+                                        value={expandedRowState.currencyCode}
+                                        onChange={(e) => updateExpandedRowState({ currencyCode: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="KRW"
+                                      />
                                     </div>
                                   </div>
+
+                                  {/* 2행: Rate Plan Codes */}
+                                  <div className="mt-6">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <label className="block text-sm font-medium text-gray-700">
+                                        Rate Plan Codes
+                                      </label>
+                                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                                        <div className="flex items-center gap-1">
+                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                            DB
+                                          </span>
+                                          <span>현재 설정값</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <span className="w-3 h-3 bg-gray-300 rounded"></span>
+                                          <span>기타</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {ratePlanCodesLoading ? (
+                                      <div className="flex items-center text-sm text-gray-500">
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Loading rate plan codes...
+                                      </div>
+                                    ) : allRatePlanCodes.length > 0 ? (
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded p-3">
+                                        {allRatePlanCodes.map((code) => {
+                                          const isInOriginalDb = expandedRowState.originalRatePlanCodes.includes(code);
+                                          const isCurrentlySelected = expandedRowState.selectedRatePlanCodes.includes(code);
+                                          
+                                          return (
+                                            <label key={code} className="flex items-center space-x-2">
+                                              <input
+                                                type="checkbox"
+                                                checked={isCurrentlySelected}
+                                                onChange={() => toggleRatePlanCode(code)}
+                                                className="rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+                                              />
+                                              <span className={cn(
+                                                "text-sm flex items-center gap-1",
+                                                isInOriginalDb ? "text-gray-900 font-medium" : "text-gray-500"
+                                              )}>
+                                                {code}
+                                                {isInOriginalDb && (
+                                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                                    DB
+                                                  </span>
+                                                )}
+                                              </span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <div className="text-sm text-gray-500 italic">
+                                        Rate plan codes를 불러올 수 없습니다.
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* 버튼 영역 */}
+                                  <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:items-center">
+                                    <button
+                                      onClick={handleTestApi}
+                                      disabled={expandedRowState.isLoading}
+                                      className={cn(
+                                        "inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium",
+                                        "bg-green-600 text-white hover:bg-green-700",
+                                        "focus:outline-none focus:ring-2 focus:ring-green-500",
+                                        "disabled:opacity-50 disabled:cursor-not-allowed",
+                                        "transition-colors duration-200"
+                                      )}
+                                    >
+                                      {expandedRowState.isLoading ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          Testing...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Play className="h-4 w-4 mr-2" />
+                                          Test API
+                                        </>
+                                      )}
+                                    </button>
+                                    
+                                    <button
+                                      onClick={handleSaveRatePlanCodes}
+                                      disabled={expandedRowState.isLoading || expandedRowState.isSaving}
+                                      className={cn(
+                                        "inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium",
+                                        expandedRowState.saveSuccess 
+                                          ? "bg-green-600 text-white" 
+                                          : "bg-blue-600 text-white hover:bg-blue-700",
+                                        "focus:outline-none focus:ring-2 focus:ring-blue-500",
+                                        "disabled:opacity-50 disabled:cursor-not-allowed",
+                                        "transition-colors duration-200"
+                                      )}
+                                    >
+                                      {expandedRowState.isSaving ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          Saving...
+                                        </>
+                                      ) : expandedRowState.saveSuccess ? (
+                                        <>
+                                          <CheckCircle className="h-4 w-4 mr-2" />
+                                          Saved Successfully!
+                                        </>
+                                      ) : (
+                                        <>
+                                          <CheckCircle className="h-4 w-4 mr-2" />
+                                          Save Rate Plan Codes
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+
+                                  {/* 에러 표시 */}
+                                  {expandedRowState.error && (
+                                    <div className="mt-6 p-3 bg-red-50 border border-red-200 rounded-md">
+                                      <div className="flex items-start">
+                                        <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                                        <div className="ml-2">
+                                          <h3 className="text-sm font-medium text-red-800">오류</h3>
+                                          <p className="text-sm text-red-700 mt-1">{expandedRowState.error}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* JSON 결과 화면 (맨 아래 고정 영역) */}
+                                  {expandedRowState.testResult && (
+                                    <>
+                                      <div className="mt-6 h-96 overflow-auto max-w-full">
+                                        <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded-md overflow-x-auto max-w-full">
+                                          {formatJson(expandedRowState.testResult)}
+                                        </pre>
+                                      </div>
+                                      <div className="mt-2 flex justify-end">
+                                        <SecondaryButton
+                                          ariaLabel="JSON 복사"
+                                          onClick={() => {
+                                            try {
+                                              const text = formatJson(expandedRowState.testResult)
+                                              navigator.clipboard?.writeText(text)
+                                            } catch {}
+                                          }}
+                                        >
+                                          JSON 복사
+                                        </SecondaryButton>
+                                      </div>
+
+                                      
+
+                                      {/* 지정 경로 테이블 (AmountAfterTax 오름차순, 마크다운 스타일) */}
+                                      {(() => {
+                                        const rows = extractRatePlanTableRows(expandedRowState.testResult)
+                                        if (rows.length === 0) return null
+                                        const sorted = [...rows].sort((a, b) => {
+                                          const ax = a.amountAfterTax === '' ? Number.POSITIVE_INFINITY : (a.amountAfterTax as number)
+                                          const bx = b.amountAfterTax === '' ? Number.POSITIVE_INFINITY : (b.amountAfterTax as number)
+                                          return ax - bx
+                                        })
+                                        return (
+                                          <div className="mt-6 rounded-lg border bg-white">
+                                            <div className="px-4 py-2 border-b text-sm font-medium">RatePlan Table (sorted by AmountAfterTax)</div>
+                                            <div className="overflow-x-auto">
+                                              <table className="min-w-full divide-y divide-gray-200">
+                                                <thead className="bg-gray-50">
+                                                  <tr>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">RateKey</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">RoomType</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">RoomName</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Description</th>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Currency</th>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">AmountAfterTax</th>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">AmountBeforeTax</th>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Taxes</th>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Fees</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Refundable</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">CancelOffset</th>
+                                                  </tr>
+                                                </thead>
+                                                <tbody className="bg-white divide-y divide-gray-100">
+                                                  {sorted.map((r, i) => (
+                                                    <tr key={`table-${i}`}>
+                                                      <td className="px-4 py-2 align-top text-xs font-mono text-gray-800">{r.rateKey ? (r.rateKey.length > 10 ? `${r.rateKey.slice(0,10)}...` : r.rateKey) : ''}</td>
+                                                      <td className="px-4 py-2 align-top text-sm text-gray-900">{r.roomType}</td>
+                                                      <td className="px-4 py-2 align-top text-sm text-gray-900">{r.roomName}</td>
+                                                      <td className="px-4 py-2 align-top text-xs text-gray-700 break-words">{r.description}</td>
+                                                      <td className="px-4 py-2 align-top text-right text-sm text-gray-900">{r.currency}</td>
+                                                      <td className="px-4 py-2 align-top text-right text-sm text-gray-900">{r.amountAfterTax === '' ? '' : (r.amountAfterTax as number).toLocaleString()}</td>
+                                                      <td className="px-4 py-2 align-top text-right text-sm text-gray-900">{r.amountBeforeTax === '' ? '' : (r.amountBeforeTax as number).toLocaleString()}</td>
+                                                      <td className="px-4 py-2 align-top text-right text-sm text-gray-900">{r.taxes === '' ? '' : (r.taxes as number).toLocaleString()}</td>
+                                                      <td className="px-4 py-2 align-top text-right text-sm text-gray-900">{r.fees === '' ? '' : (r.fees as number).toLocaleString()}</td>
+                                                      <td className="px-4 py-2 align-top text-sm text-gray-900">{r.refundable}</td>
+                                                      <td className="px-4 py-2 align-top text-xs text-gray-900">{r.cancelOffset}</td>
+                                                    </tr>
+                                                  ))}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                          </div>
+                                        )
+                                      })()}
+                                    </>
+                                  )}
+
+                                  {/* 초기 상태 */}
+                                  {!expandedRowState.testResult && !expandedRowState.error && !expandedRowState.isLoading && (
+                                    <div className="mt-6 text-center py-8 text-gray-500">
+                                      <Play className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                                      <p className="text-sm">Test 버튼을 클릭하여 API를 테스트하세요</p>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </td>

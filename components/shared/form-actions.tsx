@@ -99,4 +99,36 @@ export function DeleteConfirmButton({
   )
 }
 
+export function SecondaryButton({
+  onClick,
+  children,
+  ariaLabel,
+  className,
+  disabled,
+  type = 'button',
+}: {
+  onClick?: React.MouseEventHandler<HTMLButtonElement>
+  children: React.ReactNode
+  ariaLabel?: string
+  className?: string
+  disabled?: boolean
+  type?: 'button' | 'submit' | 'reset'
+}) {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      className={cn(
+        'inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium',
+        'bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
 
