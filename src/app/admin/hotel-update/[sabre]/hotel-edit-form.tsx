@@ -19,20 +19,6 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   const [isLoading, setIsLoading] = React.useState(false)
   const formRef = React.useRef<HTMLFormElement>(null)
 
-  // 디버깅: Sabre ID 313016인 경우 brand_id 값 콘솔에 출력
-  React.useEffect(() => {
-    const sabreId = String(initialData.sabre_id ?? '')
-    if (sabreId === '313016') {
-      console.log('=== Sabre ID 313016 호텔 정보 ===')
-      console.log('전체 initialData:', initialData)
-      console.log('brand_id 값:', initialData.brand_id)
-      console.log('destination_sort 값:', initialData.destination_sort)
-      console.log('hotel_brands 데이터:', initialData.hotel_brands)
-      console.log('hotel_chains 데이터:', initialData.hotel_chains)
-      console.log('==================================')
-    }
-  }, [initialData])
-  
   // 폼 데이터 상태 관리
   const [formData, setFormData] = React.useState({
     sabre_id: String(initialData.sabre_id ?? ''),
@@ -42,6 +28,26 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
 
   // 하이라이트된 필드 추적
   const [highlightedFields, setHighlightedFields] = React.useState<Set<string>>(new Set())
+  
+  // 현재 brand_id 상태 (선택된 브랜드에 따라 업데이트)
+  const [currentBrandId, setCurrentBrandId] = React.useState<number | null>(() => {
+    return initialData.brand_id ? Number(initialData.brand_id) : null
+  })
+
+  // 디버깅: Sabre ID 313016인 경우 brand_id 값 콘솔에 출력
+  React.useEffect(() => {
+    const sabreId = String(initialData.sabre_id ?? '')
+    if (sabreId === '313016') {
+      console.log('=== Sabre ID 313016 호텔 정보 ===')
+      console.log('전체 initialData:', initialData)
+      console.log('초기 brand_id 값:', initialData.brand_id)
+      console.log('현재 currentBrandId:', currentBrandId)
+      console.log('destination_sort 값:', initialData.destination_sort)
+      console.log('hotel_brands 데이터:', initialData.hotel_brands)
+      console.log('hotel_chains 데이터:', initialData.hotel_chains)
+      console.log('==================================')
+    }
+  }, [initialData, currentBrandId])
   
   // 체인/브랜드 선택 팝업 상태
   const [isChainBrandPickerOpen, setIsChainBrandPickerOpen] = React.useState(false)
@@ -132,21 +138,35 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       }
       
       // 체인/브랜드 정보를 FormData에 추가
-      // 브랜드가 선택된 경우, 브랜드의 chain_id를 사용
-      if (selectedBrand?.brand_id) {
-        submitFormData.set('brand_id', String(selectedBrand.brand_id))
-        // 브랜드의 chain_id도 함께 저장 (브랜드가 선택되면 체인도 자동으로 결정됨)
-        if (selectedBrand.chain_id) {
+      // 현재 선택된 브랜드 ID 사용
+      if (currentBrandId) {
+        submitFormData.set('brand_id', String(currentBrandId))
+        // 브랜드가 선택된 경우, 브랜드의 chain_id도 함께 저장
+        if (selectedBrand?.chain_id) {
           submitFormData.set('chain_id', String(selectedBrand.chain_id))
+        } else {
+          submitFormData.set('chain_id', '') // null 대신 빈 문자열
         }
       } else if (selectedChain?.chain_id) {
         // 체인만 선택된 경우 (브랜드 없음)
         submitFormData.set('chain_id', String(selectedChain.chain_id))
-        submitFormData.delete('brand_id') // 브랜드 정보 제거
+        submitFormData.set('brand_id', '') // null 대신 빈 문자열
       } else {
         // 둘 다 선택 해제된 경우
-        submitFormData.delete('chain_id')
-        submitFormData.delete('brand_id')
+        submitFormData.set('chain_id', '')
+        submitFormData.set('brand_id', '')
+      }
+
+      // 디버깅: Sabre ID 313016인 경우 FormData 전송 내용 확인
+      const sabreId = String(initialData.sabre_id ?? '')
+      if (sabreId === '313016') {
+        console.log('=== 클라이언트 FormData 전송 내용 ===')
+        console.log('currentBrandId:', currentBrandId)
+        console.log('selectedBrand:', selectedBrand)
+        console.log('selectedChain:', selectedChain)
+        console.log('FormData에 설정된 brand_id:', submitFormData.get('brand_id'))
+        console.log('FormData에 설정된 chain_id:', submitFormData.get('chain_id'))
+        console.log('==============================')
       }
 
       // 변경된 필드 추적 (초기값과 비교)
@@ -161,6 +181,8 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       if (property_name_eng !== String(initialData.property_name_eng ?? '')) {
         changedFields.push('input[name="property_name_eng"]')
       }
+      
+      // 체인/브랜드 변경 감지는 아래에서 처리
 
       // API를 통해 서버에 데이터 전송
       const response = await fetch('/api/hotel/update', {
@@ -210,7 +232,13 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
           fieldNames.add('property_name_eng')
         }
       }
-      // 편집 모드가 아니었다면 (혜택만 변경) 기본 정보 필드는 하이라이트하지 않음
+      
+      // 체인/브랜드 변경 검사 (편집 모드와 관계없이)
+      const initialBrandId = initialData.brand_id ? Number(initialData.brand_id) : null
+      if (currentBrandId !== initialBrandId) {
+        fieldNames.add('chain_field')
+        fieldNames.add('brand_field')
+      }
       
       // 변경된 필드만 하이라이트 (변경되지 않은 필드는 자동으로 원래 색상)
       setHighlightedFields(fieldNames)
@@ -246,6 +274,13 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   const handleChainBrandSelect = (chain: Chain | null, brand: Brand | null) => {
     setSelectedChain(chain)
     setSelectedBrand(brand)
+    
+    // 브랜드가 선택되면 currentBrandId 업데이트
+    if (brand?.brand_id) {
+      setCurrentBrandId(brand.brand_id)
+    } else {
+      setCurrentBrandId(null)
+    }
     
     // 브랜드가 선택되면 해당 브랜드의 체인으로 체인 정보도 업데이트
     if (brand && chain && brand.chain_id === chain.chain_id) {
@@ -365,7 +400,9 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                   "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
                   isEditMode 
                     ? "bg-sky-50 hover:bg-sky-100" 
-                    : "bg-gray-50"
+                    : highlightedFields.has('chain_field')
+                      ? "bg-yellow-100"
+                      : "bg-gray-50"
                 )}>
                   {selectedChain?.name_kr || '-'}
                 </div>
@@ -373,7 +410,9 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                   "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
                   isEditMode 
                     ? "bg-sky-50 hover:bg-sky-100" 
-                    : "bg-gray-50"
+                    : highlightedFields.has('chain_field')
+                      ? "bg-yellow-100"
+                      : "bg-gray-50"
                 )}>
                   {selectedChain?.name_en || '-'}
                 </div>
@@ -384,9 +423,9 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-gray-700">브랜드</label>
-                {initialData.brand_id != null && (
+                {currentBrandId != null && (
                   <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                    ID: {String(initialData.brand_id)}
+                    ID: {currentBrandId}
                   </span>
                 )}
               </div>
@@ -402,7 +441,9 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                   "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
                   isEditMode 
                     ? "bg-sky-50 hover:bg-sky-100" 
-                    : "bg-gray-50"
+                    : highlightedFields.has('brand_field')
+                      ? "bg-yellow-100"
+                      : "bg-gray-50"
                 )}>
                   {selectedBrand?.name_kr || '-'}
                 </div>
@@ -410,7 +451,9 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                   "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
                   isEditMode 
                     ? "bg-sky-50 hover:bg-sky-100" 
-                    : "bg-gray-50"
+                    : highlightedFields.has('brand_field')
+                      ? "bg-yellow-100"
+                      : "bg-gray-50"
                 )}>
                   {selectedBrand?.name_en || '-'}
                 </div>

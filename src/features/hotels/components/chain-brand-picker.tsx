@@ -99,7 +99,7 @@ export function ChainBrandPicker({ isOpen, onClose, onSelect, selectedChainId, s
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="absolute left-1/2 top-1/2 w-[min(95vw,900px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">체인 & 브랜드 선택</h2>
+          <h2 className="text-lg font-semibold text-gray-900">체인 & 브랜드 관리</h2>
           <Button type="button" variant="secondary" size="sm" onClick={onClose}>
             닫기
           </Button>
@@ -131,10 +131,9 @@ export function ChainBrandPicker({ isOpen, onClose, onSelect, selectedChainId, s
                     )}
                     onClick={() => handleChainSelect(chain)}
                   >
-                    <div className="font-medium">{chain.name_kr || '-'}</div>
-                    {chain.name_en && (
-                      <div className="text-xs text-gray-500 mt-1">{chain.name_en}</div>
-                    )}
+                    <div className="font-medium">
+                      {chain.name_kr || '-'} {chain.name_en || ''}
+                    </div>
                   </button>
                 ))}
                 {chains.length === 0 && (
@@ -165,10 +164,9 @@ export function ChainBrandPicker({ isOpen, onClose, onSelect, selectedChainId, s
                         )}
                         onClick={() => handleBrandSelect(brand)}
                       >
-                        <div className="font-medium">[{brand.brand_id}] {brand.name_kr || '-'}</div>
-                        {brand.name_en && (
-                          <div className="text-xs text-gray-500 mt-1">{brand.name_en}</div>
-                        )}
+                        <div className="font-medium">
+                          {brand.name_kr || '-'} {brand.name_en || ''}
+                        </div>
                       </button>
                     ))}
                     {filteredBrands.length === 0 && (
@@ -209,7 +207,7 @@ export function ChainBrandPicker({ isOpen, onClose, onSelect, selectedChainId, s
             취소
           </Button>
           <Button type="button" size="sm" onClick={handleConfirm}>
-            확인
+            선택
           </Button>
         </div>
       </div>

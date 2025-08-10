@@ -123,10 +123,29 @@ export async function getMappedBenefitsBySabreId(sabreId: string) {
 
 export async function updateHotelRow(match: { sabreId: string | null; paragonId: string | null }, updates: Record<string, unknown>) {
   const supabase = createServiceRoleClient()
+  
+  // 디버깅: Sabre ID 313016인 경우
+  if (match.sabreId === '313016') {
+    console.log('=== updateHotelRow 디버깅 ===')
+    console.log('match:', match)
+    console.log('updates:', updates)
+    console.log('updates.brand_id:', updates.brand_id)
+    console.log('updates.chain_id:', updates.chain_id)
+  }
+  
   let query = supabase.from('select_hotels').update(updates)
   if (match.sabreId) query = query.eq('sabre_id', match.sabreId)
   else if (match.paragonId) query = query.eq('paragon_id', match.paragonId)
-  return query.select('sabre_id').single()
+  
+  const result = await query.select('sabre_id').single()
+  
+  // 디버깅: 업데이트 결과 확인
+  if (match.sabreId === '313016') {
+    console.log('업데이트 결과:', result)
+    console.log('===============================')
+  }
+  
+  return result
 }
 
 export async function replaceBenefitMappings(options: {

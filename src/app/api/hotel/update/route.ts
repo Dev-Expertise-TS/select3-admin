@@ -14,22 +14,36 @@ export async function POST(request: NextRequest) {
     const rate_plan_codes = ratePlanCodesParsed.length > 0 ? ratePlanCodesParsed : null
     
     // 체인/브랜드 정보
-    const chain_id_raw = formData.get('chain_id')
-    const brand_id_raw = formData.get('brand_id')
+    const chain_id_raw = formData.get('chain_id') as string | null
+    const brand_id_raw = formData.get('brand_id') as string | null
     
-    const chain_id = chain_id_raw ? Number(chain_id_raw) || null : null
-    const brand_id = brand_id_raw ? Number(brand_id_raw) || null : null
+    const chain_id = (chain_id_raw && chain_id_raw.trim() !== '') ? Number(chain_id_raw) || null : null
+    const brand_id = (brand_id_raw && brand_id_raw.trim() !== '') ? Number(brand_id_raw) || null : null
 
-    // 호텔 기본 정보 업데이트 (체인/브랜드 포함)
-    const updatePayload = { 
+    // 호텔 기본 정보 업데이트 (brand_id만 포함, chain_id는 select_hotels 테이블에 없음)
+    const hotelUpdateData = { 
       property_name_kor, 
       property_name_eng, 
       rate_plan_codes, 
       sabre_id: sabreIdEditable,
-      chain_id,
       brand_id
     }
-    await updateHotelRow({ sabreId, paragonId: null }, updatePayload)
+
+    // 디버깅: 체인/브랜드 정보 로그
+    if (sabreId === '313016') {
+      console.log('=== 호텔 업데이트 API 체인/브랜드 정보 ===')
+      console.log('전체 FormData 내용:')
+      for (const [key, value] of formData.entries()) {
+        console.log(`  ${key}: ${value}`)
+      }
+      console.log('chain_id_raw:', chain_id_raw)
+      console.log('brand_id_raw:', brand_id_raw)
+      console.log('최종 chain_id:', chain_id)
+      console.log('최종 brand_id:', brand_id)
+      console.log('hotelUpdateData:', hotelUpdateData)
+      console.log('=======================================')
+    }
+    await updateHotelRow({ sabreId, paragonId: null }, hotelUpdateData)
 
     // Benefits 매핑 업데이트
     const mappedIds = formData.getAll('mapped_benefit_id').map((v) => String(v))
