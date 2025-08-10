@@ -48,7 +48,7 @@ export interface ExpandedRowState {
   originalRatePlanCodes: string[]; // DB의 원본 값들
   isLoading: boolean;
   isSaving: boolean;
-  testResult: any;
+  testResult: unknown;
   error: string | null;
   saveSuccess: boolean;
 }

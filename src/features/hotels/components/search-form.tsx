@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import React, { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -65,7 +65,6 @@ export function SearchForm({ initialQ }: SearchFormProps) {
     e.preventDefault()
     const params = new URLSearchParams(searchParams?.toString() ?? '')
     q ? params.set('q', q) : params.delete('q')
-    // legacy params 제거
     params.delete('sabreId'); params.delete('nameKor'); params.delete('nameEng')
     params.set('page', '1')
     setOpenSuggest(false)
@@ -182,4 +181,5 @@ export function SearchForm({ initialQ }: SearchFormProps) {
     </form>
   )
 }
+
 

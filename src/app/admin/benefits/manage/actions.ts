@@ -16,7 +16,7 @@ export async function createBasicBenefit(formData: FormData) {
   if (entries.length === 0) return
   const insertData = Object.fromEntries(entries) as Record<string, string>
   await supabase.from('select_hotel_benefits').insert(insertData)
-  revalidatePath('/admin/basic-benefits')
+  revalidatePath('/admin/benefits/manage')
 }
 
 export async function updateBasicBenefitCell(formData: FormData) {
@@ -27,7 +27,7 @@ export async function updateBasicBenefitCell(formData: FormData) {
   const value = (formData.get('value') as string) ?? ''
   const supabase = createServiceRoleClient()
   await supabase.from('select_hotel_benefits').update({ [field]: value === '' ? null : value }).eq(pkField, pkValue)
-  revalidatePath('/admin/basic-benefits')
+  revalidatePath('/admin/benefits/manage')
 }
 
 export async function updateBasicBenefitRow(formData: FormData) {
@@ -44,7 +44,7 @@ export async function updateBasicBenefitRow(formData: FormData) {
   }
   if (Object.keys(updates).length === 0) return
   await supabase.from('select_hotel_benefits').update(updates).eq(pkField, pkValue)
-  revalidatePath('/admin/basic-benefits')
+  revalidatePath('/admin/benefits/manage')
 }
 
 export async function deleteBasicBenefit(formData: FormData) {
@@ -53,6 +53,7 @@ export async function deleteBasicBenefit(formData: FormData) {
   const pkValue = (formData.get('pkValue') as string)!
   const supabase = createServiceRoleClient()
   await supabase.from('select_hotel_benefits').delete().eq(pkField, pkValue)
-  revalidatePath('/admin/basic-benefits')
+  revalidatePath('/admin/benefits/manage')
 }
+
 

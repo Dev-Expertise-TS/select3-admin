@@ -1,12 +1,11 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { Pagination } from '@/components/shared/pagination'
 import { Building2 } from 'lucide-react'
-import { SearchForm } from './_components/search-form'
+import { SearchForm } from '@/features/hotels/components/search-form'
 import Link from 'next/link'
 
 interface HotelRow {
   sabre_id: string | null
-  paragon_id: string | null
   property_name_kor: string | null
   property_name_eng: string | null
   rate_plan_codes: string[] | null
@@ -30,7 +29,7 @@ export default async function AdminHotelUpdatePage({
 
   let query = supabase
     .from('select_hotels')
-    .select('sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes', { count: 'exact' })
+    .select('sabre_id, property_name_kor, property_name_eng, rate_plan_codes', { count: 'exact' })
 
   if (q) {
     if (/^\d+$/.test(q)) {
@@ -99,14 +98,13 @@ export default async function AdminHotelUpdatePage({
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {rows.map((h, idx) => {
-                const key = `${h.sabre_id ?? 'null'}-${h.paragon_id ?? 'null'}`
-                const href = `/admin/hotel-update/${key}`
+                 const href = `/admin/hotel-update/${h.sabre_id ?? 'null'}`
                 return (
-                <tr key={`${h.sabre_id}-${h.paragon_id}-${idx}`} className={idx % 2 === 1 ? 'bg-gray-50/50' : ''}>
+                <tr key={`${h.sabre_id}-${idx}`} className={idx % 2 === 1 ? 'bg-gray-50/50' : ''}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-700">
                     <Link href={href} className="hover:underline">{h.sabre_id ?? '—'}</Link>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">—</td>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">—</td>
                   <td className="px-6 py-4 text-sm text-gray-900">
                     <Link href={href} className="hover:underline">
                       {h.property_name_kor ?? <span className="text-gray-400 italic">한글명 없음</span>}

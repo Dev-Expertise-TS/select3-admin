@@ -1,0 +1,102 @@
+---
+alwaysApply: true
+---
+# Project Structure Guardrail (Next.js 15, src/app, TypeScript)
+
+Authoritative rules to keep the repository organized, safe, and scalable. These rules complement the architectural guide and must be followed for every change, generation, or refactor.
+
+See also:
+- Paths alias in [tsconfig.json](mdc:tsconfig.json)
+- App shell layout in [src/app/layout.tsx](mdc:src/app/layout.tsx)
+- Shared shell in [src/components/shared/app-shell.tsx](mdc:src/components/shared/app-shell.tsx)
+
+## Intent
+Enforce a consistent src-based layout for a Next.js 15 App Router project using TypeScript, Tailwind CSS, and shared UI (shadcn-compatible). Prevent drifting (files created in the wrong place, leaking server concerns to client, etc.).
+
+## Directory Map (MUST follow)
+- `src/app/` — App Router routes, layouts, and API route handlers
+  - Routes: `src/app/<route>/page.tsx`
+  - Layouts: `src/app/<route>/layout.tsx`
+  - API: `src/app/api/**/route.ts`
+- `src/components/` — shared UI (reusable)
+  - `src/components/shared/` — app-wide shared primitives (buttons, shells, tables)
+  - `src/components/ui/` — shadcn-ui components if installed
+- `src/features/` — domain features (optional but recommended for growth)
+  - Each feature: `components/`, `lib/`, `hooks/`
+- `src/lib/` — environment-agnostic utilities and server-only libraries
+  - `src/lib/supabase/server.ts` — service-role client (server-only)
+- `src/types/` — global TypeScript types
+- `src/styles/` — global/theme CSS (minimize globals; prefer component-scoped)
+- `src/hooks/` — global reusable client hooks
+- `src/config/` — site/app configs (nav, constants)
+- `public/` — static assets
+
+## Creation Rules (ALWAYS)
+- Place any new page/route only under `src/app/`.
+- Place any new API route only at `src/app/api/**/route.ts`.
+- Place reusable UI in `src/components/shared/`; shadcn primitives in `src/components/ui/`.
+- Place domain-specific pieces under `src/features/<domain>/...` if the code is not globally shared.
+- Place data-access/server-only code under `src/lib/**` (never in client files).
+- Place global types under `src/types/**`.
+
+## Prohibitions (NEVER)
+- Do NOT add application code outside `src/` (root-only for configs like `tsconfig.json`, `next.config.ts`).
+- Do NOT put business/data logic inside UI components when it belongs in `src/lib/**` or a feature layer.
+- Do NOT add API handlers outside `src/app/api/**/route.ts`.
+- Do NOT use service-role keys in client components; keep Supabase service client in `src/lib/supabase/server.ts`.
+- Do NOT introduce `any`; use `unknown` + type guards instead.
+- Do NOT use `@ts-ignore` to bypass errors; if unavoidable, prefer `@ts-expect-error` with a reason.
+- Do NOT reorganize large folders/files unless the task explicitly requests it.
+
+## Type & Safety (MUST)
+- Inputs: `defaultValue` must be a string — `String(value ?? '')`.
+- Dates: only construct from `string | number | Date`. Guard before `new Date(...)`.
+- Deep JSON: use safe access helpers (e.g., `deepGet(obj, [..])`) and guard types before rendering.
+- Name intentionally unused variables with a leading underscore (e.g., `_unused`).
+
+## Styling (Tailwind v4)
+- Compose classes with `cn(...)` from `src/lib/utils`.
+- Maintain consistent spacing, focus rings, hover/active/disabled states.
+- Keep layouts aligned with the app shell; prefer component-scoped styles over globals.
+
+## App Router Patterns
+- Server Components by default; add `'use client'` only when state/effects/events are required.
+- Prefer Server Actions for form submissions where possible.
+- Co-locate page-only components under that route; extract to shared or feature-layer when reusable.
+
+## Data Access (Supabase)
+- Create service-role client only on server (`src/lib/supabase/server.ts`).
+- Use `.single()` after updates instead of `.limit(1)`.
+- Avoid `or(...)` with comma-laden inputs; split queries and merge results.
+- Normalize payloads — write `null` instead of `[]` if the schema expects null.
+
+## Prompt Engineering for Cursor (MUST follow)
+- Read first: scan related files (routes, components, lib) before editing.
+- Propose minimal, high-signal diffs; avoid drive-by formatting.
+- Keep imports aligned with `@/*` alias (mapped to `./src/*`).
+- When adding routes/components, verify correct placement in this structure.
+- After edits that affect types or routes, run a build check (locally `pnpm build`).
+- Prefer server-side data fetching; only use `'use client'` when strictly necessary.
+
+## Validation Checklist (before saving)
+- Is the new file under the correct `src/**` directory?
+- Are routes/components/APIs placed in `src/app/**`?
+- Are reusable components placed in `src/components/shared/` (or `src/components/ui/` for shadcn)?
+- Are business/data functions in `src/lib/**` (server-only where applicable)?
+- Are types in `src/types/**`?
+- Are `any` and `@ts-ignore` avoided?
+- Are Dates and `defaultValue` guarded properly?
+
+## Examples
+Correct:
+- `src/app/admin/users/page.tsx` (page)
+- `src/app/api/users/route.ts` (API handler)
+- `src/components/shared/form-actions.tsx` (shared UI)
+- `src/features/hotels/lib/parse.ts` (domain lib)
+- `src/lib/supabase/server.ts` (service-role client)
+
+Incorrect (forbidden):
+- `app/**` at repo root (must be under `src/app/**`).
+- `pages/api/**` (use App Router: `src/app/api/**/route.ts`).
+- Business logic inside `src/components/shared/*.tsx`.
+- Direct service-role usage in a client component.

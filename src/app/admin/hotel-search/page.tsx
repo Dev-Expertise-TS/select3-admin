@@ -4,6 +4,7 @@ import React, { useState, FormEvent, useEffect, useRef } from 'react';
 import { Search, Loader2, Building2, AlertCircle, CheckCircle, ChevronDown, ChevronUp, X, Play } from 'lucide-react';
 import { cn, getDateAfterDays, formatJson } from '@/lib/utils';
 import { BaseButton } from '@/components/shared/form-actions'
+import DateInput from '@/components/shared/date-input'
 import { HotelSearchResult, HotelSearchApiResponse, RatePlanCodesApiResponse, ExpandedRowState, HotelDetailsRequest } from '@/types/hotel';
 
 export default function AdminHotelSearchPage() {
@@ -895,12 +896,11 @@ export default function AdminHotelSearchPage() {
                                       <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-2">
                                         Start Date
                                       </label>
-                                      <input
-                                        id="startDate"
-                                        type="date"
+                                      <DateInput
+                                        name="startDate"
                                         value={expandedRowState.startDate}
                                         onChange={(e) => {
-                                          const v = e.target.value
+                                          const v = e.currentTarget.value
                                           if (!v) {
                                             updateExpandedRowState({ startDate: v })
                                             return
@@ -922,11 +922,10 @@ export default function AdminHotelSearchPage() {
                                       <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-2">
                                         End Date
                                       </label>
-                                      <input
-                                        id="endDate"
-                                        type="date"
+                                      <DateInput
+                                        name="endDate"
                                         value={expandedRowState.endDate}
-                                        onChange={(e) => updateExpandedRowState({ endDate: e.target.value })}
+                                        onChange={(e) => updateExpandedRowState({ endDate: e.currentTarget.value })}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                       />
                                     </div>
@@ -1091,7 +1090,7 @@ export default function AdminHotelSearchPage() {
                                   )}
 
                                   {/* JSON 결과 화면 (맨 아래 고정 영역) */}
-                                  {expandedRowState.testResult && (
+                                  {!!expandedRowState.testResult && (
                                     <>
                                       <div className="mt-6 h-96 overflow-auto max-w-full">
                                         <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded-md overflow-x-auto max-w-full">

@@ -1,0 +1,98 @@
+---
+alwaysApply: true
+---
+# Next.js 15 + TypeScript + src/app Architecture (Authoritative)
+
+This repository uses Next.js 15 with the src/app Router, TypeScript, Tailwind CSS v4, and shared UI components. Follow these rules to keep the codebase consistent, safe, and maintainable.
+
+## Project Structure (src-based)
+- Root alias: `@/*` → `src/*` (see [tsconfig.json](mdc:tsconfig.json))
+- Key directories:
+  - `src/app/` – App Router pages, layouts, API route handlers
+  - `src/components/` – shared components (e.g. `shared/`)
+  - `src/lib/` – client/server libs (e.g. Supabase setup)
+  - `src/types/` – global TS types
+  - `public/` – static assets
+
+Must do:
+- Keep all application code under `src/`.
+- Place routes and APIs only under `src/app/`.
+- Keep UI primitives reusable in `src/components/shared/`.
+
+Must NOT do:
+- Create new code at the repo root outside `src/` (except config files).
+- Place business logic inside components when it belongs in `src/lib/`.
+
+## App Router Patterns
+- Server Components by default. Add `'use client'` only when needed (state/effects/events).
+- API Routes at `src/app/api/**/route.ts` with proper method exports.
+- Use (and prefer) Server Actions for form submissions where possible.
+
+Must do:
+- Co-locate page-specific components under that route when they are not shared.
+- Keep data fetching on the server whenever possible.
+
+Must NOT do:
+- Hydrate complex data in the client if it can be fetched server-side.
+- Mix server-only secrets (e.g. Service Role keys) into client components.
+
+## Supabase / Data Access
+- Create service-role client only in server context (`src/lib/supabase/server.ts`).
+- On updates, use `.single()` instead of `.limit(1)` to avoid order requirements.
+- Avoid `or(...)` when terms include commas; prefer multiple queries then merge.
+
+Must do:
+- Normalize outgoing payloads (e.g., use `null` instead of empty arrays when schema requires).
+- Keep DB mappers and helpers in `src/lib/**`.
+
+Must NOT do:
+- Expose service-role client to the browser.
+- Return raw DB errors directly to the UI; wrap with user-friendly messages.
+
+## TypeScript & Safety
+- Strict TS; no `any`.
+- Use `unknown` with guards/narrowing; prefer safe helpers for deep object access.
+- For `defaultValue` on inputs: always pass a string (`String(value ?? '')`).
+- For Dates: only construct from `string | number | Date`. Guard before calling `new Date(...)`.
+
+Must do:
+- Replace `@ts-ignore` by proper typing or `@ts-expect-error` with an explanation when strictly necessary.
+- Name intentionally unused variables with a leading underscore (e.g., `_unused`).
+
+Must NOT do:
+- Introduce ambient globals or mutate types from external packages.
+
+## Styling (Tailwind CSS v4)
+- Compose classes with `cn(...)` from `src/lib/utils`.
+- Prefer utility classes over inline styles.
+- Keep layout consistent with the app shell (see [src/app/layout.tsx](mdc:src/app/layout.tsx) and [src/components/shared/app-shell.tsx](mdc:src/components/shared/app-shell.tsx)).
+
+Must do:
+- Maintain consistent spacing, states (hover/active/disabled), and focus rings.
+- Keep responsive classes simple and predictable.
+
+Must NOT do:
+- Add global styles unless necessary; prefer component-scoped styles.
+
+## Shared UI & Interactions
+- Reuse shared buttons/actions from `src/components/shared/`.
+- For destructive actions, always confirm (modal or inline confirm) before proceeding.
+- For async actions, provide visual feedback (pending text/color; disabled states).
+
+Must do:
+- Implement accessible interactions (ARIA roles/labels, keyboard navigation where relevant).
+
+Must NOT do:
+- Block the main thread with heavy operations in the client.
+
+## Prompt Engineering for AI (Cursor)
+When proposing edits/generating code:
+- Read first: scan related files before edits.
+- Make minimal, high-signal diffs; avoid unrelated formatting changes.
+- Keep imports and paths aligned with `@/*` alias.
+- Add guards for types, JSON paths, and Dates.
+- After significant changes, ensure `pnpm build` passes locally.
+
+Do NOT:
+- Introduce `any`; do not suppress errors without justification.
+- Reorganize large files or folders unless the task explicitly asks for it.

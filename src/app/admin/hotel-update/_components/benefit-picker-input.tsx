@@ -14,7 +14,7 @@ export function BenefitPickerInput({ name, defaultValue }: { name: string; defau
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/basic-benefits/list', { cache: 'no-store' })
+      const res = await fetch('/api/benefits/list', { cache: 'no-store' })
       const json = await res.json()
       if (json.success) {
         const data = (json.data as Array<{ benefit: string; benefit_description: string | null; start_date: string | null; end_date: string | null }>).map((r) => ({

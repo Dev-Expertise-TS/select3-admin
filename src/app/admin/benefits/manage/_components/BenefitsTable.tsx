@@ -1,14 +1,13 @@
-'use client'
+"use client"
 
 import React, { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
-// import { useFormStatus } from 'react-dom'
-import DateInput from './DateInput'
+import DateInput from '@/components/shared/date-input'
 import { CreateSubmitButton, DeleteConfirmButton, SaveSubmitButton } from '@/components/shared/form-actions'
 
 type Row = Record<string, unknown>
 
-export interface BasicBenefitsTableProps {
+export interface BenefitsTableProps {
   rows: Row[]
   columns: string[]
   pkField: string
@@ -17,7 +16,7 @@ export interface BasicBenefitsTableProps {
   deleteAction: (formData: FormData) => Promise<void>
 }
 
-export function BasicBenefitsTable({ rows, columns, pkField, createAction, updateRowAction, deleteAction }: BasicBenefitsTableProps) {
+export function BenefitsTable({ rows, columns, pkField, createAction, updateRowAction, deleteAction }: BenefitsTableProps) {
   const [adding, setAdding] = useState(false)
 
   const isDateField = (field: string) => field === 'start_date' || field === 'end_date'
@@ -51,7 +50,7 @@ export function BasicBenefitsTable({ rows, columns, pkField, createAction, updat
     <div className="overflow-x-auto rounded-lg border bg-white">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div>
-          <h2 className="text-base font-semibold">기본 혜택 목록</h2>
+          <h2 className="text-base font-semibold">Benefits 관리</h2>
           <p className="text-xs text-muted-foreground">총 {rows.length}개</p>
         </div>
         <button
@@ -126,7 +125,7 @@ export function BasicBenefitsTable({ rows, columns, pkField, createAction, updat
                         {otherFields.map((c) => (
                           <div key={`${String(r[pkField])}-${c}`} className="flex items-center gap-2">
                             <label className="w-28 shrink-0 text-xs text-gray-600">{c}</label>
-                           <input name={c} defaultValue={String(r[c] ?? '')} className="w-full rounded border px-2 py-1 text-sm" />
+                            <input name={c} defaultValue={String(r[c] ?? '')} className="w-full rounded border px-2 py-1 text-sm" />
                           </div>
                         ))}
                       </div>
@@ -140,13 +139,13 @@ export function BasicBenefitsTable({ rows, columns, pkField, createAction, updat
                         </div>
                       ))}
                       <div className="flex items-center justify-end gap-2">
-                        {/* 요청에 따라 순서 교체: 좌측 저장, 우측 삭제 */}
+                        {/* 좌측 저장, 우측 삭제 */}
                         <SaveSubmitButton formId={formId} />
                         <DeleteConfirmButton formId={`delete-form-${String(r[pkField])}`} />
                       </div>
                     </div>
                   </form>
-                  {/* 삭제용 별도 폼 (버튼은 위 그리드 셀에서 form 속성으로 제출) */}
+                  {/* 삭제용 별도 폼 */}
                   <form id={`delete-form-${String(r[pkField])}`} action={deleteAction} className="hidden">
                     <input type="hidden" name="pkField" value={pkField} />
                     <input type="hidden" name="pkValue" value={String(r[pkField])} />
@@ -169,5 +168,4 @@ export function BasicBenefitsTable({ rows, columns, pkField, createAction, updat
   )
 }
 
-// 개별 버튼 컴포넌트는 공통 컴포넌트로 대체되었습니다.
 

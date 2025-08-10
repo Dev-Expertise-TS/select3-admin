@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { Button } from '@/components/ui/button'
 
 export function ClientSaveButton({ formId }: { formId: string }) {
   const [open, setOpen] = React.useState(false)
@@ -143,14 +144,14 @@ export function ClientSaveButton({ formId }: { formId: string }) {
 
   return (
     <>
-      <button onClick={onClick} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">저장</button>
+      <Button onClick={onClick}>저장</Button>
       {open && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
           <div className="absolute left-1/2 top-1/2 w-[min(90vw,420px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-white p-4 shadow-xl">
             <div className="text-sm text-center">{message}</div>
             <div className="mt-4 flex justify-center">
-              <button type="button" className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700" onClick={onConfirm}>OK</button>
+              <Button type="button" onClick={onConfirm}>OK</Button>
             </div>
           </div>
         </div>

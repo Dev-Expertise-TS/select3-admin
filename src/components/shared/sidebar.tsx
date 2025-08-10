@@ -37,7 +37,7 @@ const navSections: NavSection[] = [
     items: [
       { label: '호텔 검색', href: '/admin/hotel-search', icon: Building2 },
       { label: '호텔 정보 업데이트', href: '/admin/hotel-update', icon: Pencil },
-      { label: '셀렉트 기본 혜택 관리', href: '/admin/basic-benefits', icon: ListChecks },
+      { label: '혜택 관리(Manage)', href: '/admin/benefits/manage', icon: ListChecks },
     ],
   },
   {
