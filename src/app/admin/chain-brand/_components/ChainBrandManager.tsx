@@ -4,8 +4,8 @@ import React from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
-import { isFormDirty } from '@/components/shared/form-dirty'
 import { highlightRowFields } from '@/components/shared/field-highlight'
+import HotelSearchWidget from '@/components/shared/hotel-search-widget'
 
 export type Chain = { chain_id: number; chain_code: string; name_kr: string | null; name_en: string | null }
 export type Brand = { brand_id: number; brand_code: string; name_kr: string | null; name_en: string | null; chain_id: number | null }
@@ -22,6 +22,8 @@ export function ChainBrandManager({ chains, brands }: Props) {
   const [onConfirmFn, setOnConfirmFn] = React.useState<(() => void) | null>(null)
   const [addingBrand, setAddingBrand] = React.useState(false)
   const [brandsState, setBrandsState] = React.useState<Brand[]>(brands)
+  const [showHotelConnectModal, setShowHotelConnectModal] = React.useState(false)
+  const [selectedBrandForConnect, setSelectedBrandForConnect] = React.useState<Brand | null>(null)
   const createFormId = React.useId()
   const preventEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -49,6 +51,12 @@ export function ChainBrandManager({ chains, brands }: Props) {
     return chains.find((c) => c.chain_id === selectedChainId)
   }, [chains, selectedChainId])
 
+  // 선택된 브랜드의 체인 정보 가져오기
+  const selectedBrandChain = React.useMemo(() => {
+    if (!selectedBrandForConnect) return null
+    return chains.find((c) => c.chain_id === selectedBrandForConnect.chain_id)
+  }, [chains, selectedBrandForConnect])
+
   const brandHeaderText = React.useMemo(() => {
     if (!selectedChain) return '브랜드'
     const chainName = selectedChain.name_kr || selectedChain.name_en || '이름 없음'
@@ -57,18 +65,19 @@ export function ChainBrandManager({ chains, brands }: Props) {
   }, [selectedChain, filteredBrands.length])
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <ConfirmDialog
-        open={dialogOpen}
-        message={dialogMessage}
-        onClose={() => setDialogOpen(false)}
-        onConfirm={() => {
-          try { onConfirmFn?.() } finally {
-            setOnConfirmFn(null)
-            setDialogOpen(false)
-          }
-        }}
-      />
+    <div className="space-y-8">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ConfirmDialog
+          open={dialogOpen}
+          message={dialogMessage}
+          onClose={() => setDialogOpen(false)}
+          onConfirm={() => {
+            try { onConfirmFn?.() } finally {
+              setOnConfirmFn(null)
+              setDialogOpen(false)
+            }
+          }}
+        />
       {/* Left: Chains */}
       <section className="rounded-lg border bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
@@ -190,6 +199,17 @@ export function ChainBrandManager({ chains, brands }: Props) {
                         <Button
                           type="button"
                           size="xs"
+                          className="bg-orange-500 text-white hover:bg-orange-600"
+                          onClick={() => {
+                            setSelectedBrandForConnect(b)
+                            setShowHotelConnectModal(true)
+                          }}
+                        >
+                          호텔 연결
+                        </Button>
+                        <Button
+                          type="button"
+                          size="xs"
                           variant="teal"
                           onClick={async () => {
                             try {
@@ -226,8 +246,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
                                 setOnConfirmFn(() => () => {})
                                 setDialogOpen(true)
                               }
-                            } catch (err) {
-                              console.error('save error', err)
+                            } catch {
                               setDialogMessage('저장 중 오류가 발생했습니다.')
                               setOnConfirmFn(() => () => {})
                               setDialogOpen(true)
@@ -308,7 +327,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
                               // 오류 시에도 신규 입력 행 숨김
                               setAddingBrand(false)
                             }
-                          } catch (err) {
+                          } catch {
                             setDialogMessage('저장 중 오류가 발생했습니다.')
                             setOnConfirmFn(() => () => {})
                             setDialogOpen(true)
@@ -328,6 +347,51 @@ export function ChainBrandManager({ chains, brands }: Props) {
           </table>
         </div>
       </section>
+      </div>
+
+      {/* 호텔 연결 모달 */}
+      {showHotelConnectModal && selectedBrandForConnect && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40" onClick={() => {
+            setShowHotelConnectModal(false)
+            setSelectedBrandForConnect(null)
+          }} />
+          <div className="absolute left-1/2 top-1/2 w-[min(95vw,1200px)] h-[80vh] -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-white p-6 shadow-xl overflow-hidden flex flex-col">
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">호텔 연결</h2>
+                <div className="mt-1 text-sm text-gray-600">
+                  연결 대상 체인 & 브랜드: 
+                  <span className="font-medium text-gray-900 ml-1">
+                    {selectedBrandChain?.name_kr || '-'}({selectedBrandChain?.name_en || '-'}) / {selectedBrandForConnect.name_kr || '-'}({selectedBrandForConnect.name_en || '-'})
+                  </span>
+                </div>
+              </div>
+              <Button 
+                type="button" 
+                variant="secondary" 
+                size="sm" 
+                onClick={() => {
+                  setShowHotelConnectModal(false)
+                  setSelectedBrandForConnect(null)
+                }}
+              >
+                닫기
+              </Button>
+            </div>
+            
+            {/* 모달 콘텐츠 */}
+            <div className="flex-1 overflow-auto">
+              <HotelSearchWidget 
+                hideHeader={true}
+                enableHotelEdit={true}
+                showInitialHotels={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

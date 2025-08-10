@@ -6,12 +6,14 @@ import { cn } from '@/lib/utils'
 import type { ComponentType } from 'react'
 import {
   Home,
-  Building2,
-  Beaker,
+  Database,
   Network,
   Search,
   Pencil,
   ListChecks,
+  GitBranch,
+  DollarSign,
+  Code,
 } from 'lucide-react'
 
 interface NavItem {
@@ -35,18 +37,19 @@ const navSections: NavSection[] = [
   {
     title: 'Admin',
     items: [
-      { label: '호텔 검색', href: '/admin/hotel-search', icon: Building2 },
+      { label: 'Sabre API 요금 코드 관리', href: '/admin/hotel-search', icon: DollarSign },
       { label: '호텔 정보 업데이트', href: '/admin/hotel-update', icon: Pencil },
       { label: '혜택 관리', href: '/admin/benefits/manage', icon: ListChecks },
-          { label: '체인 브랜드 관리', href: '/admin/chain-brand', icon: Building2 },
+          { label: '체인 브랜드 관리', href: '/admin/chain-brand', icon: Network },
     ],
   },
   {
-    title: 'Test',
+    title: 'Development',
     items: [
-      { label: '연결 테스트', href: '/test-connection', icon: Network },
-      { label: 'Hotel 테이블', href: '/test-connection/hotel', icon: Beaker },
-      { label: '호텔 검색 API', href: '/test-connection/hotel-search', icon: Search },
+      { label: 'Sabre API Spec.', href: '/development/sabre-api', icon: Code },
+      { label: '연결 테스트', href: '/test-connection', icon: GitBranch },
+      { label: 'Select Hotel DB', href: '/test-connection/hotel', icon: Database },
+      { label: 'API Endpoint Test', href: '/test-connection/hotel-search', icon: Search },
     ],
   },
 ]

@@ -73,7 +73,14 @@ export function BenefitsManager({ initial, onAddClick }: Props) {
     queryKey: ['benefits-list'],
     queryFn: async () => {
       const res = await fetch('/api/benefits/list', { cache: 'no-store' })
-      const json = await res.json()
+      
+      if (!res.ok) {
+        throw new Error(`서버 오류 (${res.status}): ${await res.text()}`)
+      }
+
+      const json = await res.json().catch(() => {
+        throw new Error('서버 응답을 파싱할 수 없습니다.')
+      })
       if (json.success) {
         const rows = (json.data as Array<{ benefit_id: string | number; benefit: string | null; benefit_description: string | null; start_date: string | null; end_date: string | null }>).
           map((r) => ({

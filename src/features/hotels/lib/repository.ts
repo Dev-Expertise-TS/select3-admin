@@ -28,7 +28,7 @@ export async function getHotelBySabreOrParagon(params: { sabreId: string | null;
     }
     
     // hotel_brands 테이블에서 존재하는 컬럼만 조회
-    let brandRes = await supabase
+    const brandRes = await supabase
       .from('hotel_brands')
       .select('brand_id, name_kr, name_en, chain_id')
       .eq('brand_id', hotel.brand_id)
@@ -51,7 +51,7 @@ export async function getHotelBySabreOrParagon(params: { sabreId: string | null;
     
     // 브랜드의 chain_id로 체인 정보 조회
     if (brandRes.data?.chain_id) {
-      let chainRes = await supabase
+      const chainRes = await supabase
         .from('hotel_chains')
         .select('chain_id, name_kr, name_en')
         .eq('chain_id', brandRes.data.chain_id)
@@ -70,7 +70,7 @@ export async function getHotelBySabreOrParagon(params: { sabreId: string | null;
   
   // 만약 브랜드가 없고 호텔에 직접 chain_id가 있다면 (fallback)
   if (!chainData && hotel.chain_id) {
-    let chainRes = await supabase
+    const chainRes = await supabase
       .from('hotel_chains')
       .select('chain_id, name_kr, name_en')
       .eq('chain_id', hotel.chain_id)

@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     // 요청 Body 파싱 및 검증
     const body: SearchHotelRequest = await request.json();
     
-    if (!body.searching_string) {
+    if (body.searching_string === undefined || body.searching_string === null) {
       return NextResponse.json<ApiResponse<null>>(
         {
           success: false,
@@ -27,20 +27,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 검색어가 비어있는 경우 체크
+    // 검색어 처리
     const searchTerm = body.searching_string.trim();
-    if (!searchTerm) {
-      return NextResponse.json<ApiResponse<null>>(
-        {
-          success: false,
-          error: 'searching_string cannot be empty'
-        },
-        { status: 400 }
-      );
-    }
 
     // Supabase 관리자 클라이언트 생성
     const supabase = createServiceRoleClient();
+
+    // 빈 검색어인 경우 최신 호텔 리스트 반환
+    if (!searchTerm) {
+      const { data, error } = await supabase
+        .from('select_hotels')
+        .select('sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error('[hotel-search] Supabase query error (initial list):', error);
+        return NextResponse.json<ApiResponse<null>>(
+          {
+            success: false,
+            error: 'Database query failed'
+          },
+          { status: 500 }
+        );
+      }
+
+      const results: HotelSearchResult[] = (data || []).map((row) => ({
+        sabre_id: row.sabre_id ? String(row.sabre_id) : null,
+        paragon_id: row.paragon_id ? String(row.paragon_id) : null,
+        property_name_kor: row.property_name_kor || null,
+        property_name_eng: row.property_name_eng || null,
+        rate_plan_codes: row.rate_plan_codes || null,
+      }));
+
+      return NextResponse.json<ApiResponse<HotelSearchResult[]>>(
+        {
+          success: true,
+          data: results,
+          count: results.length
+        },
+        { status: 200 }
+      );
+    }
 
     // or() 사용 시 검색어에 ','가 포함되면 구문 오류를 유발할 수 있어 병렬 쿼리 후 병합 방식으로 변경
     const baseSelect = 'sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes'

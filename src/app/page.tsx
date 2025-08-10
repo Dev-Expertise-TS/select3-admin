@@ -1,24 +1,25 @@
-import { createServiceRoleClient } from '@/lib/supabase/server'
+'use client'
 
-export const revalidate = 60
+import React from 'react'
+import { Home as HomeIcon } from 'lucide-react'
+import { DashboardStats } from '@/components/shared/dashboard-stats'
 
-export default async function Home() {
-  const supabase = createServiceRoleClient()
-  const { count, error } = await supabase
-    .from('select_hotels')
-    .select('sabre_id', { count: 'exact', head: true })
-
-  const total = typeof count === 'number' ? count : 0
-
+export default function Home() {
   return (
-    <div className="p-6">
-      <h1 className="mb-6 text-2xl font-semibold">대시보드</h1>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-lg border bg-white p-5 shadow-sm">
-          <div className="text-sm text-gray-500">전체 호텔 개수</div>
-          <div className="mt-2 text-3xl font-bold">{error ? '—' : total}</div>
+    <div className="min-h-[60vh]">
+      {/* 페이지 헤더 */}
+      <div className="mb-6 flex items-center gap-3">
+        <div className="rounded-lg bg-blue-600 p-2">
+          <HomeIcon className="h-6 w-6 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">대시보드</h1>
+          <p className="text-sm text-gray-600 mt-1">호텔 관리 시스템의 주요 통계와 데이터 품질을 확인하세요</p>
         </div>
       </div>
+
+      {/* 대시보드 통계 */}
+      <DashboardStats />
     </div>
   )
 }

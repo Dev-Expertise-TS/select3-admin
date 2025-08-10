@@ -53,7 +53,19 @@ export function ChainBrandPicker({ isOpen, onClose, onSelect, selectedChainId, s
     
     try {
       const response = await fetch('/api/chain-brand/list')
-      const result = await response.json()
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        setError(`데이터를 불러올 수 없습니다. (${response.status}): ${errorText}`)
+        return
+      }
+
+      const result = await response.json().catch(() => {
+        setError('서버 응답을 파싱할 수 없습니다.')
+        return null
+      })
+
+      if (!result) return
       
       if (result.success) {
         setChains(result.data.chains || [])

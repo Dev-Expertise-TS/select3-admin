@@ -15,7 +15,19 @@ export function BenefitPickerInput({ name, defaultValue }: { name: string; defau
     setError(null)
     try {
       const res = await fetch('/api/benefits/list', { cache: 'no-store' })
-      const json = await res.json()
+      
+      if (!res.ok) {
+        const errorText = await res.text()
+        setError(`서버 오류 (${res.status}): ${errorText}`)
+        return
+      }
+
+      const json = await res.json().catch(() => {
+        setError('서버 응답을 파싱할 수 없습니다.')
+        return null
+      })
+
+      if (!json) return
       if (json.success) {
         const data = (json.data as Array<{ benefit: string; benefit_description: string | null; start_date: string | null; end_date: string | null }>).map((r) => ({
           benefit: String(r.benefit ?? ''),

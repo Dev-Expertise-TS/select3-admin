@@ -1,6 +1,6 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { Button } from '@/components/ui/button'
 import { ChainBrandManager } from './_components/ChainBrandManager'
+import { Network } from 'lucide-react'
 
 export const revalidate = 0
 export const dynamic = 'force-dynamic'
@@ -63,9 +63,14 @@ export default async function ChainBrandPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">체인 브랜드 관리</h1>
-        <p className="text-sm text-muted-foreground mt-1">호텔 체인/브랜드 데이터를 조회하고 관리합니다.</p>
+      <div className="flex items-center gap-3">
+        <div className="rounded-lg bg-blue-600 p-2">
+          <Network className="h-6 w-6 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">체인 브랜드 관리</h1>
+          <p className="text-sm text-gray-600 mt-1">호텔 체인/브랜드 데이터를 조회하고 관리합니다.</p>
+        </div>
       </div>
 
       <ChainBrandManager chains={chains} brands={brands} />

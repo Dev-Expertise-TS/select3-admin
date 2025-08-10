@@ -6,7 +6,7 @@ import { BenefitsManager, type BenefitRow as BBRow } from '@/features/hotels/com
 import { BenefitsAddButton } from '@/features/hotels/components/benefits-add-button'
 import { ChainBrandPicker, type Chain, type Brand } from '@/features/hotels/components/chain-brand-picker'
 import { Button } from '@/components/ui/button'
-import { highlightFields } from '@/components/shared/field-highlight'
+
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -190,7 +190,14 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         body: submitFormData
       })
 
-      const result = await response.json()
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`서버 오류 (${response.status}): ${errorText}`)
+      }
+
+      const result = await response.json().catch(() => {
+        throw new Error('서버 응답을 파싱할 수 없습니다.')
+      })
       
       if (!result.success) {
         throw new Error(result.error || '저장에 실패했습니다.')
