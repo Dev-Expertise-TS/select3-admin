@@ -19,34 +19,71 @@ export async function getHotelBySabreOrParagon(params: { sabreId: string | null;
   let chainData = null
   let brandData = null
   
-  // 먼저 브랜드 정보를 조회
+  // 먼저 브랜드 정보를 조회 (fallback 로직 포함)
   if (hotel.brand_id) {
-    const { data: brand } = await supabase
+    // 디버깅: Sabre ID 313016인 경우
+    if (String(hotel.sabre_id) === '313016') {
+      console.log('=== Repository 브랜드 조회 디버깅 ===')
+      console.log('hotel.brand_id:', hotel.brand_id)
+    }
+    
+    // hotel_brands 테이블에서 존재하는 컬럼만 조회
+    let brandRes = await supabase
       .from('hotel_brands')
-      .select('brand_id, brand_code, name_kr, name_en, chain_id')
+      .select('brand_id, name_kr, name_en, chain_id')
       .eq('brand_id', hotel.brand_id)
       .single()
-    brandData = brand
+    
+    // 디버깅: 조회 결과
+    if (String(hotel.sabre_id) === '313016') {
+      console.log('hotel_brands 테이블 조회 결과:', brandRes)
+      console.log('오류:', brandRes.error)
+      console.log('데이터:', brandRes.data)
+    }
+    
+    brandData = brandRes.data
+    
+    // 디버깅: 최종 brandData
+    if (String(hotel.sabre_id) === '313016') {
+      console.log('최종 brandData:', brandData)
+      console.log('===============================')
+    }
     
     // 브랜드의 chain_id로 체인 정보 조회
-    if (brand?.chain_id) {
-      const { data: chain } = await supabase
+    if (brandRes.data?.chain_id) {
+      let chainRes = await supabase
         .from('hotel_chains')
-        .select('chain_id, chain_code, name_kr, name_en')
-        .eq('chain_id', brand.chain_id)
+        .select('chain_id, name_kr, name_en')
+        .eq('chain_id', brandRes.data.chain_id)
         .single()
-      chainData = chain
+      
+      // 디버깅: 체인 조회 결과
+      if (String(hotel.sabre_id) === '313016') {
+        console.log('hotel_chains 테이블 조회 결과:', chainRes)
+        console.log('체인 오류:', chainRes.error)
+        console.log('체인 데이터:', chainRes.data)
+      }
+      
+      chainData = chainRes.data
     }
   }
   
   // 만약 브랜드가 없고 호텔에 직접 chain_id가 있다면 (fallback)
   if (!chainData && hotel.chain_id) {
-    const { data: chain } = await supabase
+    let chainRes = await supabase
       .from('hotel_chains')
-      .select('chain_id, chain_code, name_kr, name_en')
+      .select('chain_id, name_kr, name_en')
       .eq('chain_id', hotel.chain_id)
       .single()
-    chainData = chain
+    
+    // 디버깅: 직접 체인 조회 결과
+    if (String(hotel.sabre_id) === '313016') {
+      console.log('호텔 직접 chain_id로 조회 결과:', chainRes)
+      console.log('직접 체인 오류:', chainRes.error)
+      console.log('직접 체인 데이터:', chainRes.data)
+    }
+    
+    chainData = chainRes.data
   }
   
   // 결과 조합

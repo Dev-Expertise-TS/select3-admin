@@ -165,7 +165,7 @@ export function ChainBrandPicker({ isOpen, onClose, onSelect, selectedChainId, s
                         )}
                         onClick={() => handleBrandSelect(brand)}
                       >
-                        <div className="font-medium">{brand.name_kr || '-'}</div>
+                        <div className="font-medium">[{brand.brand_id}] {brand.name_kr || '-'}</div>
                         {brand.name_en && (
                           <div className="text-xs text-gray-500 mt-1">{brand.name_en}</div>
                         )}
@@ -195,7 +195,7 @@ export function ChainBrandPicker({ isOpen, onClose, onSelect, selectedChainId, s
               체인: {currentChainId ? chains.find(c => c.chain_id === currentChainId)?.name_kr || '-' : '선택되지 않음'}
             </div>
             <div className="text-sm text-gray-600">
-              브랜드: {currentBrandId ? filteredBrands.find(b => b.brand_id === currentBrandId)?.name_kr || '-' : '선택되지 않음'}
+              브랜드: {currentBrandId ? `[${currentBrandId}] ${filteredBrands.find(b => b.brand_id === currentBrandId)?.name_kr || '-'}` : '선택되지 않음'}
             </div>
           </div>
         )}

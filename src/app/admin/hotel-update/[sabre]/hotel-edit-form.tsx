@@ -18,6 +18,20 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   const [isEditMode, setIsEditMode] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
   const formRef = React.useRef<HTMLFormElement>(null)
+
+  // 디버깅: Sabre ID 313016인 경우 brand_id 값 콘솔에 출력
+  React.useEffect(() => {
+    const sabreId = String(initialData.sabre_id ?? '')
+    if (sabreId === '313016') {
+      console.log('=== Sabre ID 313016 호텔 정보 ===')
+      console.log('전체 initialData:', initialData)
+      console.log('brand_id 값:', initialData.brand_id)
+      console.log('destination_sort 값:', initialData.destination_sort)
+      console.log('hotel_brands 데이터:', initialData.hotel_brands)
+      console.log('hotel_chains 데이터:', initialData.hotel_chains)
+      console.log('==================================')
+    }
+  }, [initialData])
   
   // 폼 데이터 상태 관리
   const [formData, setFormData] = React.useState({
@@ -34,18 +48,46 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   const [selectedChain, setSelectedChain] = React.useState<Chain | null>(() => {
     // 브랜드의 chain_id를 기반으로 체인 정보 설정
     const chains = initialData.hotel_chains as Record<string, unknown> | null
+    
+    // 디버깅: selectedChain 초기화 과정
+    const sabreId = String(initialData.sabre_id ?? '')
+    if (sabreId === '313016') {
+      console.log('=== selectedChain 초기화 디버깅 ===')
+      console.log('initialData.hotel_chains:', chains)
+      console.log('chains가 존재하는가?', !!chains)
+      if (chains) {
+        console.log('chains.name_kr:', chains.name_kr)
+        console.log('chains.name_en:', chains.name_en)
+      }
+      console.log('===============================')
+    }
+    
     return chains ? {
       chain_id: Number(chains.chain_id ?? 0),
-      chain_code: String(chains.chain_code ?? ''),
+      chain_code: '', // chain_code 컬럼이 존재하지 않으므로 빈 문자열로 설정
       name_kr: String(chains.name_kr ?? ''),
       name_en: String(chains.name_en ?? '')
     } : null
   })
   const [selectedBrand, setSelectedBrand] = React.useState<Brand | null>(() => {
     const brands = initialData.hotel_brands as Record<string, unknown> | null
+    
+    // 디버깅: selectedBrand 초기화 과정
+    const sabreId = String(initialData.sabre_id ?? '')
+    if (sabreId === '313016') {
+      console.log('=== selectedBrand 초기화 디버깅 ===')
+      console.log('initialData.hotel_brands:', brands)
+      console.log('brands가 존재하는가?', !!brands)
+      if (brands) {
+        console.log('brands.name_kr:', brands.name_kr)
+        console.log('brands.name_en:', brands.name_en)
+      }
+      console.log('===============================')
+    }
+    
     return brands ? {
       brand_id: Number(brands.brand_id ?? 0),
-      brand_code: String(brands.brand_code ?? ''),
+      brand_code: '', // brand_code 컬럼이 존재하지 않으므로 빈 문자열로 설정
       chain_id: Number(brands.chain_id ?? 0) || null,
       name_kr: String(brands.name_kr ?? ''),
       name_en: String(brands.name_en ?? '')
@@ -312,14 +354,27 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
             <div className="space-y-1">
               <label className="block text-sm font-medium text-gray-700">체인</label>
               <div 
-                className="flex gap-2 cursor-pointer" 
-                onClick={handleChainBrandClick}
-                title="클릭하여 체인/브랜드 선택"
+                className={cn(
+                  "flex gap-2 transition-colors",
+                  isEditMode ? "cursor-pointer" : "cursor-default"
+                )}
+                onClick={isEditMode ? handleChainBrandClick : undefined}
+                title={isEditMode ? "클릭하여 체인/브랜드 선택" : "수정 모드에서만 변경 가능"}
               >
-                <div className="flex-1 px-3 py-2 text-sm bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
+                  isEditMode 
+                    ? "bg-sky-50 hover:bg-sky-100" 
+                    : "bg-gray-50"
+                )}>
                   {selectedChain?.name_kr || '-'}
                 </div>
-                <div className="flex-1 px-3 py-2 text-sm bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
+                  isEditMode 
+                    ? "bg-sky-50 hover:bg-sky-100" 
+                    : "bg-gray-50"
+                )}>
                   {selectedChain?.name_en || '-'}
                 </div>
               </div>
@@ -327,16 +382,36 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
             
             {/* 브랜드 */}
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">브랜드</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">브랜드</label>
+                {initialData.brand_id != null && (
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    ID: {String(initialData.brand_id)}
+                  </span>
+                )}
+              </div>
               <div 
-                className="flex gap-2 cursor-pointer" 
-                onClick={handleChainBrandClick}
-                title="클릭하여 체인/브랜드 선택"
+                className={cn(
+                  "flex gap-2 transition-colors",
+                  isEditMode ? "cursor-pointer" : "cursor-default"
+                )}
+                onClick={isEditMode ? handleChainBrandClick : undefined}
+                title={isEditMode ? "클릭하여 체인/브랜드 선택" : "수정 모드에서만 변경 가능"}
               >
-                <div className="flex-1 px-3 py-2 text-sm bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
+                  isEditMode 
+                    ? "bg-sky-50 hover:bg-sky-100" 
+                    : "bg-gray-50"
+                )}>
                   {selectedBrand?.name_kr || '-'}
                 </div>
-                <div className="flex-1 px-3 py-2 text-sm bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
+                  isEditMode 
+                    ? "bg-sky-50 hover:bg-sky-100" 
+                    : "bg-gray-50"
+                )}>
                   {selectedBrand?.name_en || '-'}
                 </div>
               </div>
