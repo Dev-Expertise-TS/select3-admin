@@ -47,8 +47,8 @@ export default async function BasicBenefitsManagePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Benefits 관리</h1>
-        <p className="text-sm text-muted-foreground mt-1">Benefits 목록과 속성을 관리합니다.</p>
+        <h1 className="text-2xl font-bold">혜택 관리</h1>
+        <p className="text-sm text-muted-foreground mt-1">혜택 목록과 속성을 관리합니다.</p>
       </div>
 
       <BenefitsTable

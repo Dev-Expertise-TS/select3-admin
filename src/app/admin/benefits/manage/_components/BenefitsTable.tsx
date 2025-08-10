@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils'
 import DateInput from '@/components/shared/date-input'
 import { CreateSubmitButton } from '@/components/shared/form-actions'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { highlightRowFields } from '@/components/shared/field-highlight'
+import { Button } from '@/components/ui/button'
 
 type Row = Record<string, unknown>
 
@@ -20,8 +22,8 @@ export function BenefitsTable({ rows, columns, pkField, createAction }: Benefits
   const queryClient = useQueryClient()
 
   const deleteMutation = useMutation({
-    mutationFn: async (payload: { pkField: string; pkValue: string }) => {
-      const res = await fetch('/api/benefits/manage/delete', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    mutationFn: async (params: { pkField: string; pkValue: string }) => {
+      const res = await fetch('/api/benefits/manage/delete', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params) })
       if (!res.ok) throw new Error('delete failed')
     },
     onSuccess: async () => {
@@ -30,13 +32,22 @@ export function BenefitsTable({ rows, columns, pkField, createAction }: Benefits
   })
 
   const saveMutation = useMutation({
-    mutationFn: async (payload: FormData) => {
-      const res = await fetch('/api/benefits/manage/save', { method: 'POST', body: payload })
+    mutationFn: async (formData: FormData) => {
+      const res = await fetch('/api/benefits/manage/save', { method: 'POST', body: formData })
       const json = await res.json().catch(() => ({}))
       if (!res.ok || json.success === false) throw new Error(json.error || 'save failed')
+      return { formData }
     },
-    onSuccess: async () => {
+    onSuccess: async ({ formData }) => {
       await queryClient.invalidateQueries({ queryKey: ['benefits-list'] })
+      // 저장된 행 하이라이트 (약간의 지연 후 DOM 업데이트 대기)
+      setTimeout(() => {
+        const pkValue = formData.get(pkField)
+        if (pkValue) {
+          const row = document.querySelector(`tr[data-pk="${pkValue}"]`)
+          highlightRowFields(row, 'input, select, textarea')
+        }
+      }, 100)
     },
   })
 
@@ -91,37 +102,49 @@ export function BenefitsTable({ rows, columns, pkField, createAction }: Benefits
         </thead>
         <tbody className="bg-white divide-y divide-gray-100">
           {adding && (
-            <tr className="bg-blue-50/40">
+            <tr className="bg-blue-50/40 hover:bg-orange-100 transition-colors">
               <td colSpan={columns.length + 1} className="px-4 py-3">
-                <form id="new-row-form" action={createAction} className="space-y-3">
-                  {/* 1행: 기타 필드 */}
-                  {otherFields.length > 0 && (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-                      {otherFields.map((c) => (
+                <form id="new-row-form" action={createAction}>
+                  {/* 모든 필드를 한 줄에 고정 간격으로 배치 */}
+                  <div className="flex items-center gap-4">
+                    {/* 기타 필드 (benefit, description 등) */}
+                    {otherFields.map((c) => {
+                      const labelText = c === 'benefit' ? '혜택' : c === 'benefit_description' ? '설명' : c
+                      const inputStyle = c === 'benefit' ? { width: '200px' } : c === 'benefit_description' ? { width: '250px' } : {}
+                      const inputWidth = c === 'benefit' || c === 'benefit_description' ? '' : 'w-36'
+                      return (
                         <div key={`new-${c}`} className="flex items-center gap-2">
-                          <label className="w-28 shrink-0 text-xs text-gray-600">{c}</label>
-                          <input name={c} placeholder={c} className="w-full rounded border px-2 py-1 text-sm" />
+                          <label className="w-16 shrink-0 text-xs text-gray-600 text-right">{labelText}</label>
+                          <input 
+                            name={c} 
+                            placeholder={c} 
+                            style={inputStyle}
+                            className={`${inputWidth} rounded border px-2 py-1 text-sm`} 
+                          />
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  {/* 2행: 날짜 필드 + 버튼을 같은 행의 그리드 셀에 배치 */}
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+                      )
+                    })}
+                    {/* 날짜 필드 (라벨 제거하고 플레이스홀더로 구분) */}
                     {dateFields.map((c) => (
-                      <div key={`new-${c}`} className="flex items-center gap-2">
-                        <label className="w-28 shrink-0 text-xs text-gray-600">{c}</label>
-                        <DateInput name={c} />
+                      <div key={`new-${c}`} className="flex items-center">
+                        <DateInput 
+                          name={c} 
+                          placeholderText={c === 'start_date' ? '시작 날짜' : c === 'end_date' ? '종료 날짜' : '날짜 선택'}
+                          className="w-32"
+                        />
                       </div>
                     ))}
-                    <div className="flex items-center justify-end gap-2">
+                    {/* 저장/취소 버튼 */}
+                    <div className="flex items-center gap-2 ml-auto">
                       <CreateSubmitButton formId="new-row-form" />
-                      <button
+                      <Button
                         type="button"
+                        size="xs"
+                        variant="ghost"
                         onClick={() => setAdding(false)}
-                        className="rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
                       >
                         취소
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </form>
@@ -134,7 +157,8 @@ export function BenefitsTable({ rows, columns, pkField, createAction }: Benefits
             return (
               <tr
                 key={`${String(r[pkField])}-${idx}`}
-                className={`${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'} hover:bg-blue-50 transition-colors`}
+                data-pk={String(r[pkField])}
+                className={`${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'} hover:bg-orange-100 transition-colors`}
               >
                 <td colSpan={columns.length + 1} className="px-4 py-3 text-sm align-top">
                   <form
@@ -148,36 +172,50 @@ export function BenefitsTable({ rows, columns, pkField, createAction }: Benefits
                   >
                     <input type="hidden" name="pkField" value={pkField} />
                     <input type="hidden" name="pkValue" value={String(r[pkField])} />
-                    {/* 1행: 기타 필드 */}
-                    {otherFields.length > 0 && (
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-                        {otherFields.map((c) => (
+                    {/* 모든 필드를 한 줄에 고정 간격으로 배치 */}
+                    <div className="flex items-center gap-4">
+                      {/* 기타 필드 (benefit, description 등) */}
+                      {otherFields.map((c) => {
+                        const labelText = c === 'benefit' ? '혜택' : c === 'benefit_description' ? '설명' : c
+                        const inputStyle = c === 'benefit' ? { width: '200px' } : c === 'benefit_description' ? { width: '250px' } : {}
+                        const inputWidth = c === 'benefit' || c === 'benefit_description' ? '' : 'w-36'
+                        return (
                           <div key={`${String(r[pkField])}-${c}`} className="flex items-center gap-2">
-                            <label className="w-28 shrink-0 text-xs text-gray-600">{c}</label>
-                            <input name={c} defaultValue={String(r[c] ?? '')} className="w-full rounded border px-2 py-1 text-sm" />
+                            <label className="w-16 shrink-0 text-xs text-gray-600 text-right">{labelText}</label>
+                            <input 
+                              name={c} 
+                              defaultValue={String(r[c] ?? '')} 
+                              style={inputStyle}
+                              className={`${inputWidth} rounded border px-2 py-1 text-sm`} 
+                            />
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    {/* 2행: 날짜 필드 + 같은 행의 마지막 셀에 버튼 배치 */}
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+                        )
+                      })}
+                      {/* 날짜 필드 (라벨 제거하고 플레이스홀더로 구분) */}
                       {dateFields.map((c) => (
-                        <div key={`${String(r[pkField])}-${c}`} className="flex items-center gap-2">
-                          <label className="w-28 shrink-0 text-xs text-gray-600">{c}</label>
-                          <DateInput name={c} defaultValue={toDateInputValue(r[c])} />
+                        <div key={`${String(r[pkField])}-${c}`} className="flex items-center">
+                          <DateInput 
+                            name={c} 
+                            defaultValue={toDateInputValue(r[c])} 
+                            placeholderText={c === 'start_date' ? '시작 날짜' : c === 'end_date' ? '종료 날짜' : '날짜 선택'}
+                            className="w-32"
+                          />
                         </div>
                       ))}
-                      <div className="flex items-center justify-end gap-2">
-                        <button
+                      {/* 저장/삭제 버튼 */}
+                      <div className="flex items-center gap-2 ml-auto">
+                        <Button
                           type="submit"
-                          className="rounded bg-gray-100 px-3 py-1.5 text-sm"
+                          size="xs"
+                          variant="teal"
                           disabled={saveMutation.isPending}
                         >
                           {saveMutation.isPending ? '저장 중...' : '저장'}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          className="rounded bg-red-50 px-3 py-1.5 text-sm text-red-700 hover:bg-red-100"
+                          size="xs"
+                          variant="destructive"
                           onClick={async () => {
                             const pkValue = String(r[pkField])
                             await deleteMutation.mutateAsync({ pkField, pkValue })
@@ -185,7 +223,7 @@ export function BenefitsTable({ rows, columns, pkField, createAction }: Benefits
                           disabled={deleteMutation.isPending}
                         >
                           {deleteMutation.isPending ? '삭제 중...' : '삭제'}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </form>

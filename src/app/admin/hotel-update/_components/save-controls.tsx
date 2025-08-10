@@ -3,6 +3,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { useQueryClient } from '@tanstack/react-query'
+import { highlightFields } from '@/components/shared/field-highlight'
 
 export function ClientSaveButton({ formId }: { formId: string }) {
   const queryClient = useQueryClient()
@@ -112,20 +113,19 @@ export function ClientSaveButton({ formId }: { formId: string }) {
       } catch {}
       try {
         const formEl = form as HTMLFormElement
+        // 공통 하이라이트 유틸리티 사용
+        const fieldSelectors = changed.map(name => `[name="${CSS.escape(name)}"]`).join(', ')
+        if (fieldSelectors) {
+          highlightFields({ fields: fieldSelectors })
+        }
+        // 기존 data-initial 업데이트 로직 유지
         changed.forEach((name) => {
           const input = formEl.querySelector(`[name="${CSS.escape(name)}"]`) as HTMLInputElement | null
           if (input) {
-            input.classList.add('bg-yellow-50')
             input.setAttribute('data-initial', String(input.value ?? ''))
             try { input.defaultValue = input.value } catch {}
           }
         })
-        setTimeout(() => {
-          changed.forEach((name) => {
-            const input = formEl.querySelector(`[name="${CSS.escape(name)}"]`) as HTMLInputElement | null
-            input?.classList.remove('bg-yellow-50')
-          })
-        }, 1500)
       } catch {}
       try {
         try { window.dispatchEvent(new Event('benefits:commit')) } catch {}

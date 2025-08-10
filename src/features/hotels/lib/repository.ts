@@ -5,11 +5,58 @@ type HotelRow = Record<string, unknown>
 export async function getHotelBySabreOrParagon(params: { sabreId: string | null; paragonId: string | null }) {
   const { sabreId, paragonId } = params
   const supabase = createServiceRoleClient()
-  let query = supabase.from('select_hotels').select('*').limit(1)
-  if (sabreId) query = query.eq('sabre_id', sabreId)
-  if (!sabreId && paragonId) query = query.eq('paragon_id', paragonId)
-  const { data, error } = await query.single<HotelRow>()
-  return { data, error }
+  
+  // 먼저 호텔 정보만 가져오기
+  let hotelQuery = supabase.from('select_hotels').select('*').limit(1)
+  if (sabreId) hotelQuery = hotelQuery.eq('sabre_id', sabreId)
+  if (!sabreId && paragonId) hotelQuery = hotelQuery.eq('paragon_id', paragonId)
+  
+  const { data: hotelData, error: hotelError } = await hotelQuery.single<HotelRow>()
+  if (hotelError || !hotelData) return { data: hotelData, error: hotelError }
+  
+  // 호텔의 체인/브랜드 ID가 있다면 별도로 조회
+  const hotel = hotelData as Record<string, unknown>
+  let chainData = null
+  let brandData = null
+  
+  // 먼저 브랜드 정보를 조회
+  if (hotel.brand_id) {
+    const { data: brand } = await supabase
+      .from('hotel_brands')
+      .select('brand_id, brand_code, name_kr, name_en, chain_id')
+      .eq('brand_id', hotel.brand_id)
+      .single()
+    brandData = brand
+    
+    // 브랜드의 chain_id로 체인 정보 조회
+    if (brand?.chain_id) {
+      const { data: chain } = await supabase
+        .from('hotel_chains')
+        .select('chain_id, chain_code, name_kr, name_en')
+        .eq('chain_id', brand.chain_id)
+        .single()
+      chainData = chain
+    }
+  }
+  
+  // 만약 브랜드가 없고 호텔에 직접 chain_id가 있다면 (fallback)
+  if (!chainData && hotel.chain_id) {
+    const { data: chain } = await supabase
+      .from('hotel_chains')
+      .select('chain_id, chain_code, name_kr, name_en')
+      .eq('chain_id', hotel.chain_id)
+      .single()
+    chainData = chain
+  }
+  
+  // 결과 조합
+  const combinedData = {
+    ...hotel,
+    hotel_chains: chainData,
+    hotel_brands: brandData
+  }
+  
+  return { data: combinedData, error: null }
 }
 
 export async function getMappedBenefitsBySabreId(sabreId: string) {

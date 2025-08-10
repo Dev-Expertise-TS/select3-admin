@@ -14,9 +14,10 @@ export type BenefitRow = {
 
 interface Props {
   initial: BenefitRow[]
+  onAddClick?: () => void
 }
 
-export function BenefitsManager({ initial }: Props) {
+export function BenefitsManager({ initial, onAddClick }: Props) {
   const [selected, setSelected] = React.useState<BenefitRow[]>(initial)
   const [open, setOpen] = React.useState(false)
   const [allRows, setAllRows] = React.useState<BenefitRow[]>([])
@@ -90,7 +91,11 @@ export function BenefitsManager({ initial }: Props) {
     staleTime: 60_000,
   })
 
-  const openPopup = async () => {
+  const openPopup = React.useCallback(async () => {
+    if (onAddClick) {
+      onAddClick()
+      return
+    }
     setOpen(true)
     setPopupSelectedIds(new Set())
     setError(null)
@@ -100,7 +105,14 @@ export function BenefitsManager({ initial }: Props) {
     } catch {
       setError('네트워크 오류')
     }
-  }
+  }, [onAddClick, popupData, refetchPopup])
+
+  // openPopup을 외부에서 사용할 수 있도록 설정
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as unknown as Record<string, unknown>).__benefitsManagerOpenPopup = openPopup
+    }
+  }, [openPopup])
 
   const togglePopupSelect = (id: string | number) => {
     const key = String(id)
@@ -224,9 +236,7 @@ export function BenefitsManager({ initial }: Props) {
         </tbody>
       </table>
 
-      <div className="flex justify-end px-4 py-2">
-        <Button type="button" size="sm" onClick={openPopup}>Benefit 추가</Button>
-      </div>
+
 
       {open && (
         <div className="fixed inset-0 z-50">
