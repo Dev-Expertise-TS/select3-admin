@@ -3,7 +3,8 @@
 import React, { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import DateInput from '@/components/shared/date-input'
-import { CreateSubmitButton, DeleteConfirmButton, SaveSubmitButton } from '@/components/shared/form-actions'
+import { CreateSubmitButton } from '@/components/shared/form-actions'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 type Row = Record<string, unknown>
 
@@ -12,12 +13,32 @@ export interface BenefitsTableProps {
   columns: string[]
   pkField: string
   createAction: (formData: FormData) => Promise<void>
-  updateRowAction: (formData: FormData) => Promise<void>
-  deleteAction: (formData: FormData) => Promise<void>
 }
 
-export function BenefitsTable({ rows, columns, pkField, createAction, updateRowAction, deleteAction }: BenefitsTableProps) {
+export function BenefitsTable({ rows, columns, pkField, createAction }: BenefitsTableProps) {
   const [adding, setAdding] = useState(false)
+  const queryClient = useQueryClient()
+
+  const deleteMutation = useMutation({
+    mutationFn: async (payload: { pkField: string; pkValue: string }) => {
+      const res = await fetch('/api/benefits/manage/delete', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      if (!res.ok) throw new Error('delete failed')
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['benefits-list'] })
+    },
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: FormData) => {
+      const res = await fetch('/api/benefits/manage/save', { method: 'POST', body: payload })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || json.success === false) throw new Error(json.error || 'save failed')
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['benefits-list'] })
+    },
+  })
 
   const isDateField = (field: string) => field === 'start_date' || field === 'end_date'
   const toDateInputValue = (value: unknown): string => {
@@ -116,7 +137,15 @@ export function BenefitsTable({ rows, columns, pkField, createAction, updateRowA
                 className={`${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'} hover:bg-blue-50 transition-colors`}
               >
                 <td colSpan={columns.length + 1} className="px-4 py-3 text-sm align-top">
-                  <form id={formId} action={updateRowAction} className="space-y-3">
+                  <form
+                    id={formId}
+                    className="space-y-3"
+                    onSubmit={async (e) => {
+                      e.preventDefault()
+                      const fd = new FormData(e.currentTarget as HTMLFormElement)
+                      await saveMutation.mutateAsync(fd)
+                    }}
+                  >
                     <input type="hidden" name="pkField" value={pkField} />
                     <input type="hidden" name="pkValue" value={String(r[pkField])} />
                     {/* 1행: 기타 필드 */}
@@ -139,17 +168,28 @@ export function BenefitsTable({ rows, columns, pkField, createAction, updateRowA
                         </div>
                       ))}
                       <div className="flex items-center justify-end gap-2">
-                        {/* 좌측 저장, 우측 삭제 */}
-                        <SaveSubmitButton formId={formId} />
-                        <DeleteConfirmButton formId={`delete-form-${String(r[pkField])}`} />
+                        <button
+                          type="submit"
+                          className="rounded bg-gray-100 px-3 py-1.5 text-sm"
+                          disabled={saveMutation.isPending}
+                        >
+                          {saveMutation.isPending ? '저장 중...' : '저장'}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded bg-red-50 px-3 py-1.5 text-sm text-red-700 hover:bg-red-100"
+                          onClick={async () => {
+                            const pkValue = String(r[pkField])
+                            await deleteMutation.mutateAsync({ pkField, pkValue })
+                          }}
+                          disabled={deleteMutation.isPending}
+                        >
+                          {deleteMutation.isPending ? '삭제 중...' : '삭제'}
+                        </button>
                       </div>
                     </div>
                   </form>
-                  {/* 삭제용 별도 폼 */}
-                  <form id={`delete-form-${String(r[pkField])}`} action={deleteAction} className="hidden">
-                    <input type="hidden" name="pkField" value={pkField} />
-                    <input type="hidden" name="pkValue" value={String(r[pkField])} />
-                  </form>
+                  {/* 삭제/저장은 useMutation으로 처리되므로 별도 폼 불필요 */}
                 </td>
               </tr>
             )

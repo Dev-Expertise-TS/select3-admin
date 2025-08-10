@@ -1,6 +1,6 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { BenefitsTable } from './_components/BenefitsTable'
-import { createBasicBenefit, updateBasicBenefitRow, deleteBasicBenefit } from './actions'
+import { createBasicBenefit } from './actions'
 
 type Row = Record<string, unknown>
 
@@ -56,8 +56,6 @@ export default async function BasicBenefitsManagePage() {
         columns={columns}
         pkField={pkField}
         createAction={createBasicBenefit}
-        updateRowAction={updateBasicBenefitRow}
-        deleteAction={deleteBasicBenefit}
       />
     </div>
   )

@@ -33,7 +33,7 @@ export default async function HotelEditPage({ params }: PageProps) {
       <form id="hotel-edit-form" action={async (formData) => {
         'use server'
         await saveAction(formData)
-      }} className="space-y-4 rounded-lg border bg-white p-6">
+      }} className="space-y-4 rounded-lg border bg-white p-6" suppressHydrationWarning>
         <input type="hidden" name="sabre_id" value={String((data as Record<string, unknown>).sabre_id ?? '')} />
         <div className="grid gap-4 sm:grid-cols-3">
           <div>

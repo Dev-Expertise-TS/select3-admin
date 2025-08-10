@@ -2,8 +2,10 @@
 
 import React from 'react'
 import { Button } from '@/components/ui/button'
+import { useQueryClient } from '@tanstack/react-query'
 
 export function ClientSaveButton({ formId }: { formId: string }) {
+  const queryClient = useQueryClient()
   const [open, setOpen] = React.useState(false)
   const [message, setMessage] = React.useState('')
   const [pendingSubmit, setPendingSubmit] = React.useState(false)
@@ -131,6 +133,8 @@ export function ClientSaveButton({ formId }: { formId: string }) {
           ? () => (form as unknown as { requestSubmit: () => void }).requestSubmit()
           : () => form.submit()
         setTimeout(() => submitFn(), 50)
+        // best-effort: 저장 직후 관련 캐시 무효화 (팝업 리스트 등)
+        try { void queryClient.invalidateQueries({ queryKey: ['benefits-list'] }) } catch {}
       } catch {
         setTimeout(() => form.submit(), 50)
       }

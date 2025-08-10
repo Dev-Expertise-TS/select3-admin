@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Button } from '@/components/ui/button'
+import { useQuery } from '@tanstack/react-query'
 
 export type BenefitRow = {
   benefit_id: string | number
@@ -19,7 +20,6 @@ export function BenefitsManager({ initial }: Props) {
   const [selected, setSelected] = React.useState<BenefitRow[]>(initial)
   const [open, setOpen] = React.useState(false)
   const [allRows, setAllRows] = React.useState<BenefitRow[]>([])
-  const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [popupSelectedIds, setPopupSelectedIds] = React.useState<Set<string>>(new Set())
   const [baselineOrder, setBaselineOrder] = React.useState<string[]>(() => initial.map((r) => String(r.benefit_id)))
@@ -68,33 +68,37 @@ export function BenefitsManager({ initial }: Props) {
     return () => window.removeEventListener('benefits:commit', handler)
   }, [selected, baselineOrder])
 
+  const { data: popupData, isFetching: popupFetching, refetch: refetchPopup } = useQuery({
+    queryKey: ['benefits-list'],
+    queryFn: async () => {
+      const res = await fetch('/api/benefits/list', { cache: 'no-store' })
+      const json = await res.json()
+      if (json.success) {
+        const rows = (json.data as Array<{ benefit_id: string | number; benefit: string | null; benefit_description: string | null; start_date: string | null; end_date: string | null }>).
+          map((r) => ({
+            benefit_id: r.benefit_id,
+            benefit: r.benefit ?? null,
+            benefit_description: r.benefit_description ?? null,
+            start_date: r.start_date ?? null,
+            end_date: r.end_date ?? null,
+          })) as BenefitRow[]
+        return rows
+      }
+      throw new Error(json.error || 'fetch failed')
+    },
+    enabled: false,
+    staleTime: 60_000,
+  })
+
   const openPopup = async () => {
     setOpen(true)
     setPopupSelectedIds(new Set())
-    if (allRows.length === 0 && !loading) {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch('/api/benefits/list', { cache: 'no-store' })
-        const json = await res.json()
-        if (json.success) {
-          const rows = (json.data as Array<{ benefit_id: string | number; benefit: string | null; benefit_description: string | null; start_date: string | null; end_date: string | null }>).
-            map((r) => ({
-              benefit_id: r.benefit_id,
-              benefit: r.benefit ?? null,
-              benefit_description: r.benefit_description ?? null,
-              start_date: r.start_date ?? null,
-              end_date: r.end_date ?? null,
-            })) as BenefitRow[]
-          setAllRows(rows)
-        } else {
-          setError(json.error || '불러오기 실패')
-        }
-      } catch {
-        setError('네트워크 오류')
-      } finally {
-        setLoading(false)
-      }
+    setError(null)
+    try {
+      const d = popupData ?? (await refetchPopup()).data
+      setAllRows(d ?? [])
+    } catch {
+      setError('네트워크 오류')
     }
   }
 
@@ -232,7 +236,7 @@ export function BenefitsManager({ initial }: Props) {
               <div className="text-sm font-medium">Benefit 선택</div>
               <Button type="button" variant="secondary" size="xs" onClick={() => setOpen(false)}>닫기</Button>
             </div>
-            {loading ? (
+            {popupFetching ? (
               <div className="p-4 text-sm text-gray-600">불러오는 중...</div>
             ) : error ? (
               <div className="p-4 text-sm text-red-700 bg-red-50 border">{error}</div>

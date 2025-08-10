@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useQuery } from '@tanstack/react-query'
 
 interface SearchFormProps {
   initialQ: string
@@ -23,37 +24,34 @@ export function SearchForm({ initialQ }: SearchFormProps) {
   const [highlightIndex, setHighlightIndex] = useState<number>(-1)
   const listRef = useRef<HTMLUListElement | null>(null)
 
+  const suggestEnabled = q.trim().length > 0
+  const { data: suggestData, isFetching: isFetchingSuggest } = useQuery({
+    queryKey: ['suggest', q],
+    queryFn: async () => {
+      const controller = new AbortController()
+      abortRef.current?.abort()
+      abortRef.current = controller
+      const url = `/api/hotel/suggest?field=all&q=${encodeURIComponent(q)}&limit=8`
+      const res = await fetch(url, { signal: controller.signal })
+      const json = await res.json()
+      if (json.success) return (json.data as string[]) || []
+      return []
+    },
+    enabled: suggestEnabled,
+    staleTime: 60_000,
+  })
+
   useEffect(() => {
-    if (!q) {
+    setLoadingSuggest(isFetchingSuggest)
+    if (!suggestEnabled) {
       setSuggestions([])
       setOpenSuggest(false)
-      abortRef.current?.abort()
       return
     }
-    setLoadingSuggest(true)
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-    const t = window.setTimeout(async () => {
-      try {
-        const url = `/api/hotel/suggest?field=all&q=${encodeURIComponent(q)}&limit=8`
-        const res = await fetch(url, { signal: controller.signal })
-        const json = await res.json()
-        if (json.success) {
-          setSuggestions(json.data || [])
-          setOpenSuggest(true)
-        } else {
-          setSuggestions([])
-          setOpenSuggest(false)
-        }
-      } catch {
-        // ignore
-      } finally {
-        setLoadingSuggest(false)
-      }
-    }, 200)
-    return () => window.clearTimeout(t)
-  }, [q])
+    const list = suggestData ?? []
+    setSuggestions(list)
+    setOpenSuggest(list.length > 0)
+  }, [suggestEnabled, suggestData, isFetchingSuggest])
 
   useEffect(() => {
     if (!openSuggest || highlightIndex < 0) return
@@ -64,7 +62,8 @@ export function SearchForm({ initialQ }: SearchFormProps) {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const params = new URLSearchParams(searchParams?.toString() ?? '')
-    q ? params.set('q', q) : params.delete('q')
+    if (q) params.set('q', q)
+    else params.delete('q')
     params.delete('sabreId'); params.delete('nameKor'); params.delete('nameEng')
     params.set('page', '1')
     setOpenSuggest(false)
@@ -79,7 +78,8 @@ export function SearchForm({ initialQ }: SearchFormProps) {
 
   const performSubmit = (value: string) => {
     const params = new URLSearchParams(searchParams?.toString() ?? '')
-    value ? params.set('q', value) : params.delete('q')
+    if (value) params.set('q', value)
+    else params.delete('q')
     params.delete('sabreId'); params.delete('nameKor'); params.delete('nameEng')
     params.set('page', '1')
     setOpenSuggest(false)
