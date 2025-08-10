@@ -10,6 +10,9 @@ export interface HotelSearchResult {
   property_name_kor: string | null;
   property_name_eng: string | null;
   rate_plan_codes: string[] | null;
+  created_at: string | null;
+  chain_name_kr: string | null;
+  brand_name_kr: string | null;
 }
 
 // API 응답 타입

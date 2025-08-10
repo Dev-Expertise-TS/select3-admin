@@ -37,7 +37,15 @@ export async function POST(request: NextRequest) {
     if (!searchTerm) {
       const { data, error } = await supabase
         .from('select_hotels')
-        .select('sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes')
+        .select(`
+          sabre_id, 
+          paragon_id, 
+          property_name_kor, 
+          property_name_eng, 
+          rate_plan_codes, 
+          created_at,
+          brand_id
+        `)
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -52,13 +60,39 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const results: HotelSearchResult[] = (data || []).map((row) => ({
-        sabre_id: row.sabre_id ? String(row.sabre_id) : null,
-        paragon_id: row.paragon_id ? String(row.paragon_id) : null,
-        property_name_kor: row.property_name_kor || null,
-        property_name_eng: row.property_name_eng || null,
-        rate_plan_codes: row.rate_plan_codes || null,
-      }));
+      // 브랜드 정보를 별도로 가져오기
+      const brandIds = data.map(row => row.brand_id).filter(Boolean);
+      const brandsData = brandIds.length > 0 ? await supabase
+        .from('hotel_brands')
+        .select('brand_id, name_kr, chain_id')
+        .in('brand_id', brandIds) : { data: [], error: null };
+
+      // 체인 정보를 별도로 가져오기
+      const chainIds = (brandsData.data || []).map(brand => brand.chain_id).filter(Boolean);
+      const chainsData = chainIds.length > 0 ? await supabase
+        .from('hotel_chains')
+        .select('chain_id, name_kr')
+        .in('chain_id', chainIds) : { data: [], error: null };
+
+      // 브랜드와 체인 매핑
+      const brandMap = new Map((brandsData.data || []).map(brand => [brand.brand_id, brand]));
+      const chainMap = new Map((chainsData.data || []).map(chain => [chain.chain_id, chain]));
+
+      const results: HotelSearchResult[] = (data || []).map((row) => {
+        const brand = row.brand_id ? brandMap.get(row.brand_id) : null;
+        const chain = brand?.chain_id ? chainMap.get(brand.chain_id) : null;
+        
+        return {
+          sabre_id: row.sabre_id ? String(row.sabre_id) : null,
+          paragon_id: row.paragon_id ? String(row.paragon_id) : null,
+          property_name_kor: row.property_name_kor || null,
+          property_name_eng: row.property_name_eng || null,
+          rate_plan_codes: row.rate_plan_codes || null,
+          created_at: row.created_at || null,
+          chain_name_kr: chain?.name_kr || null,
+          brand_name_kr: brand?.name_kr || null,
+        };
+      });
 
       return NextResponse.json<ApiResponse<HotelSearchResult[]>>(
         {
@@ -71,10 +105,18 @@ export async function POST(request: NextRequest) {
     }
 
     // or() 사용 시 검색어에 ','가 포함되면 구문 오류를 유발할 수 있어 병렬 쿼리 후 병합 방식으로 변경
-    const baseSelect = 'sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes'
+    const baseSelect = 'sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes, created_at, brand_id'
     const isNumericSearch = /^\d+$/.test(searchTerm)
 
-    type Row = { sabre_id: string | null; paragon_id: string | null; property_name_kor: string | null; property_name_eng: string | null; rate_plan_codes: string[] | null }
+    type Row = { 
+      sabre_id: string | null; 
+      paragon_id: string | null; 
+      property_name_kor: string | null; 
+      property_name_eng: string | null; 
+      rate_plan_codes: string[] | null; 
+      created_at: string | null;
+      brand_id: number | null;
+    }
     type TaskResult = { data: Row[] | null; error: unknown }
     const tasks: Array<Promise<TaskResult>> = []
     // 한글명
@@ -141,7 +183,41 @@ export async function POST(request: NextRequest) {
       return ak.localeCompare(bk)
     })
 
-    return NextResponse.json<ApiResponse<HotelSearchResult[]>>({ success: true, data: merged, count: merged.length }, {
+    // 검색 결과에서 브랜드 정보를 별도로 가져오기
+    const searchBrandIds = merged.map(row => row.brand_id).filter(Boolean);
+    const searchBrandsData = searchBrandIds.length > 0 ? await supabase
+      .from('hotel_brands')
+      .select('brand_id, name_kr, chain_id')
+      .in('brand_id', searchBrandIds) : { data: [], error: null };
+
+    // 검색 결과에서 체인 정보를 별도로 가져오기
+    const searchChainIds = (searchBrandsData.data || []).map(brand => brand.chain_id).filter(Boolean);
+    const searchChainsData = searchChainIds.length > 0 ? await supabase
+      .from('hotel_chains')
+      .select('chain_id, name_kr')
+      .in('chain_id', searchChainIds) : { data: [], error: null };
+
+    // 검색 결과용 브랜드와 체인 매핑
+    const searchBrandMap = new Map((searchBrandsData.data || []).map(brand => [brand.brand_id, brand]));
+    const searchChainMap = new Map((searchChainsData.data || []).map(chain => [chain.chain_id, chain]));
+
+    const searchResults: HotelSearchResult[] = merged.map((row) => {
+      const brand = row.brand_id ? searchBrandMap.get(row.brand_id) : null;
+      const chain = brand?.chain_id ? searchChainMap.get(brand.chain_id) : null;
+      
+      return {
+        sabre_id: row.sabre_id ? String(row.sabre_id) : null,
+        paragon_id: row.paragon_id ? String(row.paragon_id) : null,
+        property_name_kor: row.property_name_kor || null,
+        property_name_eng: row.property_name_eng || null,
+        rate_plan_codes: row.rate_plan_codes || null,
+        created_at: row.created_at || null,
+        chain_name_kr: chain?.name_kr || null,
+        brand_name_kr: brand?.name_kr || null,
+      };
+    });
+
+    return NextResponse.json<ApiResponse<HotelSearchResult[]>>({ success: true, data: searchResults, count: searchResults.length }, {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',

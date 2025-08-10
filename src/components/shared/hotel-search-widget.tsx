@@ -52,6 +52,17 @@ export default function HotelSearchWidget({
   const [allRatePlanCodes, setAllRatePlanCodes] = useState<string[]>([]);
   const [ratePlanCodesLoading, setRatePlanCodesLoading] = useState(false);
 
+  // 날짜 포맷팅 함수 (YYYY-MM-DD)
+  const formatDate = (dateString: string | null): string => {
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      return date.toISOString().split('T')[0];
+    } catch {
+      return '-';
+    }
+  };
+
   // 검색 핸들러 + 외부 호출 함수로 분리 (자동완성 Enter 선택 시 재사용)
   const performSearch = async (term: string) => {
     if (!term.trim()) {
@@ -606,9 +617,9 @@ export default function HotelSearchWidget({
   }
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn("flex flex-col h-full", className)}>
       {!hideHeader && (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-6">
           <div className="rounded-lg bg-blue-600 p-2">
             <Building2 className="h-6 w-6 text-white" />
           </div>
@@ -623,8 +634,8 @@ export default function HotelSearchWidget({
         </div>
       )}
 
-      {/* 검색 폼 */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      {/* 검색 폼 - 고정 */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex-shrink-0">
         <form onSubmit={handleSearch} className="space-y-4">
           <div>
             <label 
@@ -725,37 +736,39 @@ export default function HotelSearchWidget({
         </form>
       </div>
 
-      {/* 에러 메시지 */}
-      {error && (
-        <div 
-          className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-start gap-3"
-          role="alert"
-          aria-live="polite"
-        >
-          <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="font-medium">오류가 발생했습니다</h3>
-            <p className="text-sm mt-1">{error}</p>
+      {/* 결과 영역 - 스크롤 가능 */}
+      <div className="flex-1 overflow-auto space-y-4">
+        {/* 에러 메시지 */}
+        {error && (
+          <div 
+            className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-start gap-3"
+            role="alert"
+            aria-live="polite"
+          >
+            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-medium">오류가 발생했습니다</h3>
+              <p className="text-sm mt-1">{error}</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 검색 결과 카운트 */}
-      {count > 0 && (
-        <div 
-          className="p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg flex items-start gap-3"
-          role="status"
-          aria-live="polite"
-        >
-          <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="font-medium">검색 완료</h3>
-            <p className="text-sm mt-1">총 <strong>{count.toLocaleString()}</strong>개의 호텔을 찾았습니다.</p>
+        {/* 검색 결과 카운트 */}
+        {count > 0 && (
+          <div 
+            className="p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg flex items-start gap-3"
+            role="status"
+            aria-live="polite"
+          >
+            <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-medium">검색 완료</h3>
+              <p className="text-sm mt-1">총 <strong>{count.toLocaleString()}</strong>개의 호텔을 찾았습니다.</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 검색 결과 테이블 */}
+        {/* 검색 결과 테이블 */}
       {results.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           {/* 테이블 헤더 정보 */}
@@ -790,6 +803,24 @@ export default function HotelSearchWidget({
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
                         호텔명(영문)
+                      </th>
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        업데이트 날짜
+                      </th>
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        체인(한글)
+                      </th>
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        브랜드(한글)
                       </th>
                       <th 
                         scope="col" 
@@ -859,6 +890,15 @@ export default function HotelSearchWidget({
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {hotel.property_name_eng || '영문명 없음'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {formatDate(hotel.created_at)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {hotel.chain_name_kr || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {hotel.brand_name_kr || '-'}
                         </td>
                         <td className="px-6 py-4 text-sm">
                           <Link
@@ -1307,19 +1347,20 @@ export default function HotelSearchWidget({
         </div>
       )}
 
-      {/* 빈 결과 메시지 */}
-      {!loading && hasSearched && count === 0 && !error && (
-        <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
-          <Building2 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">검색 결과가 없습니다</h3>
-          <p className="text-gray-600 mb-4">
-            &lsquo;<strong>{searchTerm}</strong>&rsquo; 검색어로 일치하는 호텔을 찾을 수 없습니다.
-          </p>
-          <p className="text-sm text-gray-500">
-            다른 키워드로 검색해보세요.
-          </p>
-        </div>
-      )}
+        {/* 빈 결과 메시지 */}
+        {!loading && hasSearched && count === 0 && !error && (
+          <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
+            <Building2 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">검색 결과가 없습니다</h3>
+            <p className="text-gray-600 mb-4">
+              &lsquo;<strong>{searchTerm}</strong>&rsquo; 검색어로 일치하는 호텔을 찾을 수 없습니다.
+            </p>
+            <p className="text-sm text-gray-500">
+              다른 키워드로 검색해보세요.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
