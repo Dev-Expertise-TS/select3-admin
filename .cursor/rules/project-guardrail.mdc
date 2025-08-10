@@ -1,0 +1,63 @@
+---
+alwaysApply: true
+---
+## Select Admin Project Guardrail (Enforcement & Checklists)
+
+Strict MUST/NEVER rules and creation checklists to keep the codebase safe, scalable, and reviewable. For the WHY/HOW behind these rules, see architecture-guide.mdc.
+
+Scope: All PRs and AI edits. Audience: engineers, reviewers, and bots.
+
+### Directory Map (MUST follow – Team Canonical Layout)
+- `src/app/` — routes/layouts/api (App Router)
+- `src/components/` — shared UI; shadcn in `src/components/ui/`
+- `src/features/` — domain features (components/lib/hooks)
+- `src/lib/` — server-only libs and environment-agnostic utilities
+- `src/types/` — global TS types
+- `src/styles/` — global/theme CSS (minimize globals)
+- `src/config/` — configs (nav/constants)
+- `public/` — static assets
+
+### Creation Rules (ALWAYS – Code Submission Gate)
+- New pages/routes only under `src/app/**`
+- API handlers only under `src/app/api/**/route.ts`
+- Reusable UI under `src/components/shared/` (or `src/components/ui/`)
+- Domain code under `src/features/<domain>/**`
+- Data-access/server-only code under `src/lib/**`
+- Global types under `src/types/**`
+
+### Prohibitions (NEVER – Non‑Negotiable)
+- No application code outside `src/`
+- No business/data logic in UI components when it belongs in `src/lib/**` or feature layer
+- No service-role keys in client components
+- No `any`; use `unknown` + type guards
+- No `@ts-ignore` (use proper typing or `@ts-expect-error` with reason)
+- No reorganization of large areas unless the task asks for it
+
+### Type & Safety (MUST – Review Checklist)
+- Inputs: `defaultValue` must be `String(value ?? '')`
+- Dates: only `string | number | Date` before `new Date(...)`
+- Deep JSON access via safe helpers; guard types before rendering
+- Unused variables prefixed with `_`
+
+### Styling (Tailwind v4 – Review Checklist)
+- Use `cn(...)` for class composition
+- Keep spacing, focus rings, hover/active/disabled states consistent
+- Align with app shell; minimize globals
+
+### App Router Patterns (MUST – Review Checklist)
+- Server Components by default; add `'use client'` only when necessary
+- Prefer Server Actions; co-locate page-only components; extract reusable parts
+
+### Data Access (Supabase – Review Checklist)
+- Service-role client only on server (`src/lib/supabase/server.ts`)
+- Use `.single()` after updates; avoid `or(...)` with comma inputs; normalize payloads
+
+### Final Checks (Before Merge)
+ - [ ] New files under correct `src/**` path
+- [ ] Routes/APIs in `src/app/**`
+- [ ] Shared UI in `src/components/shared/` or `src/components/ui/`
+- [ ] Feature code under `src/features/**`
+- [ ] No `any`, no `@ts-ignore`
+- [ ] Dates/defaultValue guarded
+- [ ] `pnpm build` passes after significant changes
+

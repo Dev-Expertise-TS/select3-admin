@@ -1,0 +1,68 @@
+---
+alwaysApply: true
+---
+## Business Context & Domain Rules (Select Admin)
+
+Purpose: Capture domain language, invariants, and UX/business rules that drive implementation decisions. This guide informs architectural choices and validations elsewhere.
+
+### Domain Glossary
+- Hotel: An accommodation entity identified by a Sabre ID (primary) and previously Paragon ID (deprecated in UI flows).
+- Benefit (Master): A catalog entry describing a customer-facing benefit (name/description); table: `select_hotel_benefits`.
+- Benefit Mapping (Hotel ↔ Benefit): The association of a hotel (by `sabre_id`) to one or more benefits, ordered by `sort`; table: `select_hotel_benefits_map`.
+- Rate Plan Codes: A set of codes used for pricing/tests; when empty, persist `null` (not `[]`).
+
+### Identifiers & Keys
+- Sabre ID is the canonical hotel key in UI flows and mapping operations.
+- Paragon ID is not editable/used for routing anymore (keep read-only if present).
+- Benefit mapping rows use (`sabre_id`, `benefit_id`) uniqueness with an integer `sort`.
+
+### Business Invariants
+- Benefits list (master) is authoritative and read-only for mapping validity (mapping must reference existing `benefit_id`).
+- Mapping updates overwrite the full set for a given `sabre_id` (delete + insert with new order) to guarantee consistency.
+- Sort values must be contiguous from 0..N-1 when persisted.
+- Dates must be ISO `YYYY-MM-DD`. For tester UI, `End Date = Start Date + 1 day` defaulting rule applies.
+- Empty string form values should persist as `null` when the schema expects nullable.
+
+### UX Rules (Key Screens)
+- Hotel Search
+  - Single search input with autocomplete across Korean/English/Sabre ID.
+  - Keyboard navigation: ArrowUp/Down to move; Enter to submit; Escape to dismiss.
+  - Autocomplete hides after search or explicit click.
+
+- Hotel Details Tester
+  - Inputs layout stable before/after test.
+  - RatePlan table renders key financial fields; sorted by `AmountAfterTax`; `RateKey` truncated.
+  - Provide "JSON Copy" with visual success feedback.
+
+- Hotel Update (Details)
+  - Fields Sabre ID, Hotel Name (KR/EN) editable; placed in one row (3 columns on `sm`+).
+  - Benefits Manager
+    - Popup allows multi-select; adds to read-only table; drag & drop to reorder.
+    - Visual feedback: pink on drag, blue on drop, yellow highlight after successful save.
+    - Save confirmation modal: "변경 사항을 저장하였습니다." with centered OK (no cancel).
+    - Only benefits changed? Still submit and persist (no dependency on other fields changing).
+
+### Data Handling & Validation
+- Autocomplete Suggestion API must avoid Supabase `or(...)` with comma inputs; run separate queries and merge.
+- After update operations, use `.single()` to avoid order constraints.
+- Normalize to `null` for empty arrays where DB expects enums/specific types.
+- Input default values must be strings (`String(value ?? '')`).
+- Date construction only from `string | number | Date`, guarded.
+
+### Error & Messaging
+- API errors must be user-friendly and avoid leaking DB internals.
+- Use consistent shape: `{ success: false, error, code?, details? }`.
+- Client-side confirmation states (pending/success) should be explicit and time-bounded.
+
+### Security & Compliance
+- Service-role Supabase client strictly server-side (`src/lib/supabase/server.ts`).
+- No secrets in responses/logs. Rate-limit sensitive API endpoints.
+
+### Non-Functional Expectations
+- Performance: Autocomplete and tester flows must remain responsive (debounce requests, cancel stale with AbortController).
+- Accessibility: Ensure keyboard access for suggestion list and manager dialogs; visible focus states.
+
+### Change Management
+- Database table rename impacts (e.g., `select_basic_benefits` → `select_hotel_benefits`) must be applied consistently across APIs, UI, and guards.
+- Routing changes (e.g., `[sabre_paragon]` → `[sabre]`) require deprecated params to be ignored or redirected.
+

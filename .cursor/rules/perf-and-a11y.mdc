@@ -1,0 +1,32 @@
+---
+alwaysApply: true
+---
+## Performance & Accessibility Checklist
+
+Purpose: Ensure fast, accessible user experiences.
+
+### Performance (Web Vitals)
+- Split code by route; lazy-load heavy components.
+- Avoid blocking the main thread in client components.
+- Prefer server-side data fetching; stream where possible.
+- Use `next/image` (or optimized images); provide width/height.
+- Memoize expensive computations/hooks; avoid unnecessary renders.
+- Debounce/throttle user-initiated network calls.
+
+### Network & Caching
+- Coalesce duplicate requests; cancel stale ones (AbortController).
+- Use cache headers or Next revalidation; avoid ad-hoc client caches.
+- Send minimal JSON; avoid over-fetching.
+
+### Accessibility (a11y)
+- Semantics: proper roles/landmarks (`main`, `nav`, `button`, `listbox`/`option`).
+- Labels: associate labels with inputs; use `aria-label`/`aria-describedby`.
+- Keyboard: support Tab/Shift+Tab, Arrow keys, Enter/Escape for lists/menus.
+- Focus: visible focus ring; manage focus on dialogs; do not trap focus incorrectly.
+- Contrast: meet WCAG AA for text and interactive elements.
+- Announce: use `aria-live` for dynamic status messages.
+
+### Testing
+- Include a11y assertions in integration tests where practical.
+- Verify keyboard navigation and focus order for critical flows.
+
