@@ -14,6 +14,7 @@ import {
   GitBranch,
   DollarSign,
   Code,
+  Building,
 } from 'lucide-react'
 
 interface NavItem {
@@ -37,6 +38,7 @@ const navSections: NavSection[] = [
   {
     title: 'Admin',
     items: [
+      { label: 'Sabre Hotel Code 관리', href: '/admin/sabre-id', icon: Building },
       { label: 'Sabre API 요금 코드 관리', href: '/admin/hotel-search', icon: DollarSign },
       { label: '호텔 정보 업데이트', href: '/admin/hotel-update', icon: Pencil },
       { label: '혜택 관리', href: '/admin/benefits/manage', icon: ListChecks },
