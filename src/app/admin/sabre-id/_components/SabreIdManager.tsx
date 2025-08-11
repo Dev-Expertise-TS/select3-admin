@@ -83,99 +83,109 @@ export default function SabreIdManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* 검색 섹션 */}
-      <div className="bg-white rounded-lg border p-6 space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold mb-2">호텔 검색</h2>
-          <p className="text-sm text-muted-foreground">
-            호텔 영문명을 입력하여 Sabre API에서 호텔을 검색합니다.
-          </p>
-        </div>
-        
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <Input
-              type="text"
-              placeholder="호텔 영문명을 입력하세요 (예: Hilton, Marriott)"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyPress={handleKeyPress}
-              disabled={isLoading}
-            />
+      <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div className="space-y-6 p-6">
+          <div className="flex items-center gap-2">
+            <Search className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">호텔 검색</h2>
           </div>
-          <Button 
-            onClick={handleSearch}
-            disabled={isLoading || !searchTerm.trim()}
-            className="min-w-[100px]"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                검색중...
-              </>
-            ) : (
-              <>
-                <Search className="mr-2 h-4 w-4" />
-                검색
-              </>
+          
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+              <Input
+                type="text"
+                placeholder="호텔 영문명을 입력하세요 (예: Four Seasons, InterContinental)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyPress={handleKeyPress}
+                disabled={isLoading}
+                className="h-10"
+              />
+              <Button 
+                onClick={handleSearch}
+                disabled={isLoading || !searchTerm.trim()}
+                className="h-10 px-8"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    검색중
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    검색
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                <div className="text-red-500">
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div>{error}</div>
+              </div>
             )}
-          </Button>
+
+            {isLoading && loadingMessage && (
+              <div className="flex items-center gap-2 rounded-md bg-blue-50 p-3 text-sm text-blue-700">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                <div>{loadingMessage}</div>
+              </div>
+            )}
+          </div>
         </div>
-
-        {error && (
-          <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md border border-red-200">
-            {error}
-          </div>
-        )}
-
-        {isLoading && loadingMessage && (
-          <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md border border-blue-200 flex items-center">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {loadingMessage}
-          </div>
-        )}
       </div>
 
       {/* 검색 결과 섹션 */}
       {results.length > 0 && (
-        <div className="bg-white rounded-lg border">
-          <div className="p-6 border-b">
-            <h2 className="text-lg font-semibold">검색 결과</h2>
-            <p className="text-sm text-muted-foreground">
-              총 {results.length}개의 호텔이 검색되었습니다.
-            </p>
+        <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+          <div className="border-b p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">검색 결과</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  총 {results.length}개의 호텔이 검색되었습니다.
+                </p>
+              </div>
+            </div>
           </div>
           
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b bg-gray-50">
-                  <th className="text-left p-4 font-medium">Sabre Hotel Code</th>
-                  <th className="text-left p-4 font-medium">호텔명</th>
-                  <th className="text-left p-4 font-medium">Address</th>
-                  <th className="text-left p-4 font-medium">City</th>
-                  <th className="text-left p-4 font-medium">Country</th>
+                <tr className="border-b bg-muted/50">
+                  <th className="h-12 px-4 text-left align-middle font-medium">Sabre Hotel Code</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium">호텔명</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium">Address</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium">City</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium">Country</th>
                 </tr>
               </thead>
               <tbody>
                 {results.map((hotel, index) => (
-                  <tr key={hotel.hotelCode || index} className="border-b hover:bg-gray-50">
-                    <td className="p-4">
-                      <span className="font-mono font-medium text-blue-600">
+                  <tr key={hotel.hotelCode || index} className="border-b transition-colors hover:bg-muted/50">
+                    <td className="p-4 align-middle">
+                      <code className="relative rounded bg-muted px-2 py-1 font-mono text-sm font-semibold text-blue-600">
                         {hotel.hotelCode}
-                      </span>
+                      </code>
                     </td>
-                    <td className="p-4 font-medium">{hotel.hotelName}</td>
-                    <td className="p-4 text-muted-foreground max-w-sm">
+                    <td className="p-4 align-middle font-medium">{hotel.hotelName}</td>
+                    <td className="p-4 align-middle text-muted-foreground max-w-sm">
                       <div className="truncate" title={hotel.address}>
                         {hotel.address || '-'}
                       </div>
                     </td>
-                    <td className="p-4 text-muted-foreground">
+                    <td className="p-4 align-middle text-muted-foreground">
                       {hotel.city || '-'}
                     </td>
-                    <td className="p-4 text-muted-foreground">
+                    <td className="p-4 align-middle text-muted-foreground">
                       {hotel.country || '-'}
                     </td>
                   </tr>

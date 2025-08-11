@@ -15,12 +15,14 @@ import {
   DollarSign,
   Code,
   Building,
+  ExternalLink,
 } from 'lucide-react'
 
 interface NavItem {
   label: string
   href: string
   icon?: ComponentType<{ className?: string }>
+  isExternal?: boolean
 }
 
 interface NavSection {
@@ -38,11 +40,11 @@ const navSections: NavSection[] = [
   {
     title: 'Admin',
     items: [
-      { label: 'Sabre Hotel Code 관리', href: '/admin/sabre-id', icon: Building },
       { label: 'Sabre API 요금 코드 관리', href: '/admin/hotel-search', icon: DollarSign },
+      { label: 'Sabre Hotel Code 확인', href: '/admin/sabre-id', icon: Building },
       { label: '호텔 정보 업데이트', href: '/admin/hotel-update', icon: Pencil },
       { label: '혜택 관리', href: '/admin/benefits/manage', icon: ListChecks },
-          { label: '체인 브랜드 관리', href: '/admin/chain-brand', icon: Network },
+      { label: '체인 브랜드 관리', href: '/admin/chain-brand', icon: Network },
     ],
   },
   {
@@ -52,6 +54,7 @@ const navSections: NavSection[] = [
       { label: '연결 테스트', href: '/test-connection', icon: GitBranch },
       { label: 'Select Hotel DB', href: '/test-connection/hotel', icon: Database },
       { label: 'API Endpoint Test', href: '/test-connection/hotel-search', icon: Search },
+      { label: 'Sabre API 공식 문서', href: 'https://developer.sabre.com/product-catalog?f%5B0%5D=product_type%3Aapi_reference&category=Hotel', icon: ExternalLink, isExternal: true },
     ],
   },
 ]
@@ -81,25 +84,44 @@ export function Sidebar() {
             </div>
             <ul className="space-y-1">
               {section.items.map((item) => {
-                const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+                const isActive = !item.isExternal && (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
                 const Icon = item.icon
+                
                 return (
                   <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        'group flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors',
-                        isActive
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-foreground hover:bg-muted/70'
-                      )}
-                      aria-current={isActive ? 'page' : undefined}
-                    >
-                      {Icon ? (
-                        <Icon className={cn('h-4 w-4', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
-                      ) : null}
-                      <span>{item.label}</span>
-                    </Link>
+                    {item.isExternal ? (
+                      <a
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(
+                          'group flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors',
+                          'text-foreground hover:bg-muted/70'
+                        )}
+                      >
+                        {Icon ? (
+                          <Icon className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
+                        ) : null}
+                        <span className="flex-1">{item.label}</span>
+                        <ExternalLink className="h-3 w-3 text-muted-foreground group-hover:text-foreground opacity-60" />
+                      </a>
+                    ) : (
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          'group flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors',
+                          isActive
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-foreground hover:bg-muted/70'
+                        )}
+                        aria-current={isActive ? 'page' : undefined}
+                      >
+                        {Icon ? (
+                          <Icon className={cn('h-4 w-4', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
+                        ) : null}
+                        <span>{item.label}</span>
+                      </Link>
+                    )}
                   </li>
                 )
               })}

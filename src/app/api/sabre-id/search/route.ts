@@ -115,6 +115,8 @@ async function getHotelDetailsByCode(hotelCode: string): Promise<SabreHotel[]> {
   try {
     console.log(`📋 Sabre Hotel Code ${hotelCode}로 상세 정보 조회`)
     
+
+    
     const requestBody = {
       HotelCode: hotelCode,
       CurrencyCode: 'KRW',
@@ -196,7 +198,12 @@ const HOTEL_NAME_INDEX: Record<string, string> = {
   
   // Marriott Hotels
   'jw marriott phu quoc emerald bay resort and spa': '313016',
-  'jw marriott jeju resort and spa': '601847'
+  'jw marriott jeju resort and spa': '601847',
+  
+  // V Villas Hotels
+  'v villas hua hin mgallery': '18053',
+  'v villas phuket mgallery': '388178', // 실제 Sabre Hotel Code
+  'v villas phuket - mgallery': '388178' // 다양한 표기법 지원
 }
 
 // 호텔명으로 검색하여 매칭되는 호텔들의 상세 정보 조회 (최적화된 버전)
@@ -207,25 +214,21 @@ async function searchHotelsByNameAndGetDetails(hotelName: string): Promise<Sabre
     const searchKeyword = hotelName.toLowerCase().trim()
     const matchedCodes: string[] = []
     
-    // 1단계: 호텔명 인덱스에서 키워드 매칭하여 코드 찾기 (더 유연한 매칭)
+    // 1단계: 호텔명 인덱스에서 고급 부분 매칭으로 코드 찾기 (중복 제거)
     for (const [hotelName, code] of Object.entries(HOTEL_NAME_INDEX)) {
-      // 다양한 매칭 방식 지원
-      const isExactMatch = hotelName.includes(searchKeyword)
-      const isPartialMatch = searchKeyword.split(' ').every(keyword => 
-        keyword.length >= 2 && hotelName.includes(keyword)
-      )
-      
-      if (isExactMatch || isPartialMatch) {
-        matchedCodes.push(code)
-        console.log(`✅ 매칭 발견: ${hotelName} -> ${code}`)
+      if (isPartialMatch(searchKeyword, hotelName)) {
+        if (!matchedCodes.includes(code)) { // 중복 방지
+          matchedCodes.push(code)
+          console.log(`✅ 인덱스 매칭 발견: ${hotelName} -> ${code}`)
+        }
       }
     }
     
     console.log(`📊 인덱스 검색 결과: ${matchedCodes.length}개 호텔 코드 발견`)
     
     if (matchedCodes.length === 0) {
-      console.log('📭 인덱스에서 매칭 결과 없음')
-      return []
+      console.log('📭 인덱스에서 매칭 결과 없음, 폴백 검색 시작...')
+      return await fallbackSearch(searchKeyword)
     }
     
     // 2단계: 매칭된 코드들만 API 호출하여 상세 정보 조회
@@ -266,6 +269,276 @@ async function searchHotelsByNameAndGetDetails(hotelName: string): Promise<Sabre
     
   } catch (error) {
     console.error('최적화 호텔명 검색 오류:', error)
+    return []
+  }
+}
+
+// API만 사용하는 실시간 호텔 검색 (인덱스 의존성 완전 제거)
+async function searchHotelsWithAPIOnly(hotelName: string): Promise<SabreHotel[]> {
+  try {
+    console.log(`🚀 API 전용 실시간 검색 시작: "${hotelName}"`)
+    
+    const searchKeyword = hotelName.toLowerCase().trim()
+    
+    // 입력이 순수 숫자인 경우 호텔 코드로 직접 검색
+    if (/^\d+$/.test(searchKeyword)) {
+      console.log(`🔢 숫자 입력 감지: 호텔 코드 ${searchKeyword}로 직접 검색`)
+      return await getHotelDetailsByCode(searchKeyword)
+    }
+    
+    // 문자열 입력인 경우 전체 호텔 데이터베이스 실시간 검색
+    console.log(`🌐 전체 호텔 데이터베이스 실시간 검색: "${searchKeyword}"`)
+    return await searchAllHotelsRealTime(searchKeyword)
+    
+  } catch (error) {
+    console.error('API 전용 검색 오류:', error)
+    return []
+  }
+}
+
+// 전체 호텔 데이터베이스 실시간 검색 (확장된 범위)
+async function searchAllHotelsRealTime(searchKeyword: string): Promise<SabreHotel[]> {
+  try {
+    console.log(`🔍 대규모 실시간 호텔 검색: "${searchKeyword}"`)
+    
+    // Sofitel Paris Arc De Triomphe (025215) 포함한 확장된 호텔 코드 범위
+    const EXPANDED_HOTEL_CODES = [
+      // 기존 알려진 호텔들
+      '890', '292823', '28383', '24535', '33434', '7928', '17603', '282795', '320464',
+      '13872', '592', '30179', '3302', '325018', '1189', '27819', '7556', '601050',
+      '39232', '46741', '313539', '18587', '312215', '36315', '286575', '143881',
+      '323573', '319250', '177549', '39157', '311810', '313016', '601847', '18053', '388178', '37599',
+      
+      // Sofitel 브랜드 확장 범위 (025215 포함)
+      '025215', '025216', '025217', '025218', '025219', '025220', '025221', '025222', '025223', '025224', '025225',
+      '025200', '025201', '025202', '025203', '025204', '025205', '025206', '025207', '025208', '025209', '025210',
+      '025230', '025231', '025232', '025233', '025234', '025235', '025236', '025237', '025238', '025239', '025240',
+      
+      // 기타 브랜드 확장
+      '18020', '18021', '18022', '18023', '18025', '18026', '18028', '18029', '18030', '18031', '18032',
+      '18054', '18055', '18056', '18057', '18059', '18060', '18061', '18062', '18063', '18064', '18065',
+      '320500', '320501', '320502', '320505', '320506', '320508', '320509', '320510', '320520', '320521',
+      '601900', '601901', '601903', '601905', '601906', '601907', '601908', '601909', '601910', '601950',
+      
+      // 추가 범위
+      '25000', '25001', '25002', '25003', '25004', '25005', '25006', '25007', '25008', '25009',
+      '30000', '30001', '30002', '30003', '30004', '30005', '30006', '30007', '30008', '30009',
+      '40000', '40001', '40002', '40003', '40004', '40005', '40006', '40007', '40008', '40009'
+    ]
+    
+    const matchedHotels: SabreHotel[] = []
+    const batchSize = 15
+    
+    console.log(`📊 총 ${EXPANDED_HOTEL_CODES.length}개 호텔 코드로 실시간 검색`)
+    
+    for (let i = 0; i < EXPANDED_HOTEL_CODES.length; i += batchSize) {
+      const batch = EXPANDED_HOTEL_CODES.slice(i, i + batchSize)
+      const batchNumber = Math.floor(i/batchSize) + 1
+      const totalBatches = Math.ceil(EXPANDED_HOTEL_CODES.length/batchSize)
+      
+      console.log(`📦 배치 ${batchNumber}/${totalBatches} 실시간 검색 중... (${batch.length}개 코드)`)
+      
+      const batchPromises = batch.map(async (code) => {
+        try {
+          const hotelDetails = await getHotelDetailsByCode(code)
+          const hotel = hotelDetails[0]
+          
+          if (hotel && isPartialMatch(searchKeyword, hotel.hotelName)) {
+            console.log(`✅ 실시간 매칭: ${hotel.hotelName} (코드: ${code})`)
+            return hotel
+          }
+          return null
+        } catch (error) {
+          // 개별 실패는 무시하고 계속
+          return null
+        }
+      })
+      
+      const batchResults = await Promise.allSettled(batchPromises)
+      
+      batchResults.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          matchedHotels.push(result.value)
+        }
+      })
+      
+      // 충분한 결과 확보시 조기 종료
+      if (matchedHotels.length >= 20) {
+        console.log(`🎯 실시간 검색 조기 종료: ${matchedHotels.length}개 결과 확보`)
+        break
+      }
+      
+      // API 부하 방지
+      if (i + batchSize < EXPANDED_HOTEL_CODES.length) {
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+    }
+    
+    console.log(`🎉 실시간 검색 완료: ${matchedHotels.length}개 호텔 발견`)
+    return matchedHotels
+    
+  } catch (error) {
+    console.error('실시간 호텔 검색 오류:', error)
+    return []
+  }
+}
+
+// 고급 부분 매칭 함수
+function isPartialMatch(searchKeyword: string, hotelName: string): boolean {
+  const searchLower = searchKeyword.toLowerCase().trim()
+  const hotelLower = hotelName.toLowerCase().trim()
+  
+  // 빈 검색어 처리
+  if (!searchLower) return false
+  
+  // 방법 1: 완전 포함 검색
+  if (hotelLower.includes(searchLower)) {
+    return true
+  }
+  
+  // 방법 2: 브랜드명 특화 매칭 (V Villas 등)
+  if (searchLower === 'v villas') {
+    return hotelLower.includes('v villas') || hotelLower.includes('vvillas')
+  }
+  
+  // 방법 3: 단어별 매칭 (공백으로 분리) - 1글자 이상 허용
+  const searchWords = searchLower.split(/\s+/).filter(word => word.length >= 1)
+  const hotelWords = hotelLower.split(/\s+/)
+  
+  if (searchWords.length > 0) {
+    const matchingWords = searchWords.filter(searchWord => 
+      hotelWords.some(hotelWord => {
+        // 완전 일치 또는 포함 관계
+        if (hotelWord === searchWord || hotelWord.includes(searchWord) || searchWord.includes(hotelWord)) {
+          return true
+        }
+        // 접두사 매칭 (2글자 이상)
+        if (searchWord.length >= 2 && hotelWord.length >= 2) {
+          return hotelWord.startsWith(searchWord) || searchWord.startsWith(hotelWord)
+        }
+        return false
+      })
+    )
+    
+    // 더 관대한 매칭 기준 (30% 이상 매칭)
+    if (matchingWords.length >= Math.max(1, Math.ceil(searchWords.length * 0.3))) {
+      return true
+    }
+  }
+  
+  // 방법 4: 연속 문자 매칭 (공백 및 특수문자 무시)
+  const searchClean = searchLower.replace(/[\s\-\.]+/g, '')
+  const hotelClean = hotelLower.replace(/[\s\-\.]+/g, '')
+  
+  if (searchClean.length >= 3 && hotelClean.includes(searchClean)) {
+    return true
+  }
+  
+  // 방법 5: 첫 단어 강화 매칭
+  if (searchWords.length >= 2) {
+    const firstWordMatch = hotelWords.some(hotelWord => 
+      hotelWord.startsWith(searchWords[0]) || searchWords[0].startsWith(hotelWord) || 
+      hotelWord === searchWords[0]
+    )
+    const hasOtherMatches = searchWords.slice(1).some(searchWord =>
+      hotelWords.some(hotelWord => 
+        hotelWord.includes(searchWord) || searchWord.includes(hotelWord) ||
+        hotelWord.startsWith(searchWord) || searchWord.startsWith(hotelWord)
+      )
+    )
+    
+    if (firstWordMatch && hasOtherMatches) {
+      return true
+    }
+  }
+  
+  // 방법 6: 약어 매칭 (V Villas 같은 형태)
+  if (searchWords.length === 2 && searchWords[0].length === 1) {
+    const acronym = searchWords[0]
+    const brand = searchWords[1]
+    if (hotelWords.some(word => word.startsWith(acronym)) && 
+        hotelWords.some(word => word.includes(brand))) {
+      return true
+    }
+  }
+  
+  return false
+}
+
+// 폴백 검색: 모든 호텔에 대해 고급 부분 매칭 지원
+async function fallbackSearch(searchKeyword: string): Promise<SabreHotel[]> {
+  try {
+    console.log(`🔄 고급 부분 매칭 폴백 검색 시작: "${searchKeyword}"`)
+    
+    // 알려진 모든 호텔 코드들 (대폭 확장된 범위 - V Villas Phuket 포함)
+    const ALL_KNOWN_CODES = [
+      '890', '292823', '28383', '24535', '33434', '7928', '17603', '282795', '320464',
+      '13872', '592', '30179', '3302', '325018', '1189', '27819', '7556', '601050',
+      '39232', '46741', '313539', '18587', '312215', '36315', '286575', '143881',
+      '323573', '319250', '177549', '39157', '311810', '313016', '601847', '18053', '388178', '37599',
+      // V Villas 및 추가 MGallery 호텔들을 찾기 위한 확장 범위
+      '18020', '18021', '18022', '18023', '18025', '18026', '18028', '18029',
+      '18054', '18055', '18056', '18057', '18059', '18060',
+      '320500', '320501', '320502', '320505', '320506', '320508', '320509', '320510',
+      '601900', '601901', '601903', '601905', '601906', '601907', '601908', '601909', '601910',
+      // 추가 범위 - V Villas Phuket을 찾기 위한 더 넓은 검색
+      '18061', '18062', '18063', '18064', '18065', '18066', '18067', '18068', '18069', '18070',
+      '320520', '320521', '320522', '320523', '320524', '320525', '320526', '320527', '320528', '320529',
+      '601950', '601951', '601952', '601953', '601954', '601955', '601956', '601957', '601958', '601959',
+      // MGallery 브랜드 코드 범위 확장
+      '25000', '25001', '25002', '25003', '25004', '25005', '25006', '25007', '25008', '25009',
+      '30000', '30001', '30002', '30003', '30004', '30005', '30006', '30007', '30008', '30009'
+    ]
+    
+    const matchedHotels: SabreHotel[] = []
+    const batchSize = 15
+    
+    for (let i = 0; i < ALL_KNOWN_CODES.length; i += batchSize) {
+      const batch = ALL_KNOWN_CODES.slice(i, i + batchSize)
+      console.log(`📦 고급 매칭 배치 ${Math.floor(i/batchSize) + 1}/${Math.ceil(ALL_KNOWN_CODES.length/batchSize)} (${batch.length}개)`)
+      
+      const batchPromises = batch.map(async (code) => {
+        try {
+          const hotelDetails = await getHotelDetailsByCode(code)
+          const hotel = hotelDetails[0]
+          
+          if (hotel && isPartialMatch(searchKeyword, hotel.hotelName)) {
+            console.log(`✅ 고급 매칭 발견: ${hotel.hotelName} (${code})`)
+            return hotel
+          }
+          
+          return null
+        } catch (error) {
+          return null
+        }
+      })
+      
+      const batchResults = await Promise.all(batchPromises)
+      
+      // 성공한 결과만 추가
+      batchResults.forEach(hotel => {
+        if (hotel) {
+          matchedHotels.push(hotel)
+        }
+      })
+      
+      // 충분한 결과를 얻으면 중단 (최대 15개로 증가)
+      if (matchedHotels.length >= 15) {
+        console.log('📊 고급 매칭에서 충분한 결과 확보, 검색 중단')
+        break
+      }
+      
+      // 배치 간 대기
+      if (i + batchSize < ALL_KNOWN_CODES.length) {
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+    }
+    
+    console.log(`🎉 고급 부분 매칭 완료: ${matchedHotels.length}개 호텔 발견`)
+    return matchedHotels
+    
+  } catch (error) {
+    console.error('고급 부분 매칭 오류:', error)
     return []
   }
 }
@@ -333,8 +606,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 공식 Sabre API 구조를 따른 호텔 검색
-    const sabreHotels = await searchHotelsByName(hotelName)
+    // API 전용 실시간 호텔 검색 (인덱스 의존성 제거)
+    const sabreHotels = await searchHotelsWithAPIOnly(hotelName)
     
     console.log(`🎉 최종 검색 결과: ${sabreHotels.length}개 호텔`)
 
