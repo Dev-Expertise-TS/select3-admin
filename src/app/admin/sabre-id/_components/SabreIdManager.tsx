@@ -3,73 +3,69 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Loader2 } from 'lucide-react'
+import { Search, Loader2, Bot, CheckCircle, AlertCircle, XCircle, HelpCircle } from 'lucide-react'
 
-interface SabreHotel {
-  hotelCode: string
+interface OpenAIHotelSearchResult {
+  sabreHotelCode: string
   hotelName: string
-  address?: string
-  city?: string
-  country?: string
+  confidence: number
+  reasoning: string
+  verificationStatus: 'verified' | 'partial_match' | 'no_match'
+  verificationDetails: {
+    inputHotelName: string
+    verifiedHotelName: string
+    matchScore: number
+    address?: string
+    city?: string
+    country?: string
+  }
 }
 
-interface SabreSearchResult {
+interface OpenAIHotelSearchResponse {
   success: boolean
-  data?: SabreHotel[]
+  data?: OpenAIHotelSearchResult
   error?: string
 }
 
 export default function SabreIdManager() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [results, setResults] = useState<SabreHotel[]>([])
+  const [searchResult, setSearchResult] = useState<OpenAIHotelSearchResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState('')
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
-      setError('호텔 영문명을 입력해주세요.')
+      setError('호텔명을 입력해주세요.')
       return
     }
 
     setIsLoading(true)
     setError(null)
-    setResults([])
-    setLoadingMessage('호텔 정보를 검색하고 있습니다...')
+    setSearchResult(null)
+    setLoadingMessage('OpenAI AI가 호텔명을 분석하여 Sabre Hotel Code를 찾고 있습니다...')
 
     try {
-      const response = await fetch('/api/sabre-id/search', {
+      const response = await fetch('/api/sabre-id/openai-search', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          hotelName: searchTerm.trim()
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hotelName: searchTerm.trim() })
       })
 
-      const data: SabreSearchResult = await response.json()
+      const data: OpenAIHotelSearchResponse = await response.json()
 
       if (!response.ok) {
         throw new Error(data.error || 'API 요청이 실패했습니다.')
       }
 
       if (data.success && data.data) {
-        setResults(data.data)
+        setSearchResult(data.data)
         setLoadingMessage('')
-        if (data.data.length === 0) {
-          setError('검색 결과가 없습니다. 다른 호텔명으로 검색해보세요.')
-        }
       } else {
-        setError(data.error || '검색 중 오류가 발생했습니다.')
+        throw new Error(data.error || '검색 중 오류가 발생했습니다.')
       }
     } catch (err) {
-      console.error('Search error:', err)
-      if (err instanceof Error && err.name === 'AbortError') {
-        setError('검색 요청이 취소되었습니다.')
-      } else {
-        setError(err instanceof Error ? err.message : '검색 중 오류가 발생했습니다.')
-      }
+      setError(err instanceof Error ? err.message : '검색 중 오류가 발생했습니다.')
     } finally {
       setIsLoading(false)
       setLoadingMessage('')
@@ -82,21 +78,59 @@ export default function SabreIdManager() {
     }
   }
 
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.8) return 'text-green-600'
+    if (confidence >= 0.6) return 'text-yellow-600'
+    return 'text-red-600'
+  }
+
+  const getConfidenceText = (confidence: number) => {
+    if (confidence >= 0.8) return '높음'
+    if (confidence >= 0.6) return '보통'
+    return '낮음'
+  }
+
+  const getVerificationStatusColor = (status: string) => {
+    switch (status) {
+      case 'verified': return 'text-green-600'
+      case 'partial_match': return 'text-yellow-600'
+      case 'no_match': return 'text-red-600'
+      default: return 'text-gray-600'
+    }
+  }
+
+  const getVerificationStatusText = (status: string) => {
+    switch (status) {
+      case 'verified': return '검증 완료'
+      case 'partial_match': return '부분 일치'
+      case 'no_match': return '일치하지 않음'
+      default: return '알 수 없음'
+    }
+  }
+
+  const getVerificationStatusIcon = (status: string) => {
+    switch (status) {
+      case 'verified': return <CheckCircle className="h-5 w-5 text-green-600" />
+      case 'partial_match': return <HelpCircle className="h-5 w-5 text-yellow-600" />
+      case 'no_match': return <XCircle className="h-5 w-5 text-red-600" />
+      default: return <HelpCircle className="h-5 w-5 text-gray-600" />
+    }
+  }
+
   return (
     <div className="space-y-8">
-      {/* 검색 섹션 */}
       <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
         <div className="space-y-6 p-6">
           <div className="flex items-center gap-2">
-            <Search className="h-5 w-5 text-muted-foreground" />
-            <h2 className="text-lg font-semibold">호텔 검색</h2>
+            <Bot className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-semibold">AI 기반 호텔 검색</h2>
           </div>
           
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-[1fr_auto]">
               <Input
                 type="text"
-                placeholder="호텔 영문명을 입력하세요 (예: Four Seasons, InterContinental)"
+                placeholder="호텔명을 입력하세요"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -111,12 +145,12 @@ export default function SabreIdManager() {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    검색중
+                    AI 검색중
                   </>
                 ) : (
                   <>
                     <Search className="mr-2 h-4 w-4" />
-                    검색
+                    AI 검색
                   </>
                 )}
               </Button>
@@ -124,11 +158,7 @@ export default function SabreIdManager() {
 
             {error && (
               <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
-                <div className="text-red-500">
-                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                </div>
+                <AlertCircle className="h-4 w-4 text-red-500 mt-0.5" />
                 <div>{error}</div>
               </div>
             )}
@@ -143,58 +173,146 @@ export default function SabreIdManager() {
         </div>
       </div>
 
-      {/* 검색 결과 섹션 */}
-      {results.length > 0 && (
+      {searchResult && (
         <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
           <div className="border-b p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold">검색 결과</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  총 {results.length}개의 호텔이 검색되었습니다.
-                </p>
+              <div className="flex items-center gap-2">
+                {getVerificationStatusIcon(searchResult.verificationStatus)}
+                <h3 className="text-lg font-semibold">AI 검색 결과</h3>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">AI 신뢰도:</span>
+                  <span className={`text-sm font-medium ${getConfidenceColor(searchResult.confidence)}`}>
+                    {getConfidenceText(searchResult.confidence)} ({(searchResult.confidence * 100).toFixed(0)}%)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">검증 상태:</span>
+                  <span className={`text-sm font-medium ${getVerificationStatusColor(searchResult.verificationStatus)}`}>
+                    {getVerificationStatusText(searchResult.verificationStatus)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
           
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="h-12 px-4 text-left align-middle font-medium">Sabre Hotel Code</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">호텔명</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">Address</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">City</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">Country</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((hotel, index) => (
-                  <tr key={hotel.hotelCode || index} className="border-b transition-colors hover:bg-muted/50">
-                    <td className="p-4 align-middle">
-                      <code className="relative rounded bg-muted px-2 py-1 font-mono text-sm font-semibold text-blue-600">
-                        {hotel.hotelCode}
-                      </code>
-                    </td>
-                    <td className="p-4 align-middle font-medium">{hotel.hotelName}</td>
-                    <td className="p-4 align-middle text-muted-foreground max-w-sm">
-                      <div className="truncate" title={hotel.address}>
-                        {hotel.address || '-'}
+          <div className="p-6 space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-500">Sabre Hotel Code</h4>
+                <div className="text-2xl font-bold text-blue-600 font-mono">
+                  {searchResult.sabreHotelCode || '-'}
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-500">검증된 호텔명</h4>
+                <div className="text-lg font-semibold text-gray-900">
+                  {searchResult.hotelName || '검증 실패'}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-500">호텔명 매칭 검증</h4>
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <span className="text-xs text-gray-500">입력된 호텔명:</span>
+                    <div className="text-sm font-medium text-gray-900 mt-1">
+                      &ldquo;{searchResult.verificationDetails.inputHotelName}&rdquo;
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500">검증된 호텔명:</span>
+                    <div className="text-sm font-medium text-gray-900 mt-1">
+                      &ldquo;{searchResult.verificationDetails.verifiedHotelName || '검증 실패'}&rdquo;
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">매칭 점수:</span>
+                  <span className={`text-sm font-medium ${getVerificationStatusColor(searchResult.verificationStatus)}`}>
+                    {(searchResult.verificationDetails.matchScore * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-500">AI 분석 결과</h4>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  {searchResult.reasoning || '설명 없음'}
+                </p>
+              </div>
+            </div>
+
+            {(searchResult.verificationDetails.address || searchResult.verificationDetails.city || searchResult.verificationDetails.country) && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-500">호텔 상세 정보</h4>
+                <div className="grid gap-4 md:grid-cols-3">
+                  {searchResult.verificationDetails.address && (
+                    <div>
+                      <span className="text-xs text-gray-500">주소</span>
+                      <div className="text-sm text-gray-900 mt-1">
+                        {searchResult.verificationDetails.address}
                       </div>
-                    </td>
-                    <td className="p-4 align-middle text-muted-foreground">
-                      {hotel.city || '-'}
-                    </td>
-                    <td className="p-4 align-middle text-muted-foreground">
-                      {hotel.country || '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  )}
+                  {searchResult.verificationDetails.city && (
+                    <div>
+                      <span className="text-xs text-gray-500">도시</span>
+                      <div className="text-sm text-gray-900 mt-1">
+                        {searchResult.verificationDetails.city}
+                      </div>
+                    </div>
+                  )}
+                  {searchResult.verificationDetails.country && (
+                    <div>
+                      <span className="text-xs text-gray-500">국가</span>
+                      <div className="text-sm text-gray-900 mt-1">
+                        {searchResult.verificationDetails.country}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-500">검증 상태 상세</h4>
+              <div className="flex items-center gap-2">
+                {getVerificationStatusIcon(searchResult.verificationStatus)}
+                <span className={`text-sm font-medium ${getVerificationStatusColor(searchResult.verificationStatus)}`}>
+                  {getVerificationStatusText(searchResult.verificationStatus)}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 ml-7">
+                매칭 점수 {(searchResult.verificationDetails.matchScore * 100).toFixed(1)}% 기준으로 판단됩니다.
+              </p>
+            </div>
           </div>
         </div>
       )}
+
+      <div className="rounded-lg border bg-blue-50 p-6">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-blue-600 p-2">
+            <Bot className="h-5 w-5 text-white" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold text-blue-900">AI 기반 검색 시스템</h3>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p>• <strong>1단계:</strong> OpenAI AI가 호텔명을 분석하여 적합한 Sabre Hotel Code를 찾습니다</p>
+              <p>• <strong>2단계:</strong> 찾은 코드를 Sabre API로 검증하여 실제 호텔 정보를 가져옵니다</p>
+              <p>• <strong>3단계:</strong> 입력된 호텔명과 검증된 호텔명을 비교하여 매칭 점수를 계산합니다</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
