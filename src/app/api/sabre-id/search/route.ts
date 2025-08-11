@@ -544,32 +544,62 @@ async function fallbackSearch(searchKeyword: string): Promise<SabreHotel[]> {
 }
 
 // 주소 정보 추출 헬퍼
-function extractAddress(hotelInfo: any): string {
-  if (hotelInfo.Address) {
-    if (Array.isArray(hotelInfo.Address.AddressLine)) {
-      return hotelInfo.Address.AddressLine.join(', ')
-    } else if (hotelInfo.Address.AddressLine) {
-      return hotelInfo.Address.AddressLine
-    } else if (hotelInfo.Address.Street) {
-      return hotelInfo.Address.Street
+function extractAddress(hotelInfo: unknown): string {
+  const info = hotelInfo as {
+    Address?: {
+      AddressLine?: string | string[]
+      Street?: string
+    }
+  }
+  if (info.Address) {
+    if (Array.isArray(info.Address.AddressLine)) {
+      return info.Address.AddressLine.join(', ')
+    } else if (info.Address.AddressLine) {
+      return info.Address.AddressLine
+    } else if (info.Address.Street) {
+      return info.Address.Street
     }
   }
   return '주소 정보 없음'
 }
 
 // 도시 정보 추출 헬퍼
-function extractCity(hotelInfo: any): string {
-  return hotelInfo.Address?.CityName || 
-         hotelInfo.Address?.City || 
-         hotelInfo.LocationInfo?.Address?.CityName || 
+function extractCity(hotelInfo: unknown): string {
+  const info = hotelInfo as {
+    Address?: {
+      CityName?: string
+      City?: string
+    }
+    LocationInfo?: {
+      Address?: {
+        CityName?: string
+      }
+    }
+  }
+  
+  return info.Address?.CityName || 
+         info.Address?.City || 
+         info.LocationInfo?.Address?.CityName || 
          '도시 정보 없음'
 }
 
 // 국가 정보 추출 헬퍼
-function extractCountry(hotelInfo: any): string {
-  return hotelInfo.Address?.CountryCode || 
-         hotelInfo.Address?.CountryName || 
-         hotelInfo.LocationInfo?.Address?.CountryCode || 
+function extractCountry(hotelInfo: unknown): string {
+  const info = hotelInfo as {
+    Address?: {
+      CountryCode?: string
+      CountryName?: string
+    }
+    LocationInfo?: {
+      Address?: {
+        CountryCode?: string
+      }
+    }
+  }
+  
+  return info.Address?.CountryCode || 
+         info.Address?.CountryName || 
+         info.LocationInfo?.Address?.CountryCode || 
          '국가 정보 없음'
 }
 
