@@ -21,6 +21,8 @@ interface HotelSearchWidgetProps {
   enableHotelEdit?: boolean;
   /** 초기 로딩 시 최신 호텔 리스트 표시 */
   showInitialHotels?: boolean;
+  /** 호텔 선택 시 콜백 함수 */
+  onHotelSelect?: (sabreId: string) => void;
 }
 
 export default function HotelSearchWidget({ 
@@ -29,7 +31,8 @@ export default function HotelSearchWidget({
   className = "",
   hideHeader = false,
   enableHotelEdit = false,
-  showInitialHotels = false
+  showInitialHotels = false,
+  onHotelSelect
 }: HotelSearchWidgetProps) {
   // State 관리
   const [searchTerm, setSearchTerm] = useState('');
@@ -315,8 +318,15 @@ export default function HotelSearchWidget({
   };
 
 
+  
   // 행 클릭 핸들러 (확장 패널 토글 또는 호텔 편집 페이지 이동)
   const handleRowClick = (hotel: HotelSearchResult) => {
+    // onHotelSelect 콜백이 있는 경우 호출
+    if (onHotelSelect && hotel.sabre_id) {
+      onHotelSelect(hotel.sabre_id);
+      return;
+    }
+
     // 호텔 편집 모드가 활성화된 경우 확장 패널을 열지 않음
     if (enableHotelEdit) {
       // Link 컴포넌트가 이미 처리하므로 별도 처리 불필요
