@@ -18,78 +18,148 @@ interface SabreHotelSearchResponse {
   error?: string
 }
 
-// Sabre REST API 기본 설정
+// Sabre 공식 API 설정
 const SABRE_API_BASE_URL = 'https://api.havail.sabre.com'
-const SABRE_API_VERSION = 'v4.1.0'
 
-// 공식 Sabre API 인터페이스들
-interface SabreHotelListRequest {
-  HotelName?: string
-  CityName?: string
-  CountryCode?: string
-  Latitude?: number
-  Longitude?: number
-  Radius?: number
-  RadiusUnit?: string
-  Limit?: number
-}
 
-interface SabreHotelListResponse {
-  HotelListRS?: {
-    HotelProperty?: Array<{
-      HotelCode?: string
-      HotelName?: string
-      Address?: {
-        AddressLine?: string
-        CityName?: string
-        CountryCode?: string
-        StateCode?: string
-        PostalCode?: string
-      }
-      ContactNumbers?: Array<{
-        ContactType?: string
-        ContactNumber?: string
-      }>
-      Latitude?: number
-      Longitude?: number
-    }>
+// Sabre API 인증 정보 (환경 변수에서 가져와야 함)
+const SABRE_CLIENT_ID = process.env.SABRE_CLIENT_ID || 'your_client_id'
+const SABRE_CLIENT_SECRET = process.env.SABRE_CLIENT_SECRET || 'your_client_secret'
+
+// Sabre API 엔드포인트
+const SABRE_HOTEL_SEARCH_URL = `${SABRE_API_BASE_URL}/v4.1.0/shop/hotels`
+const SABRE_TOKEN_URL = 'https://api.havail.sabre.com/v2/auth/token'
+
+
+
+// Sabre API 인증 토큰 가져오기
+async function getSabreAuthToken(): Promise<string | null> {
+  try {
+    console.log('🔐 Sabre API 인증 토큰 요청 중...')
+    
+    const response = await fetch(SABRE_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(`${SABRE_CLIENT_ID}:${SABRE_CLIENT_SECRET}`).toString('base64')}`
+      },
+      body: 'grant_type=client_credentials'
+    })
+
+    if (!response.ok) {
+      console.error('❌ Sabre API 인증 실패:', response.status, response.statusText)
+      return null
+    }
+
+    const data = await response.json()
+    const accessToken = data.access_token
+    
+    if (accessToken) {
+      console.log('✅ Sabre API 인증 토큰 획득 성공')
+      return accessToken
+    } else {
+      console.error('❌ Sabre API 응답에 access_token이 없음')
+      return null
+    }
+  } catch (error) {
+    console.error('❌ Sabre API 인증 오류:', error)
+    return null
   }
 }
 
-interface SabreHotelDetailsRequest {
-  HotelCode: string
-}
-
-interface SabreHotelDetailsResponse {
-  HotelDetailRS?: {
-    HotelDetail?: {
-      HotelInfo?: {
-        HotelCode?: string
-        HotelName?: string
-        Address?: {
-          AddressLine?: string[]
-          CityName?: string
-          CountryCode?: string
-          StateCode?: string
-          PostalCode?: string
+// Sabre 공식 Hotel Search API를 사용한 호텔 검색
+async function searchHotelsWithOfficialAPI(hotelName: string): Promise<SabreHotel[]> {
+  try {
+    console.log(`🏨 Sabre 공식 API로 호텔 검색: "${hotelName}"`)
+    
+    // 1. 인증 토큰 획득
+    const authToken = await getSabreAuthToken()
+    if (!authToken) {
+      console.log('⚠️ Sabre 공식 API 인증 실패, 기존 방식으로 폴백')
+      return await searchHotelsWithAPIOnly(hotelName)
+    }
+    
+    // 2. 공식 Hotel Search API 호출
+    const searchRequest = {
+      "OTA_HotelSearchRQ": {
+        "Version": "4.1.0",
+        "SearchRequest": {
+          "HotelSearchRequest": {
+            "Criterion": {
+              "HotelSearchCriterion": {
+                "HotelRef": {
+                  "HotelName": hotelName
+                }
+              }
+            }
+          }
         }
-        ContactNumbers?: Array<{
-          ContactType?: string
-          ContactNumber?: string
-        }>
-      }
-      LocationInfo?: {
-        Latitude?: number
-        Longitude?: number
       }
     }
+    
+    console.log('📡 Sabre 공식 API 호출:', JSON.stringify(searchRequest, null, 2))
+    
+    const response = await fetch(SABRE_HOTEL_SEARCH_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(searchRequest)
+    })
+    
+    if (!response.ok) {
+      console.error('❌ Sabre 공식 API 호출 실패:', response.status, response.statusText)
+      console.log('⚠️ 기존 방식으로 폴백')
+      return await searchHotelsWithAPIOnly(hotelName)
+    }
+    
+    const data = await response.json()
+    console.log('📋 Sabre 공식 API 응답:', JSON.stringify(data, null, 2))
+    
+    // 3. 응답 파싱 및 변환
+    const hotels: SabreHotel[] = []
+    
+    if (data.OTA_HotelSearchRS && data.OTA_HotelSearchRS.HotelSearchResults) {
+      const properties = data.OTA_HotelSearchRS.HotelSearchResults.HotelSearchResult
+      
+      if (properties && Array.isArray(properties)) {
+        for (const property of properties) {
+          if (property.HotelReference && property.HotelReference.HotelCode) {
+            const hotel: SabreHotel = {
+              hotelCode: property.HotelReference.HotelCode,
+              hotelName: property.HotelReference.HotelName || 'Unknown Hotel',
+              address: property.HotelReference.Address?.AddressLine?.[0] || '주소 정보 없음',
+              city: property.HotelReference.Address?.CityName || '도시 정보 없음',
+              country: property.HotelReference.Address?.CountryCode || '국가 정보 없음'
+            }
+            hotels.push(hotel)
+            console.log(`✅ 공식 API에서 호텔 발견: ${hotel.hotelName} (코드: ${hotel.hotelCode})`)
+          }
+        }
+      }
+    }
+    
+    if (hotels.length > 0) {
+      console.log(`🎉 Sabre 공식 API 검색 완료: ${hotels.length}개 호텔 발견`)
+      return hotels
+    } else {
+      console.log('⚠️ 공식 API에서 결과 없음, 기존 방식으로 폴백')
+      return await searchHotelsWithAPIOnly(hotelName)
+    }
+    
+  } catch (error) {
+    console.error('❌ Sabre 공식 API 검색 오류:', error)
+    console.log('⚠️ 기존 방식으로 폴백')
+    return await searchHotelsWithAPIOnly(hotelName)
   }
 }
 
-// 공식 Sabre API에서 호텔 목록을 검색하는 함수 (최적화된 버전)
+// Sabre 공식 API 우선 사용하는 호텔 검색 함수
 async function searchHotelsByName(hotelName: string): Promise<SabreHotel[]> {
   try {
-    console.log(`🔍 최적화된 호텔 검색: ${hotelName}`)
+    console.log(`🔍 Sabre 공식 API 우선 호텔 검색: ${hotelName}`)
     
     // 순수 숫자인지 확인 (Sabre Hotel Code 직접 검색)
     const isPureNumeric = /^\d+$/.test(hotelName.trim())
@@ -98,15 +168,27 @@ async function searchHotelsByName(hotelName: string): Promise<SabreHotel[]> {
       console.log(`🔢 순수 숫자 검색 모드: Sabre Hotel Code ${hotelName}`)
       // Sabre Hotel Code로 직접 검색 (가장 빠름)
       return await getHotelDetailsByCode(hotelName.trim())
-    } else {
-      console.log(`📝 호텔명 검색 모드: "${hotelName}"`)
-      // 호텔명으로 최적화 검색 (인덱스 활용)
-      return await searchHotelsByNameAndGetDetails(hotelName)
     }
+    
+    // 문자열 검색 모드 - 공식 API 우선 사용
+    console.log(`🔍 문자열 검색 모드: "${hotelName}" - 공식 API 우선`)
+    
+    // 1단계: Sabre 공식 Hotel Search API 시도
+    const officialResults = await searchHotelsWithOfficialAPI(hotelName)
+    
+    if (officialResults.length > 0) {
+      console.log(`🎉 공식 API 검색 성공: ${officialResults.length}개 호텔 반환`)
+      return officialResults
+    }
+    
+    // 2단계: 공식 API 실패시 기존 방식으로 폴백
+    console.log(`⚠️ 공식 API 실패, 기존 방식으로 폴백`)
+    return await searchHotelsWithAPIOnly(hotelName)
     
   } catch (error) {
     console.error('호텔 검색 오류:', error)
-    throw new Error('호텔 검색 중 오류가 발생했습니다.')
+    console.log('⚠️ 오류 발생, 기존 방식으로 폴백')
+    return await searchHotelsWithAPIOnly(hotelName)
   }
 }
 
@@ -544,7 +626,24 @@ async function fallbackSearch(searchKeyword: string): Promise<SabreHotel[]> {
 }
 
 // 주소 정보 추출 헬퍼
-function extractAddress(hotelInfo: any): string {
+interface HotelInfo {
+  Address?: {
+    AddressLine?: string[] | string
+    Street?: string
+    StreetNmbr?: string
+    StreetName?: string
+    CityName?: string
+    City?: string
+    CountryCode?: string
+    CountryName?: string
+  }
+  LocationInfo?: {
+    CityName?: string
+    CountryCode?: string
+  }
+}
+
+function extractAddress(hotelInfo: HotelInfo): string {
   if (hotelInfo.Address) {
     if (Array.isArray(hotelInfo.Address.AddressLine)) {
       return hotelInfo.Address.AddressLine.join(', ')
@@ -558,18 +657,18 @@ function extractAddress(hotelInfo: any): string {
 }
 
 // 도시 정보 추출 헬퍼
-function extractCity(hotelInfo: any): string {
+function extractCity(hotelInfo: HotelInfo): string {
   return hotelInfo.Address?.CityName || 
          hotelInfo.Address?.City || 
-         hotelInfo.LocationInfo?.Address?.CityName || 
+         hotelInfo.LocationInfo?.CityName || 
          '도시 정보 없음'
 }
 
 // 국가 정보 추출 헬퍼
-function extractCountry(hotelInfo: any): string {
+function extractCountry(hotelInfo: HotelInfo): string {
   return hotelInfo.Address?.CountryCode || 
          hotelInfo.Address?.CountryName || 
-         hotelInfo.LocationInfo?.Address?.CountryCode || 
+         hotelInfo.LocationInfo?.CountryCode || 
          '국가 정보 없음'
 }
 

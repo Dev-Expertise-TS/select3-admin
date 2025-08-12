@@ -142,3 +142,46 @@ Conventional Commits 규칙을 따르고 PR 체크리스트를 사용합니다.
 - 입력의 `defaultValue`는 항상 문자열(`String(value ?? '')`)을 전달합니다.
 - 콤마 포함 검색 입력에서는 Supabase `or(...)`를 피하고, 개별 쿼리 후 병합합니다.
 
+# Select Admin Next.js
+
+Next.js 15 기반의 Select Admin 시스템
+
+## Sabre API 설정
+
+### 1. 환경 변수 설정
+
+프로젝트 루트에 `.env.local` 파일을 생성하고 다음 정보를 추가하세요:
+
+```bash
+# Sabre API 인증 정보
+SABRE_CLIENT_ID=your_sabre_client_id_here
+SABRE_CLIENT_SECRET=your_sabre_client_secret_here
+
+# 기타 환경 변수들...
+NEXT_PUBLIC_APP_URL=http://localhost:3001
+```
+
+### 2. Sabre API 인증 정보 획득
+
+1. [Sabre Developer Portal](https://developer.sabre.com/)에 가입
+2. 새 애플리케이션 생성
+3. Client ID와 Client Secret 발급
+4. 환경 변수에 설정
+
+### 3. API 사용
+
+- **Hotel Search**: 호텔명으로 Sabre Hotel Code 검색
+- **Fallback**: 공식 API 실패시 기존 프록시 API 사용
+
+## 개발 서버 실행
+
+```bash
+pnpm dev
+```
+
+## 빌드
+
+```bash
+pnpm build
+```
+
