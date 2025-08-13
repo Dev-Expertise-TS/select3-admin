@@ -24,8 +24,9 @@ type ActivityResponse =
       details?: unknown
     }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const userId = params?.id
+export async function GET(_req: Request, context: unknown) {
+  const { params } = (context as { params?: { id?: string } }) ?? {}
+  const userId = typeof params?.id === 'string' ? params.id : ''
   if (!userId || typeof userId !== 'string') {
     return NextResponse.json<ActivityResponse>(
       { success: false, error: 'Invalid user id' },
