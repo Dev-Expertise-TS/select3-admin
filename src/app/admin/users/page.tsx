@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Users, Plus, Edit, Trash2, Shield, User, History } from 'lucide-react'
+import { Users, Plus, Edit, Trash2, Shield, User, History, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { User as UserType } from '@/types/auth'
@@ -15,9 +15,35 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [editingUser, setEditingUser] = useState<UserType | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
-  const handleViewHistory = (user: UserType) => {
-    console.log('[users] view history clicked:', { id: user.id, email: user.email })
-    // TODO: 작업 이력 상세 모달/페이지 연결
+  const [historyUser, setHistoryUser] = useState<UserType | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
+  const [historyItems, setHistoryItems] = useState<Array<{ id: string; action: string; created_at: string }>>([])
+  const handleViewHistory = async (user: UserType) => {
+    setHistoryUser(user)
+    setHistoryError('')
+    setHistoryItems([])
+    setHistoryLoading(true)
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(user.id)}/activity`, { cache: 'no-store' })
+      const json = await res.json()
+      if (json?.success) {
+        const list = Array.isArray(json.data) ? json.data : []
+        setHistoryItems(
+          list.map((r: { id?: string; action?: string; created_at?: string }) => ({
+            id: String(r?.id ?? ''),
+            action: String(r?.action ?? ''),
+            created_at: String(r?.created_at ?? ''),
+          }))
+        )
+      } else {
+        setHistoryError(String(json?.error || '활동 이력을 불러오지 못했습니다.'))
+      }
+    } catch (e) {
+      setHistoryError('활동 이력을 불러오지 못했습니다.')
+    } finally {
+      setHistoryLoading(false)
+    }
   }
 
   // 사용자 목록 조회
@@ -275,6 +301,22 @@ export default function AdminUsersPage() {
           }}
         />
       )}
+
+      {/* 작업 이력 모달 */}
+      {historyUser && (
+        <ActivityModal
+          userEmail={historyUser.email}
+          loading={historyLoading}
+          error={historyError}
+          items={historyItems}
+          onClose={() => {
+            setHistoryUser(null)
+            setHistoryItems([])
+            setHistoryError('')
+            setHistoryLoading(false)
+          }}
+        />
+      )}
         </div>
     </AuthGuard>
   )
@@ -427,6 +469,68 @@ function UserFormModal({
             </Button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// 작업 이력 모달 컴포넌트
+function ActivityModal({ userEmail, loading, error, items, onClose }: {
+  userEmail: string
+  loading: boolean
+  error: string
+  items: Array<{ id: string; action: string; created_at: string }>
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">작업 이력 — {userEmail}</h3>
+          <Button variant="outline" onClick={onClose}>닫기</Button>
+        </div>
+
+        {loading && (
+          <div className="flex items-center gap-2 text-gray-600">
+            <Loader2 className="h-4 w-4 animate-spin" /> 불러오는 중...
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="h-12 px-4 text-left align-middle font-medium">시간</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium">액션</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={2} className="p-4 text-center text-gray-500">기록이 없습니다.</td>
+                  </tr>
+                )}
+                {items.map((it) => (
+                  <tr key={it.id} className="border-b">
+                    <td className="p-4 align-middle text-sm text-gray-600">
+                      {new Date(it.created_at).toLocaleString('ko-KR')}
+                    </td>
+                    <td className="p-4 align-middle">
+                      {it.action}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )
