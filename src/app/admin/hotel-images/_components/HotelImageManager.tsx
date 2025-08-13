@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Image, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Image as ImageIcon, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import NextImage from 'next/image'
 import HotelSearchWidget from '@/components/shared/hotel-search-widget'
 
 interface HotelImage {
@@ -110,7 +111,7 @@ export function HotelImageManager() {
       {/* 페이지 헤더 */}
       <div className="flex items-center gap-3">
         <div className="rounded-lg bg-blue-600 p-2">
-          <Image className="h-6 w-6 text-white" />
+          <ImageIcon className="h-6 w-6 text-white" />
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">호텔 이미지 관리</h1>
@@ -138,6 +139,11 @@ export function HotelImageManager() {
         </div>
       )}
 
+      {/* 로딩 상태 */}
+      {loading && (
+        <div className="rounded-lg border bg-white p-4 text-gray-700">이미지를 불러오는 중...</div>
+      )}
+
       {/* 이미지 리스트 */}
       {images.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -152,11 +158,13 @@ export function HotelImageManager() {
                 onClick={() => openImageModal(image, index)}
               >
                 <div className="aspect-[4/3] overflow-hidden">
-                  <img
+                  <NextImage
+                    unoptimized
                     src={image.url}
                     alt={image.caption || '호텔 이미지'}
+                    width={image.width ?? 800}
+                    height={image.height ?? 600}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                    loading="lazy"
                   />
                 </div>
                 <div className="p-3">
@@ -218,9 +226,12 @@ export function HotelImageManager() {
 
             {/* 이미지 */}
             <div className="relative">
-              <img
+              <NextImage
+                unoptimized
                 src={selectedImage.url}
                 alt={selectedImage.caption || '호텔 이미지'}
+                width={selectedImage.width ?? 1600}
+                height={selectedImage.height ?? 1200}
                 className="max-w-full max-h-[90vh] object-contain rounded-lg"
               />
 

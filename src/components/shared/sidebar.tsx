@@ -32,11 +32,13 @@ interface NavItem {
   href: string
   icon?: ComponentType<{ className?: string }>
   isExternal?: boolean
+  requiredRole?: 'admin' | 'user'
 }
 
 interface NavSection {
   title: string
   items: NavItem[]
+  requiredRole?: 'admin' | 'user'
 }
 
 const navSections: NavSection[] = [
@@ -48,18 +50,19 @@ const navSections: NavSection[] = [
   },
   {
     title: 'Admin',
+    requiredRole: 'admin',
     items: [
-      { label: 'Sabre API 요금 코드 관리', href: '/admin/hotel-search', icon: DollarSign },
-      { label: 'Sabre Hotel Code 확인', href: '/admin/sabre-id', icon: Building },
-      { label: '호텔 정보 업데이트', href: '/admin/hotel-update', icon: Pencil },
-      { label: '혜택 관리', href: '/admin/benefits/manage', icon: ListChecks },
-      { label: '광고 관리', href: '/admin/advertisements', icon: DollarSign },
-      { label: '체인 브랜드 관리', href: '/admin/chain-brand', icon: Network },
-      { label: '호텔 이미지 관리', href: '/admin/hotel-images', icon: Image },
-      { label: '호텔 콘텐츠 관리', href: '/admin/hotel-content', icon: FileText },
-      { label: '호텔 아티클 관리', href: '/admin/hotel-articles', icon: Newspaper },
-      { label: '맴버쉽 관리', href: '/admin/membership', icon: Users },
-      { label: '관리자 관리', href: '/admin/users', icon: Users },
+      { label: 'Sabre API 요금 코드 관리', href: '/admin/hotel-search', icon: DollarSign, requiredRole: 'admin' },
+      { label: 'Sabre Hotel Code 확인', href: '/admin/sabre-id', icon: Building, requiredRole: 'admin' },
+      { label: '호텔 정보 업데이트', href: '/admin/hotel-update', icon: Pencil, requiredRole: 'admin' },
+      { label: '혜택 관리', href: '/admin/benefits/manage', icon: ListChecks, requiredRole: 'admin' },
+      { label: '광고 관리', href: '/admin/advertisements', icon: DollarSign, requiredRole: 'admin' },
+      { label: '체인 브랜드 관리', href: '/admin/chain-brand', icon: Network, requiredRole: 'admin' },
+      { label: '호텔 이미지 관리', href: '/admin/hotel-images', icon: Image, requiredRole: 'admin' },
+      { label: '호텔 콘텐츠 관리', href: '/admin/hotel-content', icon: FileText, requiredRole: 'admin' },
+      { label: '호텔 아티클 관리', href: '/admin/hotel-articles', icon: Newspaper, requiredRole: 'admin' },
+      { label: '맴버쉽 관리', href: '/admin/membership', icon: Users, requiredRole: 'admin' },
+      { label: '관리자 관리', href: '/admin/users', icon: Users, requiredRole: 'admin' },
     ],
   },
   {
@@ -77,6 +80,8 @@ const navSections: NavSection[] = [
 export function Sidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const isAdmin = user?.role === 'admin'
+  const isUser = user?.role === 'user'
 
   return (
     <aside className="sticky top-0 left-0 w-64 shrink-0 border-r bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50 h-screen">
@@ -93,13 +98,20 @@ export function Sidebar() {
       </div>
 
       <nav className="px-3 py-4 space-y-6 overflow-y-auto h-[calc(100vh-56px)]">
-        {navSections.map((section) => (
+        {(isAdmin
+            ? navSections
+            : isUser
+              ? navSections.filter((s) => s.title === 'Admin')
+              : navSections.filter((s) => s.title !== 'Admin')
+          ).map((section) => (
           <div key={section.title}>
             <div className="px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
               {section.title}
             </div>
             <ul className="space-y-1">
-              {section.items.map((item) => {
+              {section.items
+                .filter((item) => !item.requiredRole || user?.role === item.requiredRole || user?.role === 'user')
+                .map((item) => {
                 const isActive = !item.isExternal && (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
                 const Icon = item.icon
                 

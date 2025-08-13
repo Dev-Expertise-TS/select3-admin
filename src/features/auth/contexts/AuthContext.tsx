@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [supabase.auth])
 
   // 로그인
   const login = async (email: string, password: string) => {
@@ -178,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     )
 
     return () => subscription.unsubscribe()
-  }, [checkUser])
+  }, [checkUser, router, supabase.auth])
 
   const value: AuthContextType = {
     user,

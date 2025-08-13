@@ -3,7 +3,7 @@
 import React from 'react';
 import { Building } from 'lucide-react';
 import SabreIdManager from './_components/SabreIdManager';
-import { AppShell } from '@/components/shared/app-shell';
+// import { AppShell } from '@/components/shared/app-shell';
 
 export default function AdminSabreIdPage() {
   return (
