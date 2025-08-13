@@ -56,8 +56,9 @@ export async function POST(request: NextRequest) {
     console.log('🔐 사용자 인증 시도 중...')
     console.log('📧 인증 시도 이메일:', body.email)
     
-    let authData: any
-    let authError: any
+    type SignInResult = Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>
+    let authData: SignInResult['data'] | null = null
+    let authError: SignInResult['error'] | null = null
     
     try {
       const result = await supabase.auth.signInWithPassword({
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!authData.user) {
+    if (!authData || !authData.user) {
       return NextResponse.json<AuthResponse>(
         {
           success: false,

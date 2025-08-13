@@ -70,7 +70,14 @@ export async function PATCH(request: NextRequest) {
     }
 
     let workingCodes: string[] | null = normalizedCodes
-    let data: any = null
+    type HotelRow = {
+      sabre_id: string | null
+      paragon_id: string | null
+      property_name_kor: string | null
+      property_name_eng: string | null
+      rate_plan_codes: string[] | null
+    }
+    let data: HotelRow | null = null
     let usedSingleFallback = false
     for (let i = 0; i < 10; i += 1) {
       const { data: d, error } = await tryUpdate(workingCodes)
@@ -101,7 +108,13 @@ export async function PATCH(request: NextRequest) {
           if (workingCodes && workingCodes.length > 0 && !usedSingleFallback) {
             usedSingleFallback = true
             const first = workingCodes[0]
-            const { data: d2, error: e2 } = await tryUpdate(first as unknown as any)
+            // 일부 스키마에서 enum 단일 컬럼일 수 있어 타입을 좁혀 단일 값 시도
+            const { data: d2, error: e2 } = await supabase
+              .from('select_hotels')
+              .update({ rate_plan_codes: first as unknown as string })
+              [body.sabre_id ? 'eq' : 'eq' as const](body.sabre_id ? 'sabre_id' : 'paragon_id', body.sabre_id ? body.sabre_id : body.paragon_id)
+              .select('sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes')
+              .single()
             if (!e2) { data = d2; break }
           }
           continue

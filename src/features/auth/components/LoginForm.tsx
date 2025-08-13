@@ -119,7 +119,7 @@ export function LoginForm({ onSwitchToSignup, className }: LoginFormProps) {
                     <ul className="space-y-1 text-blue-700">
                       <li>• 이메일 주소를 다시 확인</li>
                       <li>• 테스트 계정 사용: 위의 복사 버튼 클릭</li>
-                      <li>• 새 계정 생성: "사용자 생성" 탭 사용</li>
+                      <li>• 새 계정 생성: &quot;사용자 생성&quot; 탭 사용</li>
                     </ul>
                   </div>
                 )}
