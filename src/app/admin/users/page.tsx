@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Users, Plus, Edit, Trash2, Shield, User } from 'lucide-react'
+import { Users, Plus, Edit, Trash2, Shield, User, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { User as UserType } from '@/types/auth'
@@ -15,6 +15,10 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [editingUser, setEditingUser] = useState<UserType | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const handleViewHistory = (user: UserType) => {
+    console.log('[users] view history clicked:', { id: user.id, email: user.email })
+    // TODO: 작업 이력 상세 모달/페이지 연결
+  }
 
   // 사용자 목록 조회
   const fetchUsers = async () => {
@@ -174,6 +178,7 @@ export default function AdminUsersPage() {
                 <th className="h-12 px-4 text-left align-middle font-medium">역할</th>
                 <th className="h-12 px-4 text-left align-middle font-medium">가입일</th>
                 <th className="h-12 px-4 text-left align-middle font-medium">마지막 로그인</th>
+                <th className="h-12 px-4 text-left align-middle font-medium">작업 이력</th>
                 <th className="h-12 px-4 text-left align-middle font-medium">작업</th>
               </tr>
             </thead>
@@ -209,6 +214,17 @@ export default function AdminUsersPage() {
                       ? new Date(user.last_sign_in_at).toLocaleDateString('ko-KR')
                       : '로그인 기록 없음'
                     }
+                  </td>
+                  <td className="p-4 align-middle">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewHistory(user)}
+                      aria-label="작업 이력 보기"
+                    >
+                      <History className="h-4 w-4 mr-2" />
+                      작업 이력
+                    </Button>
                   </td>
                   <td className="p-4 align-middle">
                     <div className="flex gap-2">
