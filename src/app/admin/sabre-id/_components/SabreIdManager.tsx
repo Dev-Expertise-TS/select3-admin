@@ -306,9 +306,9 @@ export default function SabreIdManager() {
           <div className="space-y-2">
             <h3 className="text-lg font-semibold text-blue-900">AI 기반 검색 시스템</h3>
             <div className="text-sm text-blue-800 space-y-1">
-              <p>• <strong>1단계:</strong> OpenAI AI가 호텔명을 분석하여 적합한 Sabre Hotel Code를 찾습니다</p>
-              <p>• <strong>2단계:</strong> 찾은 코드를 Sabre API로 검증하여 실제 호텔 정보를 가져옵니다</p>
-              <p>• <strong>3단계:</strong> 입력된 호텔명과 검증된 호텔명을 비교하여 매칭 점수를 계산합니다</p>
+              <p>• <strong>1단계:</strong> OpenAI AI가 호텔명을 분석하여 적합한 Sabre Hotel Code를 찾</p>
+              <p>• <strong>2단계:</strong> 찾은 코드를 Sabre API로 검증하여 실제 호텔 정보를 가져옴</p>
+              <p>• <strong>3단계:</strong> 입력된 호텔명과 검증된 호텔명을 비교하여 매칭 점수를 계산함</p>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { ComponentType } from 'react'
+import { useAuth } from '@/features/auth/contexts/AuthContext'
 import {
   Home,
   Database,
@@ -17,6 +18,13 @@ import {
   Building,
   ExternalLink,
   Image,
+  Users,
+  LogIn,
+  LogOut,
+  FileText,
+  Newspaper,
+  Shield,
+  User,
 } from 'lucide-react'
 
 interface NavItem {
@@ -45,8 +53,13 @@ const navSections: NavSection[] = [
       { label: 'Sabre Hotel Code 확인', href: '/admin/sabre-id', icon: Building },
       { label: '호텔 정보 업데이트', href: '/admin/hotel-update', icon: Pencil },
       { label: '혜택 관리', href: '/admin/benefits/manage', icon: ListChecks },
+      { label: '광고 관리', href: '/admin/advertisements', icon: DollarSign },
       { label: '체인 브랜드 관리', href: '/admin/chain-brand', icon: Network },
       { label: '호텔 이미지 관리', href: '/admin/hotel-images', icon: Image },
+      { label: '호텔 콘텐츠 관리', href: '/admin/hotel-content', icon: FileText },
+      { label: '호텔 아티클 관리', href: '/admin/hotel-articles', icon: Newspaper },
+      { label: '맴버쉽 관리', href: '/admin/membership', icon: Users },
+      { label: '관리자 관리', href: '/admin/users', icon: Users },
     ],
   },
   {
@@ -63,9 +76,10 @@ const navSections: NavSection[] = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { user, logout } = useAuth()
 
   return (
-    <aside className="fixed inset-y-0 left-0 w-64 shrink-0 border-r bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50">
+    <aside className="sticky top-0 left-0 w-64 shrink-0 border-r bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50 h-screen">
       <div className="px-4 py-4 border-b">
         <Link href="/" className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground grid place-items-center font-bold">
@@ -130,6 +144,68 @@ export function Sidebar() {
             </ul>
           </div>
         ))}
+
+        {/* 인증 상태 표시 및 로그인/로그아웃 버튼 */}
+        <div className="border-t pt-4">
+          <div className="px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
+            Account
+          </div>
+          <ul className="space-y-1">
+                             {user ? (
+                   <>
+                      <li className="px-2.5 py-3 text-sm text-muted-foreground">
+                        <div className="text-center">
+                          <div className="flex items-center justify-center gap-2 mb-2">
+                            {user.role === 'admin' ? (
+                              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                                <Shield className="h-4 w-4 text-red-600" />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                <User className="h-4 w-4 text-blue-600" />
+                              </div>
+                            )}
+                            <span className={cn(
+                              'inline-block px-2 py-1 rounded-full text-[10px] font-medium',
+                              user.role === 'admin'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-blue-100 text-blue-800'
+                            )}>
+                              {user.role === 'admin' ? '관리자' : '사용자'}
+                            </span>
+                          </div>
+                          <div className="text-xs font-medium text-gray-700 truncate max-w-[12rem] mx-auto">{user.email}</div>
+                        </div>
+                      </li>
+                <li>
+                  <button
+                    onClick={logout}
+                    className={cn(
+                      'group flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors w-full',
+                      'text-foreground hover:bg-muted/70'
+                    )}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    로그아웃
+                  </button>
+                </li>
+              </>
+            ) : (
+                                 <li>
+                     <Link
+                       href="/login"
+                       className={cn(
+                         'group flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors',
+                         'text-foreground hover:bg-muted/70'
+                       )}
+                     >
+                       <LogIn className="h-4 w-4" />
+                       로그인
+                     </Link>
+                   </li>
+            )}
+          </ul>
+        </div>
       </nav>
     </aside>
   )

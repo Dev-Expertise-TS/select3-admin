@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
         if (fbRes.ok) {
           const fb = await fbRes.json()
           const list = Array.isArray(fb?.data) ? fb.data : []
-          const codes = list.map((r: any) => String(r?.hotelCode || '').trim()).filter((s: string) => /^\d+$/.test(s))
+          const codes = list.map((r: { hotelCode?: string | number }) => String(r?.hotelCode || '').trim()).filter((s: string) => /^\d+$/.test(s))
           candidates = Array.from(new Set(codes))
         }
       } catch {}
