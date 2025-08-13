@@ -11,16 +11,18 @@ interface ActivityItem {
   created_at: string
 }
 
-interface ActivityResponse {
-  success: true
-  data: ActivityItem[]
-  meta?: { count?: number }
-} | {
-  success: false
-  error: string
-  code?: string
-  details?: unknown
-}
+type ActivityResponse =
+  | {
+      success: true
+      data: ActivityItem[]
+      meta?: { count?: number }
+    }
+  | {
+      success: false
+      error: string
+      code?: string
+      details?: unknown
+    }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const userId = params?.id
