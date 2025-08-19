@@ -41,13 +41,13 @@ export async function GET(request: NextRequest) {
       // 영문명
       const { data: engRows } = await supabase
         .from('select_hotels')
-        .select('property_name_eng')
-        .ilike('property_name_eng', `%${q}%`)
-        .not('property_name_eng', 'is', null)
-        .order('property_name_eng', { ascending: true })
+        .select('property_name_en')
+        .ilike('property_name_en', `%${q}%`)
+        .not('property_name_en', 'is', null)
+        .order('property_name_en', { ascending: true })
         .limit(100)
       for (const row of engRows || []) {
-        const value = (row as Record<string, string | null>)['property_name_eng']
+                  const value = (row as Record<string, string | null>)['property_name_en']
         if (typeof value === 'string' && value && !set.has(value)) {
           set.add(value)
           suggestions.push(value)
@@ -58,13 +58,13 @@ export async function GET(request: NextRequest) {
         // 한글명 추가 수집
         const { data: korRows } = await supabase
           .from('select_hotels')
-          .select('property_name_kor')
-          .ilike('property_name_kor', `%${q}%`)
-          .not('property_name_kor', 'is', null)
-          .order('property_name_kor', { ascending: true })
+                  .select('property_name_ko')
+        .ilike('property_name_ko', `%${q}%`)
+        .not('property_name_ko', 'is', null)
+        .order('property_name_ko', { ascending: true })
           .limit(100)
         for (const row of korRows || []) {
-          const value = (row as Record<string, string | null>)['property_name_kor']
+          const value = (row as Record<string, string | null>)['property_name_ko']
           if (typeof value === 'string' && value && !set.has(value)) {
             set.add(value)
             suggestions.push(value)
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 단일 필드 모드(eng|kor)
-    const column = field === 'kor' ? 'property_name_kor' : 'property_name_eng'
+            const column = field === 'kor' ? 'property_name_ko' : 'property_name_en'
     const { data, error } = await supabase
       .from('select_hotels')
       .select(`${column}`)

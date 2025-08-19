@@ -7,8 +7,8 @@ export async function POST(request: NextRequest) {
     
     const sabreId = (formData.get('sabre_id') as string | null) ?? null
     const sabreIdEditable = (formData.get('sabre_id_editable') as string | null)?.trim() || null
-    const property_name_kor = (formData.get('property_name_kor') as string | null) ?? null
-    const property_name_eng = (formData.get('property_name_eng') as string | null) ?? null
+    const property_name_ko = (formData.get('property_name_ko') as string | null) ?? null
+    const property_name_en = (formData.get('property_name_en') as string | null) ?? null
     const ratePlanCodesRaw = (formData.get('rate_plan_codes') as string | null) ?? ''
     const ratePlanCodesParsed = ratePlanCodesRaw ? ratePlanCodesRaw.split(',').map((s) => s.trim()).filter(Boolean) : []
     const rate_plan_codes = ratePlanCodesParsed.length > 0 ? ratePlanCodesParsed : null
@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
 
     // 호텔 기본 정보 업데이트 (brand_id만 포함, chain_id는 select_hotels 테이블에 없음)
     const hotelUpdateData = { 
-      property_name_kor, 
-      property_name_eng, 
+              property_name_ko, 
+              property_name_en, 
       rate_plan_codes, 
       sabre_id: sabreIdEditable,
       brand_id

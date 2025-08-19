@@ -22,8 +22,8 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   // 폼 데이터 상태 관리
   const [formData, setFormData] = React.useState({
     sabre_id: String(initialData.sabre_id ?? ''),
-    property_name_kor: String(initialData.property_name_kor ?? ''),
-    property_name_eng: String(initialData.property_name_eng ?? '')
+    property_name_ko: String(initialData.property_name_ko ?? ''),
+    property_name_en: String(initialData.property_name_en ?? '')
   })
 
   // 하이라이트된 필드 추적
@@ -106,8 +106,8 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         // 편집 모드 종료 시 원본 데이터로 복원 및 하이라이트 초기화
         setFormData({
           sabre_id: String(initialData.sabre_id ?? ''),
-          property_name_kor: String(initialData.property_name_kor ?? ''),
-          property_name_eng: String(initialData.property_name_eng ?? '')
+          property_name_ko: String(initialData.property_name_ko ?? ''),
+          property_name_en: String(initialData.property_name_en ?? '')
         })
         setHighlightedFields(new Set())
       }
@@ -123,18 +123,18 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       const sabreIdEditable = isEditMode 
         ? (submitFormData.get('sabre_id_editable') as string | null)?.trim() || null
         : formData.sabre_id
-      const property_name_kor = isEditMode 
-        ? (submitFormData.get('property_name_kor') as string | null) ?? null
-        : formData.property_name_kor
-      const property_name_eng = isEditMode 
-        ? (submitFormData.get('property_name_eng') as string | null) ?? null
-        : formData.property_name_eng
+          const property_name_ko = isEditMode
+      ? (submitFormData.get('property_name_ko') as string | null) ?? null
+      : formData.property_name_ko
+          const property_name_en = isEditMode
+      ? (submitFormData.get('property_name_en') as string | null) ?? null
+      : formData.property_name_en
 
       // FormData에 현재 상태 값들을 추가 (편집 모드가 아닐 때를 위해)
       if (!isEditMode) {
         submitFormData.set('sabre_id_editable', formData.sabre_id)
-        submitFormData.set('property_name_kor', formData.property_name_kor)
-        submitFormData.set('property_name_eng', formData.property_name_eng)
+        submitFormData.set('property_name_ko', formData.property_name_ko)
+        submitFormData.set('property_name_en', formData.property_name_en)
       }
       
       // 체인/브랜드 정보를 FormData에 추가
@@ -175,11 +175,11 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       if (sabreIdEditable !== String(initialData.sabre_id ?? '')) {
         changedFields.push('input[name="sabre_id_editable"]')
       }
-      if (property_name_kor !== String(initialData.property_name_kor ?? '')) {
-        changedFields.push('input[name="property_name_kor"]')
+      if (property_name_ko !== String(initialData.property_name_ko ?? '')) {
+        changedFields.push('input[name="property_name_ko"]')
       }
-      if (property_name_eng !== String(initialData.property_name_eng ?? '')) {
-        changedFields.push('input[name="property_name_eng"]')
+      if (property_name_en !== String(initialData.property_name_en ?? '')) {
+        changedFields.push('input[name="property_name_en"]')
       }
       
       // 체인/브랜드 변경 감지는 아래에서 처리
@@ -206,8 +206,8 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       // 상태 업데이트 - 현재 값들을 그대로 유지
       setFormData({
         sabre_id: sabreIdEditable || formData.sabre_id,
-        property_name_kor: property_name_kor || formData.property_name_kor,
-        property_name_eng: property_name_eng || formData.property_name_eng
+        property_name_ko: property_name_ko || formData.property_name_ko,
+        property_name_en: property_name_en || formData.property_name_en
       })
 
       // 편집 모드 상태를 저장 (모드 변경 전에)
@@ -222,21 +222,21 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       if (wasInEditMode) {
         // 편집 모드에서 저장한 경우에만 변경 감지
         const initialSabreId = String(initialData.sabre_id ?? '')
-        const initialPropertyNameKor = String(initialData.property_name_kor ?? '')
-        const initialPropertyNameEng = String(initialData.property_name_eng ?? '')
+        const initialPropertyNameKo = String(initialData.property_name_ko ?? '')
+        const initialPropertyNameEn = String(initialData.property_name_en ?? '')
         
         const currentSabreId = String(sabreIdEditable ?? '')
-        const currentPropertyNameKor = String(property_name_kor ?? '')
-        const currentPropertyNameEng = String(property_name_eng ?? '')
+        const currentPropertyNameKo = String(property_name_ko ?? '')
+        const currentPropertyNameEn = String(property_name_en ?? '')
         
         if (initialSabreId !== currentSabreId) {
           fieldNames.add('sabre_id')
         }
-        if (initialPropertyNameKor !== currentPropertyNameKor) {
-          fieldNames.add('property_name_kor')
+        if (initialPropertyNameKo !== currentPropertyNameKo) {
+          fieldNames.add('property_name_ko')
         }
-        if (initialPropertyNameEng !== currentPropertyNameEng) {
-          fieldNames.add('property_name_eng')
+        if (initialPropertyNameEn !== currentPropertyNameEn) {
+          fieldNames.add('property_name_en')
         }
       }
       
@@ -357,17 +357,17 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
               <label className="block text-sm font-medium text-gray-700">호텔명(한글)</label>
               {isEditMode ? (
                 <input 
-                  name="property_name_kor" 
+                  name="property_name_ko" 
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
-                  value={formData.property_name_kor}
-                  onChange={(e) => handleInputChange('property_name_kor', e.target.value)}
+                  value={formData.property_name_ko}
+                  onChange={(e) => handleInputChange('property_name_ko', e.target.value)}
                 />
               ) : (
                 <div className={cn(
                   "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
-                  highlightedFields.has('property_name_kor') ? "bg-yellow-100" : "bg-gray-50"
+                  highlightedFields.has('property_name_ko') ? "bg-yellow-100" : "bg-gray-50"
                 )}>
-                  {formData.property_name_kor || '-'}
+                  {formData.property_name_ko || '-'}
                 </div>
               )}
             </div>
@@ -377,17 +377,17 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
               <label className="block text-sm font-medium text-gray-700">호텔명(영문)</label>
               {isEditMode ? (
                 <input 
-                  name="property_name_eng" 
+                  name="property_name_en" 
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
-                  value={formData.property_name_eng}
-                  onChange={(e) => handleInputChange('property_name_eng', e.target.value)}
+                  value={formData.property_name_en}
+                  onChange={(e) => handleInputChange('property_name_en', e.target.value)}
                 />
               ) : (
                 <div className={cn(
                   "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
-                  highlightedFields.has('property_name_eng') ? "bg-yellow-100" : "bg-gray-50"
+                  highlightedFields.has('property_name_en') ? "bg-yellow-100" : "bg-gray-50"
                 )}>
-                  {formData.property_name_eng || '-'}
+                  {formData.property_name_en || '-'}
                 </div>
               )}
             </div>

@@ -28,8 +28,8 @@ const databaseTables: DatabaseTable[] = [
     columns: [
       { name: 'sabre_id', type: 'VARCHAR', nullable: true, primaryKey: true, description: 'Sabre 시스템 호텔 ID (기본키)' },
       { name: 'paragon_id', type: 'VARCHAR', nullable: true, description: 'Paragon 시스템 호텔 ID (레거시)' },
-      { name: 'property_name_kor', type: 'VARCHAR', nullable: true, description: '호텔명 (한글)' },
-      { name: 'property_name_eng', type: 'VARCHAR', nullable: true, description: '호텔명 (영문)' },
+      { name: 'property_name_ko', type: 'VARCHAR', nullable: true, description: '호텔명 (한글)' },
+      { name: 'property_name_en', type: 'VARCHAR', nullable: true, description: '호텔명 (영문)' },
       { name: 'brand_id', type: 'INTEGER', nullable: true, foreignKey: 'hotel_brands.brand_id', description: '브랜드 ID (외래키)' },
       { name: 'destination_sort', type: 'INTEGER', nullable: true, description: '목적지 정렬 순서' },
       { name: 'intro_article', type: 'TEXT', nullable: true, description: '호텔 소개 아티클' },

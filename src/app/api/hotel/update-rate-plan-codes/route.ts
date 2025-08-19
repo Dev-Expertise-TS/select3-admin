@@ -66,15 +66,15 @@ export async function PATCH(request: NextRequest) {
     const tryUpdate = async (codes: string[] | null) => {
       let q = supabase.from('select_hotels').update({ rate_plan_codes: codes })
       q = body.sabre_id ? q.eq('sabre_id', body.sabre_id) : q.eq('paragon_id', body.paragon_id)
-      return q.select('sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes').single()
+      return q.select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_codes').single()
     }
 
     let workingCodes: string[] | null = normalizedCodes
     type HotelRow = {
       sabre_id: string | null
       paragon_id: string | null
-      property_name_kor: string | null
-      property_name_eng: string | null
+              property_name_ko: string | null
+              property_name_en: string | null
       rate_plan_codes: string[] | null
     }
     let data: HotelRow | null = null
@@ -113,7 +113,7 @@ export async function PATCH(request: NextRequest) {
               .from('select_hotels')
               .update({ rate_plan_codes: first as unknown as string })
               [body.sabre_id ? 'eq' : 'eq' as const](body.sabre_id ? 'sabre_id' : 'paragon_id', body.sabre_id ? body.sabre_id : body.paragon_id)
-              .select('sabre_id, paragon_id, property_name_kor, property_name_eng, rate_plan_codes')
+                              .select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_codes')
               .single()
             if (!e2) { data = d2; break }
           }

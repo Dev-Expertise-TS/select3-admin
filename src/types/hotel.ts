@@ -7,8 +7,8 @@ export interface SearchHotelRequest {
 export interface HotelSearchResult {
   sabre_id: string | null;
   paragon_id: string | null;
-  property_name_kor: string | null;
-  property_name_eng: string | null;
+  property_name_ko: string | null;
+  property_name_en: string | null;
   rate_plan_codes: string[] | null;
   created_at: string | null;
   chain_name_kr: string | null;

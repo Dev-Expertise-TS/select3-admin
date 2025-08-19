@@ -55,7 +55,7 @@ const apiEndpoints: ApiEndpoint[] = [
     path: '/api/hotel/update',
     description: '호텔 정보 업데이트',
     category: 'Hotel',
-    parameters: 'FormData (sabre_id, property_name_kor, property_name_eng, brand_id, etc.)',
+            parameters: 'FormData (sabre_id, property_name_ko, property_name_en, brand_id, etc.)',
     example: 'POST /api/hotel/update\nFormData with hotel fields',
     response: '{ success: true, data: { updated hotel data } }'
   },

@@ -896,10 +896,10 @@ export default function HotelSearchWidget({
                     {showInitialHotels ? (
                       <>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {hotel.property_name_kor || '한글명 없음'}
+                          {hotel.property_name_ko || '한글명 없음'}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {hotel.property_name_eng || '영문명 없음'}
+                          {hotel.property_name_en || '영문명 없음'}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500">
                           {formatDate(hotel.created_at)}
@@ -936,10 +936,10 @@ export default function HotelSearchWidget({
                               href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
                               className={cn(
                                 'font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded',
-                                !hotel.property_name_kor ? 'text-gray-400 italic font-normal' : 'text-blue-600'
+                                !hotel.property_name_ko ? 'text-gray-400 italic font-normal' : 'text-blue-600'
                               )}
                             >
-                              {hotel.property_name_kor || '한글명 없음'}
+                              {hotel.property_name_ko || '한글명 없음'}
                             </Link>
                           ) : (
                             <button
@@ -951,11 +951,11 @@ export default function HotelSearchWidget({
                               }}
                               className={cn(
                                 'font-medium text-left focus:outline-none focus:ring-2 focus:ring-blue-500 rounded',
-                                !hotel.property_name_kor ? 'text-gray-400 italic font-normal focus:ring-0' : ''
+                                !hotel.property_name_ko ? 'text-gray-400 italic font-normal focus:ring-0' : ''
                               )}
                               aria-label="호텔명 선택"
                             >
-                              {hotel.property_name_kor || '한글명 없음'}
+                              {hotel.property_name_ko || '한글명 없음'}
                             </button>
                           )}
                         </td>
@@ -965,14 +965,14 @@ export default function HotelSearchWidget({
                               href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
                               className={cn(
                                 'font-medium hover:underline',
-                                !hotel.property_name_eng ? 'text-gray-400 italic' : 'text-blue-600'
+                                !hotel.property_name_en ? 'text-gray-400 italic' : 'text-blue-600'
                               )}
                             >
-                              {hotel.property_name_eng || '영문명 없음'}
+                              {hotel.property_name_en || '영문명 없음'}
                             </Link>
                           ) : (
-                            hotel.property_name_eng ? (
-                              <div className="font-medium">{hotel.property_name_eng}</div>
+                            hotel.property_name_en ? (
+                              <div className="font-medium">{hotel.property_name_en}</div>
                             ) : (
                               <span className="text-gray-400 italic">영문명 없음</span>
                             )
