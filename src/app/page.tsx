@@ -3,15 +3,10 @@
 import React from 'react'
 import { Home as HomeIcon } from 'lucide-react'
 import { DashboardStats } from '@/components/shared/dashboard-stats'
-import { AuthGuard } from '@/components/shared/auth-guard'
 import { useAuth } from '@/features/auth/contexts/AuthContext'
 
 export default function Home() {
-  return (
-    <AuthGuard>
-      <HomeContent />
-    </AuthGuard>
-  )
+  return <HomeContent />
 }
 
 function HomeContent() {
