@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { useAuth } from '@/features/auth/contexts/AuthContext'
 import { LoginForm } from '@/features/auth/components/LoginForm'
 import { SignupForm } from '@/features/auth/components/SignupForm'
@@ -14,17 +15,52 @@ export default function LoginPage() {
 
   // 랜덤 배경 이미지 선택 (항상 훅 순서 유지 위해 상단에 위치)
   const [bgUrl, setBgUrl] = useState<string | null>(null)
+  const [imageLoading, setImageLoading] = useState(true)
+  const [imageError, setImageError] = useState(false)
+
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch('/api/login-images', { cache: 'no-store' })
+        setImageLoading(true)
+        setImageError(false)
+        
+        // 캐시된 이미지 목록을 먼저 시도
+        const cachedImages = localStorage.getItem('loginImages')
+        if (cachedImages) {
+          try {
+            const images = JSON.parse(cachedImages)
+            if (Array.isArray(images) && images.length > 0) {
+              const idx = Math.floor(Math.random() * images.length)
+              setBgUrl(`/login-image/${images[idx]}`)
+              setImageLoading(false)
+              return
+            }
+          } catch (e) {
+            // 캐시 파싱 실패 시 무시
+          }
+        }
+
+        // API에서 이미지 목록 가져오기
+        const res = await fetch('/api/login-images', { 
+          cache: 'force-cache',
+          headers: {
+            'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400'
+          }
+        })
         const json = await res.json()
+        
         if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
+          // 이미지 목록을 캐시에 저장
+          localStorage.setItem('loginImages', JSON.stringify(json.data))
+          
           const idx = Math.floor(Math.random() * json.data.length)
           setBgUrl(`/login-image/${json.data[idx]}`)
         }
-      } catch (e) {
-        console.debug('배경 이미지 로드 실패:', e)
+              } catch {
+          console.debug('배경 이미지 로드 실패')
+          setImageError(true)
+        } finally {
+        setImageLoading(false)
       }
     }
     load()
@@ -54,17 +90,16 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* 헤더 */}
-      <div className="absolute top-0 left-0 right-0 p-6">
+      <div className="absolute top-0 left-0 right-0 p-6 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
               <Shield className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-bold text-white drop-shadow-lg">
               Tourvis Select
             </h1>
           </div>
-
         </div>
       </div>
 
@@ -72,18 +107,45 @@ export default function LoginPage() {
       <div className="flex min-h-screen">
         {/* 왼쪽 패널 - 정보 및 특징 */}
         <div className="hidden lg:flex lg:w-1/2 items-center justify-center text-white p-12 relative overflow-hidden">
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: bgUrl ? `url(${bgUrl})` : 'linear-gradient(135deg,#2563eb,#4f46e5)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              filter: 'brightness(0.65)'
-            }}
-          />
-          <div className="relative max-w-xl text-center">
-            <h2 className="text-4xl font-extrabold mb-4">Tourvis Select 관리 시스템</h2>
-            <p className="text-blue-100 text-3xl font-extrabold tracking-tight">목표 : 100박 예약 / 일</p>
+          {/* 배경 이미지 */}
+          {bgUrl && !imageError && (
+            <div className="absolute inset-0">
+              <Image
+                src={bgUrl}
+                alt="Tourvis Select 배경 이미지"
+                fill
+                priority
+                quality={85}
+                sizes="(max-width: 1024px) 0vw, 50vw"
+                className="object-cover"
+                onLoad={() => setImageLoading(false)}
+                onError={() => setImageError(true)}
+                placeholder="blur"
+                blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+              />
+              {/* 이미지 오버레이 */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-900/70 via-blue-800/60 to-indigo-900/70" />
+            </div>
+          )}
+
+          {/* 이미지 로딩 중 스켈레톤 */}
+          {imageLoading && (
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-600 animate-pulse" />
+          )}
+
+          {/* 이미지 로드 실패 시 대체 배경 */}
+          {imageError && (
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-600" />
+          )}
+
+          {/* 콘텐츠 */}
+          <div className="relative max-w-xl text-center z-10">
+            <h2 className="text-4xl font-extrabold mb-4 drop-shadow-lg">
+              Tourvis Select 관리 시스템
+            </h2>
+            <p className="text-blue-100 text-3xl font-extrabold tracking-tight drop-shadow-lg">
+              목표 : 100박 예약 / 일
+            </p>
           </div>
         </div>
 
