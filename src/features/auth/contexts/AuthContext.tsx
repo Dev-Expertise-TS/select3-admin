@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 interface AuthContextType {
   user: AuthUser | null
   loading: boolean
+  isInitialized: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signup: (email: string, password: string, role?: 'admin' | 'user') => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isInitialized, setIsInitialized] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
@@ -56,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null)
     } finally {
       setLoading(false)
+      setIsInitialized(true)
     }
   }, [supabase.auth])
 
@@ -183,6 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextType = {
     user,
     loading,
+    isInitialized,
     login,
     signup,
     logout,

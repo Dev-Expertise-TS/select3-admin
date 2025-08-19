@@ -10,7 +10,7 @@ export async function GET() {
     
     // 간단한 쿼리 테스트 - auth.users는 직접 쿼리할 수 없음
     // 대신 auth.admin.listUsers()를 사용
-    const { data: _users, error } = await supabase.auth.admin.listUsers({
+    const { error } = await supabase.auth.admin.listUsers({
       page: 1,
       perPage: 1
     })

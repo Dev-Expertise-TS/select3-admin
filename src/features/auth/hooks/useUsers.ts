@@ -20,7 +20,7 @@ export function useUsers() {
       } else {
         setError(result.error || '사용자 목록을 가져오는데 실패했습니다.')
       }
-    } catch (error) {
+    } catch {
       setError('사용자 목록을 가져오는데 실패했습니다.')
     } finally {
       setLoading(false)
@@ -44,7 +44,7 @@ export function useUsers() {
       } else {
         return { success: false, error: result.error }
       }
-    } catch (error) {
+    } catch {
       return { success: false, error: '사용자 생성 중 오류가 발생했습니다.' }
     }
   }, [fetchUsers])
@@ -66,7 +66,7 @@ export function useUsers() {
       } else {
         return { success: false, error: result.error }
       }
-    } catch (error) {
+    } catch {
       return { success: false, error: '사용자 수정 중 오류가 발생했습니다.' }
     }
   }, [fetchUsers])
@@ -88,7 +88,7 @@ export function useUsers() {
       } else {
         return { success: false, error: result.error }
       }
-    } catch (error) {
+    } catch {
       return { success: false, error: '사용자 삭제 중 오류가 발생했습니다.' }
     }
   }, [fetchUsers])

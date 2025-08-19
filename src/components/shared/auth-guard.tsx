@@ -15,11 +15,11 @@ export function AuthGuard({
   requiredRole = 'user',
   redirectTo = '/login'
 }: AuthGuardProps) {
-  const { user, loading } = useAuth()
+  const { user, loading, isInitialized } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading) {
+    if (isInitialized && !loading) {
       console.log('🛡️ AuthGuard - 인증 상태:', { user: user?.email, requiredRole })
       // 로그인하지 않은 경우
       if (!user) {
@@ -35,10 +35,10 @@ export function AuthGuard({
         return
       }
     }
-  }, [user, loading, requiredRole, redirectTo, router])
+  }, [user, loading, isInitialized, requiredRole, redirectTo, router])
 
-  // 로딩 중이거나 인증되지 않은 경우
-  if (loading) {
+  // 초기화되지 않았거나 로딩 중인 경우
+  if (!isInitialized || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

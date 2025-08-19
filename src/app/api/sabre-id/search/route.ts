@@ -18,179 +18,20 @@ interface SabreHotelSearchResponse {
   error?: string
 }
 
-// Sabre 공식 API 설정
-const SABRE_API_BASE_URL = 'https://api.havail.sabre.com'
-
-
-// Sabre API 인증 정보 (환경 변수에서 가져와야 함)
-const SABRE_CLIENT_ID = process.env.SABRE_CLIENT_ID || 'your_client_id'
-const SABRE_CLIENT_SECRET = process.env.SABRE_CLIENT_SECRET || 'your_client_secret'
-
-// Sabre API 엔드포인트
-const SABRE_HOTEL_SEARCH_URL = `${SABRE_API_BASE_URL}/v4.1.0/shop/hotels`
-const SABRE_TOKEN_URL = 'https://api.havail.sabre.com/v2/auth/token'
 
 
 
-// Sabre API 인증 토큰 가져오기
-async function getSabreAuthToken(): Promise<string | null> {
-  try {
-    console.log('🔐 Sabre API 인증 토큰 요청 중...')
-    
-    const response = await fetch(SABRE_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${Buffer.from(`${SABRE_CLIENT_ID}:${SABRE_CLIENT_SECRET}`).toString('base64')}`
-      },
-      body: 'grant_type=client_credentials'
-    })
 
-    if (!response.ok) {
-      console.error('❌ Sabre API 인증 실패:', response.status, response.statusText)
-      return null
-    }
 
-    const data = await response.json()
-    const accessToken = data.access_token
-    
-    if (accessToken) {
-      console.log('✅ Sabre API 인증 토큰 획득 성공')
-      return accessToken
-    } else {
-      console.error('❌ Sabre API 응답에 access_token이 없음')
-      return null
-    }
-  } catch (error) {
-    console.error('❌ Sabre API 인증 오류:', error)
-    return null
-  }
-}
 
-// Sabre 공식 Hotel Search API를 사용한 호텔 검색
-async function searchHotelsWithOfficialAPI(hotelName: string): Promise<SabreHotel[]> {
-  try {
-    console.log(`🏨 Sabre 공식 API로 호텔 검색: "${hotelName}"`)
-    
-    // 1. 인증 토큰 획득
-    const authToken = await getSabreAuthToken()
-    if (!authToken) {
-      console.log('⚠️ Sabre 공식 API 인증 실패, 기존 방식으로 폴백')
-      return await searchHotelsWithAPIOnly(hotelName)
-    }
-    
-    // 2. 공식 Hotel Search API 호출
-    const searchRequest = {
-      "OTA_HotelSearchRQ": {
-        "Version": "4.1.0",
-        "SearchRequest": {
-          "HotelSearchRequest": {
-            "Criterion": {
-              "HotelSearchCriterion": {
-                "HotelRef": {
-                  "HotelName": hotelName
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    console.log('📡 Sabre 공식 API 호출:', JSON.stringify(searchRequest, null, 2))
-    
-    const response = await fetch(SABRE_HOTEL_SEARCH_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(searchRequest)
-    })
-    
-    if (!response.ok) {
-      console.error('❌ Sabre 공식 API 호출 실패:', response.status, response.statusText)
-      console.log('⚠️ 기존 방식으로 폴백')
-      return await searchHotelsWithAPIOnly(hotelName)
-    }
-    
-    const data = await response.json()
-    console.log('📋 Sabre 공식 API 응답:', JSON.stringify(data, null, 2))
-    
-    // 3. 응답 파싱 및 변환
-    const hotels: SabreHotel[] = []
-    
-    if (data.OTA_HotelSearchRS && data.OTA_HotelSearchRS.HotelSearchResults) {
-      const properties = data.OTA_HotelSearchRS.HotelSearchResults.HotelSearchResult
-      
-      if (properties && Array.isArray(properties)) {
-        for (const property of properties) {
-          if (property.HotelReference && property.HotelReference.HotelCode) {
-            const hotel: SabreHotel = {
-              hotelCode: property.HotelReference.HotelCode,
-              hotelName: property.HotelReference.HotelName || 'Unknown Hotel',
-              address: property.HotelReference.Address?.AddressLine?.[0] || '주소 정보 없음',
-              city: property.HotelReference.Address?.CityName || '도시 정보 없음',
-              country: property.HotelReference.Address?.CountryCode || '국가 정보 없음'
-            }
-            hotels.push(hotel)
-            console.log(`✅ 공식 API에서 호텔 발견: ${hotel.hotelName} (코드: ${hotel.hotelCode})`)
-          }
-        }
-      }
-    }
-    
-    if (hotels.length > 0) {
-      console.log(`🎉 Sabre 공식 API 검색 완료: ${hotels.length}개 호텔 발견`)
-      return hotels
-    } else {
-      console.log('⚠️ 공식 API에서 결과 없음, 기존 방식으로 폴백')
-      return await searchHotelsWithAPIOnly(hotelName)
-    }
-    
-  } catch (error) {
-    console.error('❌ Sabre 공식 API 검색 오류:', error)
-    console.log('⚠️ 기존 방식으로 폴백')
-    return await searchHotelsWithAPIOnly(hotelName)
-  }
-}
 
-// Sabre 공식 API 우선 사용하는 호텔 검색 함수
-async function searchHotelsByName(hotelName: string): Promise<SabreHotel[]> {
-  try {
-    console.log(`🔍 Sabre 공식 API 우선 호텔 검색: ${hotelName}`)
-    
-    // 순수 숫자인지 확인 (Sabre Hotel Code 직접 검색)
-    const isPureNumeric = /^\d+$/.test(hotelName.trim())
-    
-    if (isPureNumeric) {
-      console.log(`🔢 순수 숫자 검색 모드: Sabre Hotel Code ${hotelName}`)
-      // Sabre Hotel Code로 직접 검색 (가장 빠름)
-      return await getHotelDetailsByCode(hotelName.trim())
-    }
-    
-    // 문자열 검색 모드 - 공식 API 우선 사용
-    console.log(`🔍 문자열 검색 모드: "${hotelName}" - 공식 API 우선`)
-    
-    // 1단계: Sabre 공식 Hotel Search API 시도
-    const officialResults = await searchHotelsWithOfficialAPI(hotelName)
-    
-    if (officialResults.length > 0) {
-      console.log(`🎉 공식 API 검색 성공: ${officialResults.length}개 호텔 반환`)
-      return officialResults
-    }
-    
-    // 2단계: 공식 API 실패시 기존 방식으로 폴백
-    console.log(`⚠️ 공식 API 실패, 기존 방식으로 폴백`)
-    return await searchHotelsWithAPIOnly(hotelName)
-    
-  } catch (error) {
-    console.error('호텔 검색 오류:', error)
-    console.log('⚠️ 오류 발생, 기존 방식으로 폴백')
-    return await searchHotelsWithAPIOnly(hotelName)
-  }
-}
+
+
+
+
+
+
+
 
 // 특정 Sabre Hotel Code로 호텔 상세 정보 조회
 async function getHotelDetailsByCode(hotelCode: string): Promise<SabreHotel[]> {
@@ -233,127 +74,15 @@ async function getHotelDetailsByCode(hotelCode: string): Promise<SabreHotel[]> {
     }
     
     return []
-  } catch (error) {
-    console.error(`호텔 상세 정보 조회 오류 (${hotelCode}):`, error)
+  } catch {
+    console.error(`호텔 상세 정보 조회 오류 (${hotelCode})`)
     return []
   }
 }
 
-// 호텔명-코드 매핑 테이블 (성능 최적화를 위한 인덱스)
-const HOTEL_NAME_INDEX: Record<string, string> = {
-  // Four Seasons Hotels
-  'four seasons hotel sydney': '890',
-  'four seasons hotel kyoto': '292823',
-  'four seasons resort lanai': '28383',
-  'four seasons macao': '24535',
-  'four seasons jimbaran bay bali': '33434',
-  'four seasons the nam hai': '7928',
-  'four seasons bali sayan': '17603',
-  'four seasons oahu at ko olina': '282795',
-  'four seasons hotel bangkok': '320464',
-  
-  // InterContinental Hotels
-  'grand intercontinental seoul parnas': '13872',
-  'intercontinental new york barclay': '592',
-  'intercontinental barcelona': '30179',
-  'intercontinental grandstanford': '3302',
-  'intercontinental phuket resort': '325018',
-  'intercontinental paris legrand': '1189',
-  'intercontinental ana tokyo': '27819',
-  'intercontinental sydney': '7556',
-  'intercontinental bangkok sukhumvit': '601050',
-  'intercontinental pattaya resort': '39232',
-  'intercontinental bangkok': '46741',
-  'intercontinental singapore robertson quay': '313539',
-  'intercontinental singapore': '18587',
-  'intercontinental los angeles downtown': '312215',
-  'intercontinental bali resort': '36315',
-  'intercontinental chiang mai the mae ping': '286575',
-  'intercontinental danang resort': '143881',
-  'intercontinental ana beppu resort and spa': '323573',
-  'intercontinental phu quoc long beach resort': '319250',
-  'intercontinental osaka': '177549',
-  
-  // Sofitel Hotels
-  'sofitel legend metropole hanoi': '39157',
-  'sofitel singapore city centre': '311810',
-  
-  // Marriott Hotels
-  'jw marriott phu quoc emerald bay resort and spa': '313016',
-  'jw marriott jeju resort and spa': '601847',
-  
-  // V Villas Hotels
-  'v villas hua hin mgallery': '18053',
-  'v villas phuket mgallery': '388178', // 실제 Sabre Hotel Code
-  'v villas phuket - mgallery': '388178' // 다양한 표기법 지원
-}
 
-// 호텔명으로 검색하여 매칭되는 호텔들의 상세 정보 조회 (최적화된 버전)
-async function searchHotelsByNameAndGetDetails(hotelName: string): Promise<SabreHotel[]> {
-  try {
-    console.log(`🔍 호텔명 '${hotelName}'으로 최적화 검색`)
-    
-    const searchKeyword = hotelName.toLowerCase().trim()
-    const matchedCodes: string[] = []
-    
-    // 1단계: 호텔명 인덱스에서 고급 부분 매칭으로 코드 찾기 (중복 제거)
-    for (const [hotelName, code] of Object.entries(HOTEL_NAME_INDEX)) {
-      if (isPartialMatch(searchKeyword, hotelName)) {
-        if (!matchedCodes.includes(code)) { // 중복 방지
-          matchedCodes.push(code)
-          console.log(`✅ 인덱스 매칭 발견: ${hotelName} -> ${code}`)
-        }
-      }
-    }
-    
-    console.log(`📊 인덱스 검색 결과: ${matchedCodes.length}개 호텔 코드 발견`)
-    
-    if (matchedCodes.length === 0) {
-      console.log('📭 인덱스에서 매칭 결과 없음, 폴백 검색 시작...')
-      return await fallbackSearch(searchKeyword)
-    }
-    
-    // 2단계: 매칭된 코드들만 API 호출하여 상세 정보 조회
-    const matchedHotels: SabreHotel[] = []
-    const batchSize = 10
-    
-    for (let i = 0; i < matchedCodes.length; i += batchSize) {
-      const batch = matchedCodes.slice(i, i + batchSize)
-      console.log(`📦 상세 정보 조회 배치 ${Math.floor(i/batchSize) + 1}/${Math.ceil(matchedCodes.length/batchSize)} (${batch.length}개)`)
-      
-      const batchPromises = batch.map(async (code) => {
-        try {
-          const hotelDetails = await getHotelDetailsByCode(code)
-          return hotelDetails[0] || null
-        } catch (error) {
-          console.warn(`❌ 호텔 코드 ${code} 상세 정보 조회 실패:`, error)
-          return null
-        }
-      })
-      
-      const batchResults = await Promise.all(batchPromises)
-      
-      // 성공한 결과만 추가
-      batchResults.forEach(hotel => {
-        if (hotel) {
-          matchedHotels.push(hotel)
-        }
-      })
-      
-      // 배치 간 짧은 대기
-      if (i + batchSize < matchedCodes.length) {
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-    }
-    
-    console.log(`🎉 최적화 검색 완료: ${matchedHotels.length}/${matchedCodes.length}개 호텔 정보 조회 성공`)
-    return matchedHotels
-    
-  } catch (error) {
-    console.error('최적화 호텔명 검색 오류:', error)
-    return []
-  }
-}
+
+
 
 // API만 사용하는 실시간 호텔 검색 (인덱스 의존성 완전 제거)
 async function searchHotelsWithAPIOnly(hotelName: string): Promise<SabreHotel[]> {
@@ -372,8 +101,8 @@ async function searchHotelsWithAPIOnly(hotelName: string): Promise<SabreHotel[]>
     console.log(`🌐 전체 호텔 데이터베이스 실시간 검색: "${searchKeyword}"`)
     return await searchAllHotelsRealTime(searchKeyword)
     
-  } catch (error) {
-    console.error('API 전용 검색 오류:', error)
+  } catch {
+    console.error('API 전용 검색 오류')
     return []
   }
 }
@@ -430,7 +159,7 @@ async function searchAllHotelsRealTime(searchKeyword: string): Promise<SabreHote
             return hotel
           }
           return null
-        } catch (error) {
+        } catch {
           // 개별 실패는 무시하고 계속
           return null
         }
@@ -459,8 +188,8 @@ async function searchAllHotelsRealTime(searchKeyword: string): Promise<SabreHote
     console.log(`🎉 실시간 검색 완료: ${matchedHotels.length}개 호텔 발견`)
     return matchedHotels
     
-  } catch (error) {
-    console.error('실시간 호텔 검색 오류:', error)
+  } catch {
+    console.error('실시간 호텔 검색 오류')
     return []
   }
 }
@@ -547,83 +276,7 @@ function isPartialMatch(searchKeyword: string, hotelName: string): boolean {
   return false
 }
 
-// 폴백 검색: 모든 호텔에 대해 고급 부분 매칭 지원
-async function fallbackSearch(searchKeyword: string): Promise<SabreHotel[]> {
-  try {
-    console.log(`🔄 고급 부분 매칭 폴백 검색 시작: "${searchKeyword}"`)
-    
-    // 알려진 모든 호텔 코드들 (대폭 확장된 범위 - V Villas Phuket 포함)
-    const ALL_KNOWN_CODES = [
-      '890', '292823', '28383', '24535', '33434', '7928', '17603', '282795', '320464',
-      '13872', '592', '30179', '3302', '325018', '1189', '27819', '7556', '601050',
-      '39232', '46741', '313539', '18587', '312215', '36315', '286575', '143881',
-      '323573', '319250', '177549', '39157', '311810', '313016', '601847', '18053', '388178', '37599',
-      // V Villas 및 추가 MGallery 호텔들을 찾기 위한 확장 범위
-      '18020', '18021', '18022', '18023', '18025', '18026', '18028', '18029',
-      '18054', '18055', '18056', '18057', '18059', '18060',
-      '320500', '320501', '320502', '320505', '320506', '320508', '320509', '320510',
-      '601900', '601901', '601903', '601905', '601906', '601907', '601908', '601909', '601910',
-      // 추가 범위 - V Villas Phuket을 찾기 위한 더 넓은 검색
-      '18061', '18062', '18063', '18064', '18065', '18066', '18067', '18068', '18069', '18070',
-      '320520', '320521', '320522', '320523', '320524', '320525', '320526', '320527', '320528', '320529',
-      '601950', '601951', '601952', '601953', '601954', '601955', '601956', '601957', '601958', '601959',
-      // MGallery 브랜드 코드 범위 확장
-      '25000', '25001', '25002', '25003', '25004', '25005', '25006', '25007', '25008', '25009',
-      '30000', '30001', '30002', '30003', '30004', '30005', '30006', '30007', '30008', '30009'
-    ]
-    
-    const matchedHotels: SabreHotel[] = []
-    const batchSize = 15
-    
-    for (let i = 0; i < ALL_KNOWN_CODES.length; i += batchSize) {
-      const batch = ALL_KNOWN_CODES.slice(i, i + batchSize)
-      console.log(`📦 고급 매칭 배치 ${Math.floor(i/batchSize) + 1}/${Math.ceil(ALL_KNOWN_CODES.length/batchSize)} (${batch.length}개)`)
-      
-      const batchPromises = batch.map(async (code) => {
-        try {
-          const hotelDetails = await getHotelDetailsByCode(code)
-          const hotel = hotelDetails[0]
-          
-          if (hotel && isPartialMatch(searchKeyword, hotel.hotelName)) {
-            console.log(`✅ 고급 매칭 발견: ${hotel.hotelName} (${code})`)
-            return hotel
-          }
-          
-          return null
-        } catch (error) {
-          return null
-        }
-      })
-      
-      const batchResults = await Promise.all(batchPromises)
-      
-      // 성공한 결과만 추가
-      batchResults.forEach(hotel => {
-        if (hotel) {
-          matchedHotels.push(hotel)
-        }
-      })
-      
-      // 충분한 결과를 얻으면 중단 (최대 15개로 증가)
-      if (matchedHotels.length >= 15) {
-        console.log('📊 고급 매칭에서 충분한 결과 확보, 검색 중단')
-        break
-      }
-      
-      // 배치 간 대기
-      if (i + batchSize < ALL_KNOWN_CODES.length) {
-        await new Promise(resolve => setTimeout(resolve, 200))
-      }
-    }
-    
-    console.log(`🎉 고급 부분 매칭 완료: ${matchedHotels.length}개 호텔 발견`)
-    return matchedHotels
-    
-  } catch (error) {
-    console.error('고급 부분 매칭 오류:', error)
-    return []
-  }
-}
+
 
 // 주소 정보 추출 헬퍼
 interface HotelInfo {
@@ -729,8 +382,8 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     )
 
-  } catch (error) {
-    console.error('API 라우트 오류:', error)
+  } catch {
+    console.error('API 라우트 오류')
     return NextResponse.json<SabreHotelSearchResponse>(
       {
         success: false,

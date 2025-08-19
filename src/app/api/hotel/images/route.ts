@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sabreFetch, getSabreToken } from '@/lib/sabre'
+import { getSabreToken } from '@/lib/sabre'
 
 interface HotelImage {
   id: string
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      const collectFromNode = (node: unknown, baseIndex: number) => {
+      const collectFromNode = (node: unknown) => {
         if (!node) return 0
         let added = 0
         if (typeof node === 'string') {
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
           return added
         }
         if (Array.isArray(node)) {
-          node.forEach((n) => { added += collectFromNode(n, images.length) })
+          node.forEach((n) => { added += collectFromNode(n) })
           return added
         }
         const obj = node as Record<string, unknown>
@@ -123,14 +123,14 @@ export async function GET(request: NextRequest) {
         const imagesNode = (obj.Images as Record<string, unknown> | undefined)?.Image as unknown
         const media = (obj.MediaItems as Record<string, unknown> | undefined)?.MediaItem as unknown
         const links = (obj.Links as Record<string, unknown> | undefined)?.Link as unknown
-        if (image) added += collectFromNode(image, images.length)
-        if (imagesNode) added += collectFromNode(imagesNode, images.length)
-        if (media) added += collectFromNode(media, images.length)
-        if (links) added += collectFromNode(links, images.length)
+        if (image) added += collectFromNode(image)
+        if (imagesNode) added += collectFromNode(imagesNode)
+        if (media) added += collectFromNode(media)
+        if (links) added += collectFromNode(links)
         return added
       }
 
-      collectFromNode(imageData, 0)
+      collectFromNode(imageData)
 
       // dedupe by URL
       const deduped: HotelImage[] = []

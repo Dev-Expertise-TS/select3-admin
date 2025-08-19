@@ -39,7 +39,7 @@ export default function AdminUsersPage() {
       } else {
         setHistoryError(String(json?.error || '활동 이력을 불러오지 못했습니다.'))
       }
-    } catch (e) {
+    } catch {
       setHistoryError('활동 이력을 불러오지 못했습니다.')
     } finally {
       setHistoryLoading(false)

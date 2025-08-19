@@ -52,7 +52,7 @@ export function SignupForm({ onSwitchToLogin, className }: SignupFormProps) {
       } else {
         setError(result.error || '사용자 생성에 실패했습니다.')
       }
-    } catch (error) {
+    } catch {
       setError('사용자 생성 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)

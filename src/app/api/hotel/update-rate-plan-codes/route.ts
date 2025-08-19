@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { ApiResponse } from '@/types/hotel';
 
 // 요청 타입 정의
 interface UpdateRatePlanCodesRequest {
