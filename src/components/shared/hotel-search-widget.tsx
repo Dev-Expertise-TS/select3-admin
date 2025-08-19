@@ -272,10 +272,28 @@ export default function HotelSearchWidget({
 
   const [highlightIndex, setHighlightIndex] = useState<number>(-1);
   const [copied, setCopied] = useState(false);
+  const suggestionsContainerRef = useRef<HTMLDivElement>(null);
+  
   const onSelectSuggestion = (value: string) => {
     setSearchTerm(value);
     setOpenSuggest(false);
     setHighlightIndex(-1);
+  };
+
+  // 하이라이트된 항목이 보이도록 스크롤 조정
+  const scrollToHighlightedItem = (index: number) => {
+    if (!suggestionsContainerRef.current || index < 0) return;
+    
+    const container = suggestionsContainerRef.current;
+    const items = container.querySelectorAll('li');
+    const highlightedItem = items[index];
+    
+    if (highlightedItem) {
+      highlightedItem.scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth'
+      });
+    }
   };
 
   const onKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -293,14 +311,23 @@ export default function HotelSearchWidget({
       e.preventDefault();
       setHighlightIndex((prev) => {
         const next = prev + 1;
-        return next >= suggestions.length ? 0 : next;
+        const newIndex = next >= suggestions.length ? 0 : next;
+        // 다음 tick에서 스크롤 조정
+        setTimeout(() => scrollToHighlightedItem(newIndex), 0);
+        return newIndex;
       });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlightIndex((prev) => {
-        if (prev === -1) return Math.max(0, suggestions.length - 1);
+        if (prev === -1) {
+          const newIndex = Math.max(0, suggestions.length - 1);
+          setTimeout(() => scrollToHighlightedItem(newIndex), 0);
+          return newIndex;
+        }
         const next = prev - 1;
-        return next < 0 ? Math.max(0, suggestions.length - 1) : next;
+        const newIndex = next < 0 ? Math.max(0, suggestions.length - 1) : next;
+        setTimeout(() => scrollToHighlightedItem(newIndex), 0);
+        return newIndex;
       });
     } else if (e.key === 'Enter') {
       if (openSuggest && suggestions.length > 0 && highlightIndex !== -1) {
@@ -675,7 +702,10 @@ export default function HotelSearchWidget({
                   aria-describedby="hotel-search-description"
                 />
                 {openSuggest && suggestions.length > 0 && (
-                  <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white shadow">
+                  <div 
+                    ref={suggestionsContainerRef}
+                    className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white shadow"
+                  >
                     <ul className="divide-y">
                       {suggestions.map((s: string, idx: number) => (
                         <li key={s}>
