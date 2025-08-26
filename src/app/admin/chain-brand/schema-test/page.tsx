@@ -65,13 +65,13 @@ export default async function SchemaTestPage() {
             
             <div className="space-y-3">
               <div>
-                <span className="font-medium">컬럼 수:</span> {chainsSchema.length}개
+                <span className="font-medium">컬럼 수:</span> {chainsSchema?.length || 0}개
               </div>
               
               <div>
                 <span className="font-medium">컬럼 목록:</span>
                 <div className="mt-2 space-y-1">
-                  {chainsSchema.map((column, index) => (
+                  {chainsSchema?.map((column, index) => (
                     <div key={index} className="flex items-center gap-2 text-sm">
                       <span className="font-mono bg-gray-100 px-2 py-1 rounded">{column}</span>
                       <span className="text-gray-500">
@@ -99,13 +99,13 @@ export default async function SchemaTestPage() {
             
             <div className="space-y-3">
               <div>
-                <span className="font-medium">컬럼 수:</span> {brandsSchema.length}개
+                <span className="font-medium">컬럼 수:</span> {brandsSchema?.length || 0}개
               </div>
               
               <div>
                 <span className="font-medium">컬럼 목록:</span>
                 <div className="mt-2 space-y-1">
-                  {brandsSchema.map((column, index) => (
+                  {brandsSchema?.map((column, index) => (
                     <div key={index} className="flex items-center gap-2 text-sm">
                       <span className="font-mono bg-gray-100 px-2 py-1 rounded">{column}</span>
                       <span className="text-gray-500">
