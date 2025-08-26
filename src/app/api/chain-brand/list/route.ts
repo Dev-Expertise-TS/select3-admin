@@ -91,6 +91,13 @@ export async function GET() {
     console.log('[chain-brand-list] Raw chains data:', chainsRes.data)
     console.log('[chain-brand-list] Raw brands data:', brandsRes.data)
 
+    // 타입 안전한 값 추출 헬퍼 함수
+    const safeString = (value: unknown): string | null => {
+      if (typeof value === 'string') return value
+      if (value === null || value === undefined) return null
+      return String(value)
+    }
+
     // 동적으로 컬럼 매핑 - 체인
     const chains = (chainsRes.data ?? []).map((r: Record<string, unknown>) => {
       // chain_id 컬럼 찾기 (chain_id, id, chainId 등)
@@ -110,8 +117,8 @@ export async function GET() {
 
       return {
         chain_id: Number(r[chainIdKey] ?? 0),
-        name_kr: r[nameKrKey] ?? null,
-        name_en: r[nameEnKey] ?? null,
+        name_kr: safeString(r[nameKrKey]),
+        name_en: safeString(r[nameEnKey]),
       }
     })
 
@@ -140,8 +147,8 @@ export async function GET() {
       return {
         brand_id: Number(r[brandIdKey] ?? 0),
         chain_id: r[chainIdKey] ? Number(r[chainIdKey]) : null,
-        name_kr: r[nameKrKey] ?? null,
-        name_en: r[nameEnKey] ?? null,
+        name_kr: safeString(r[nameKrKey]),
+        name_en: safeString(r[nameEnKey]),
       }
     })
 
