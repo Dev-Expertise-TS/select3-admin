@@ -234,14 +234,14 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
             if (brandResponse.ok) {
               const brandData = await brandResponse.json()
               if (brandData.success && brandData.data.brands) {
-                const savedBrand = brandData.data.brands.find((b: any) => b.brand_id === result.data.brand_id)
+                const savedBrand = brandData.data.brands.find((b: Record<string, unknown>) => b.brand_id === result.data.brand_id)
                 if (savedBrand) {
                   setSelectedBrand(savedBrand)
                   setCurrentBrandId(savedBrand.brand_id)
                   
                   // 브랜드의 체인 정보도 조회
                   if (savedBrand.chain_id) {
-                    const savedChain = brandData.data.chains.find((c: any) => c.chain_id === savedBrand.chain_id)
+                    const savedChain = brandData.data.chains.find((c: Record<string, unknown>) => c.chain_id === savedBrand.chain_id)
                     if (savedChain) {
                       setSelectedChain(savedChain)
                     }

@@ -35,7 +35,7 @@ export default function LoginPage() {
               setImageLoading(false)
               return
             }
-          } catch (e) {
+          } catch (_e) {
             // 캐시 파싱 실패 시 무시
           }
         }

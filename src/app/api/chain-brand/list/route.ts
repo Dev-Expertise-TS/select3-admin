@@ -92,7 +92,7 @@ export async function GET() {
     console.log('[chain-brand-list] Raw brands data:', brandsRes.data)
 
     // 동적으로 컬럼 매핑 - 체인
-    const chains = (chainsRes.data ?? []).map((r: any) => {
+    const chains = (chainsRes.data ?? []).map((r: Record<string, unknown>) => {
       // chain_id 컬럼 찾기 (chain_id, id, chainId 등)
       const chainIdKey = chainsColumns.find(key => 
         key.toLowerCase().includes('chain') && key.toLowerCase().includes('id')
@@ -116,7 +116,7 @@ export async function GET() {
     })
 
     // 동적으로 컬럼 매핑 - 브랜드
-    const brands = (brandsRes.data ?? []).map((r: any) => {
+    const brands = (brandsRes.data ?? []).map((r: Record<string, unknown>) => {
       // brand_id 컬럼 찾기
       const brandIdKey = brandsColumns.find(key => 
         key.toLowerCase().includes('brand') && key.toLowerCase().includes('id')

@@ -99,7 +99,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
           </p>
           <div className="space-y-2">
             <p className="text-xs text-gray-500">
-              • 첫 번째 체인을 추가하려면 "체인 추가" 버튼을 클릭하세요
+              • 첫 번째 체인을 추가하려면 &quot;체인 추가&quot; 버튼을 클릭하세요
             </p>
             <p className="text-xs text-gray-500">
               • 체인이 생성된 후 브랜드를 추가할 수 있습니다
@@ -366,7 +366,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
                   <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={3}>
                     <div className="space-y-2">
                       <p>체인 데이터가 없습니다.</p>
-                      <p className="text-blue-600">"체인 추가" 버튼을 클릭하여 첫 번째 체인을 생성하세요.</p>
+                      <p className="text-blue-600">&quot;체인 추가&quot; 버튼을 클릭하여 첫 번째 체인을 생성하세요.</p>
                     </div>
                   </td>
                 </tr>
@@ -417,7 +417,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
                   <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={2}>
                     <div className="space-y-2">
                       <p>선택한 체인의 브랜드가 없습니다.</p>
-                      <p className="text-blue-600">"브랜드 추가" 버튼을 클릭하여 첫 번째 브랜드를 생성하세요.</p>
+                      <p className="text-blue-600">&quot;브랜드 추가&quot; 버튼을 클릭하여 첫 번째 브랜드를 생성하세요.</p>
                     </div>
                   </td>
                 </tr>

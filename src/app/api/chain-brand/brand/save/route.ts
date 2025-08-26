@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     let result
     if (operation === 'update') {
       // 기존 브랜드 업데이트
-      const updateData: any = { [chainIdColumn]: chain_id }
+      const updateData: Record<string, unknown> = { [chainIdColumn]: chain_id }
       if (nameKrColumn) updateData[nameKrColumn] = name_kr || null
       if (nameEnColumn) updateData[nameEnColumn] = name_en || null
       
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
         .single()
     } else {
       // 새 브랜드 생성
-      const insertData: any = { [chainIdColumn]: chain_id }
+      const insertData: Record<string, unknown> = { [chainIdColumn]: chain_id }
       if (nameKrColumn) insertData[nameKrColumn] = name_kr || null
       if (nameEnColumn) insertData[nameEnColumn] = name_en || null
       

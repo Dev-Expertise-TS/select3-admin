@@ -77,7 +77,7 @@ async function getData() {
     console.log('[chain-brand] Raw brands data:', brandsRes.data)
 
     // 동적으로 컬럼 매핑
-    const chains: Chain[] = (chainsRes.data ?? []).map((r: any) => {
+    const chains: Chain[] = (chainsRes.data ?? []).map((r: Record<string, unknown>) => {
       // chain_id 컬럼 찾기 (chain_id, id, chainId 등)
       const chainIdKey = chainsColumns.find(key => 
         key.toLowerCase().includes('chain') && key.toLowerCase().includes('id')
@@ -100,7 +100,7 @@ async function getData() {
       }
     })
 
-    const brands: Brand[] = (brandsRes.data ?? []).map((r: any) => {
+    const brands: Brand[] = (brandsRes.data ?? []).map((r: Record<string, unknown>) => {
       // brand_id 컬럼 찾기
       const brandIdKey = brandsColumns.find(key => 
         key.toLowerCase().includes('brand') && key.toLowerCase().includes('id')
