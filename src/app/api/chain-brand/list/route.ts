@@ -3,46 +3,150 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function GET() {
   try {
+    // 환경 변수 확인
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[chain-brand-list] SUPABASE_SERVICE_ROLE_KEY is not set')
+      return NextResponse.json(
+        { success: false, error: 'Supabase Service Role Key가 설정되지 않았습니다.' },
+        { status: 500 }
+      )
+    }
+
     const supabase = createServiceRoleClient()
 
+    // 먼저 테이블이 존재하는지 확인
+    const { error: tableCheckError } = await supabase
+      .from('hotel_chains')
+      .select('chain_id')
+      .limit(1)
+    
+    if (tableCheckError) {
+      console.error('[chain-brand-list] hotel_chains table check error:', tableCheckError)
+      if (tableCheckError.message.includes('does not exist')) {
+        return NextResponse.json(
+          { success: false, error: 'hotel_chains 테이블이 존재하지 않습니다. Supabase에서 테이블을 생성해주세요.' },
+          { status: 500 }
+        )
+      }
+      return NextResponse.json(
+        { success: false, error: `테이블 접근 오류: ${tableCheckError.message}` },
+        { status: 500 }
+      )
+    }
+
+    // 실제 테이블 구조 확인을 위해 샘플 데이터 조회
+    const { data: chainsSample, error: chainsSampleError } = await supabase
+      .from('hotel_chains')
+      .select('*')
+      .limit(1)
+    
+    if (chainsSampleError) {
+      console.error('[chain-brand-list] hotel_chains sample error:', chainsSampleError)
+      return NextResponse.json(
+        { success: false, error: `체인 샘플 데이터 조회 오류: ${chainsSampleError.message}` },
+        { status: 500 }
+      )
+    }
+
+    const { data: brandsSample, error: brandsSampleError } = await supabase
+      .from('hotel_brands')
+      .select('*')
+      .limit(1)
+    
+    if (brandsSampleError) {
+      console.error('[chain-brand-list] hotel_brands sample error:', brandsSampleError)
+      return NextResponse.json(
+        { success: false, error: `브랜드 샘플 데이터 조회 오류: ${brandsSampleError.message}` },
+        { status: 500 }
+      )
+    }
+
+    // 실제 컬럼명 확인
+    const chainsColumns = chainsSample && chainsSample.length > 0 ? Object.keys(chainsSample[0]) : []
+    const brandsColumns = brandsSample && brandsSample.length > 0 ? Object.keys(brandsSample[0]) : []
+    
+    console.log('[chain-brand-list] Actual hotel_chains columns:', chainsColumns)
+    console.log('[chain-brand-list] Actual hotel_brands columns:', brandsColumns)
+
     // 체인 데이터 조회
-    let chainsRes = await supabase.from('hotel_chains').select('*').order('chain_id', { ascending: true })
+    const chainsRes = await supabase.from('hotel_chains').select('*').order('chain_id', { ascending: true })
     if (chainsRes.error) {
       console.error('[chain-brand-list] hotel_chains query error:', chainsRes.error)
-      const fb = await supabase.from('hotel_chain').select('*').order('id', { ascending: true })
-      if (!fb.error) chainsRes = fb
+      return NextResponse.json(
+        { success: false, error: `체인 목록 조회 중 오류가 발생했습니다: ${chainsRes.error.message}` },
+        { status: 500 }
+      )
     }
 
     // 브랜드 데이터 조회
-    let brandsRes = await supabase.from('hotel_brands').select('*').order('brand_id', { ascending: true })
+    const brandsRes = await supabase.from('hotel_brands').select('*').order('brand_id', { ascending: true })
     if (brandsRes.error) {
       console.error('[chain-brand-list] hotel_brands query error:', brandsRes.error)
-      const fb = await supabase.from('hotel_brand').select('*').order('id', { ascending: true })
-      if (!fb.error) brandsRes = fb
+      return NextResponse.json(
+        { success: false, error: `브랜드 목록 조회 중 오류가 발생했습니다: ${brandsRes.error.message}` },
+        { status: 500 }
+      )
     }
 
-    const getStr = (row: Record<string, unknown>, key: string): string | null => {
-      const v = row[key]
-      return typeof v === 'string' && v.length > 0 ? v : null
-    }
+    console.log('[chain-brand-list] Raw chains data:', chainsRes.data)
+    console.log('[chain-brand-list] Raw brands data:', brandsRes.data)
 
-    const chainsRaw = (chainsRes.data ?? []) as Array<Record<string, unknown>>
-    const brandsRaw = (brandsRes.data ?? []) as Array<Record<string, unknown>>
+    // 동적으로 컬럼 매핑 - 체인
+    const chains = (chainsRes.data ?? []).map((r: any) => {
+      // chain_id 컬럼 찾기 (chain_id, id, chainId 등)
+      const chainIdKey = chainsColumns.find(key => 
+        key.toLowerCase().includes('chain') && key.toLowerCase().includes('id')
+      ) || 'chain_id'
+      
+      // name_kr 컬럼 찾기 (name_kr, name_kr, chain_name_kr 등)
+      const nameKrKey = chainsColumns.find(key => 
+        key.toLowerCase().includes('name') && (key.toLowerCase().includes('kr') || key.toLowerCase().includes('ko'))
+      ) || 'name_kr'
+      
+      // name_en 컬럼 찾기 (name_en, name_en, chain_name_en 등)
+      const nameEnKey = chainsColumns.find(key => 
+        key.toLowerCase().includes('name') && key.toLowerCase().includes('en')
+      ) || 'name_en'
 
-    const chains = chainsRaw.map((r) => ({
-      chain_id: Number(r.chain_id ?? 0),
-      chain_code: String(r.chain_code ?? ''),
-      name_kr: getStr(r, 'name_kr') ?? getStr(r, 'chain_name') ?? null,
-      name_en: getStr(r, 'name_en') ?? null,
-    }))
+      return {
+        chain_id: Number(r[chainIdKey] ?? 0),
+        name_kr: r[nameKrKey] ?? null,
+        name_en: r[nameEnKey] ?? null,
+      }
+    })
 
-    const brands = brandsRaw.map((r) => ({
-      brand_id: Number(r.brand_id ?? 0),
-      brand_code: String(r.brand_code ?? ''),
-      chain_id: typeof r.chain_id === 'number' ? (r.chain_id as number) : Number(r.chain_id ?? NaN) || null,
-      name_kr: getStr(r, 'name_kr') ?? getStr(r, 'brand_name') ?? null,
-      name_en: getStr(r, 'name_en') ?? null,
-    }))
+    // 동적으로 컬럼 매핑 - 브랜드
+    const brands = (brandsRes.data ?? []).map((r: any) => {
+      // brand_id 컬럼 찾기
+      const brandIdKey = brandsColumns.find(key => 
+        key.toLowerCase().includes('brand') && key.toLowerCase().includes('id')
+      ) || 'brand_id'
+      
+      // chain_id 컬럼 찾기
+      const chainIdKey = brandsColumns.find(key => 
+        key.toLowerCase().includes('chain') && key.toLowerCase().includes('id')
+      ) || 'chain_id'
+      
+      // name_kr 컬럼 찾기
+      const nameKrKey = brandsColumns.find(key => 
+        key.toLowerCase().includes('name') && (key.toLowerCase().includes('kr') || key.toLowerCase().includes('ko'))
+      ) || 'name_kr'
+      
+      // name_en 컬럼 찾기
+      const nameEnKey = brandsColumns.find(key => 
+        key.toLowerCase().includes('name') && key.toLowerCase().includes('en')
+      ) || 'name_en'
+
+      return {
+        brand_id: Number(r[brandIdKey] ?? 0),
+        chain_id: r[chainIdKey] ? Number(r[chainIdKey]) : null,
+        name_kr: r[nameKrKey] ?? null,
+        name_en: r[nameEnKey] ?? null,
+      }
+    })
+
+    console.log('[chain-brand-list] Processed chains:', chains)
+    console.log('[chain-brand-list] Processed brands:', brands)
 
     return NextResponse.json({
       success: true,

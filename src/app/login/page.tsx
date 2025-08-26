@@ -10,7 +10,7 @@ import { Shield } from 'lucide-react'
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true)
-  const { user, loading } = useAuth()
+  const { user, loading, isInitialized } = useAuth()
   const router = useRouter()
 
   // 랜덤 배경 이미지 선택 (항상 훅 순서 유지 위해 상단에 위치)
@@ -68,20 +68,45 @@ export default function LoginPage() {
 
   // 이미 로그인된 사용자는 홈으로 리다이렉트
   useEffect(() => {
-    console.log('🔐 로그인 페이지 - 인증 상태:', { loading, user: user?.email })
-    if (!loading && user) {
-      console.log('✅ 로그인된 사용자 감지, 홈으로 리다이렉트')
-      router.replace('/')
+    console.log('🔐 로그인 페이지 - 인증 상태 확인:', { 
+      loading, 
+      isInitialized,
+      user: user?.email,
+      pathname: window.location.pathname
+    })
+    
+    // 인증이 초기화되고 로딩이 완료된 후에만 처리
+    if (isInitialized && !loading) {
+      if (user) {
+        console.log('✅ 이미 로그인된 사용자 감지, 홈으로 리다이렉트')
+        router.replace('/')
+      } else {
+        console.log('❌ 로그인되지 않은 사용자, 로그인 페이지 유지')
+      }
     }
-  }, [user, loading, router])
+  }, [user, loading, isInitialized, router])
 
   // 로딩 중이거나 이미 로그인된 경우 로딩 표시
-  if (loading || user) {
+  if (loading || !isInitialized) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩 중...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">
+            {!isInitialized ? '시스템 초기화 중...' : '인증 상태 확인 중...'}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // 이미 로그인된 사용자는 로딩 표시 (리다이렉트 중)
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">홈으로 이동 중...</p>
         </div>
       </div>
     )

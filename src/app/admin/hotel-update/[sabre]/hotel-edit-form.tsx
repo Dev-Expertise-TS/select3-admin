@@ -34,6 +34,62 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
     return initialData.brand_id ? Number(initialData.brand_id) : null
   })
 
+  // 체인/브랜드 선택 팝업 상태
+  const [isChainBrandPickerOpen, setIsChainBrandPickerOpen] = React.useState(false)
+  const [selectedChain, setSelectedChain] = React.useState<Chain | null>(() => {
+    // 초기 데이터에서 체인 정보 설정 (hotel_chains 테이블에서 조회된 실제 데이터)
+    if (initialData.hotel_chains) {
+      const chains = initialData.hotel_chains as Record<string, unknown> | null
+      
+      // 디버깅: selectedChain 초기화 과정
+      const sabreId = String(initialData.sabre_id ?? '')
+      if (sabreId === '313016') {
+        console.log('=== selectedChain 초기화 디버깅 ===')
+        console.log('initialData.hotel_chains:', chains)
+        console.log('chains가 존재하는가?', !!chains)
+        if (chains) {
+          console.log('chains.chain_id:', chains.chain_id)
+          console.log('chains.name_kr:', chains.name_kr)
+          console.log('chains.name_en:', chains.name_en)
+        }
+        console.log('===============================')
+      }
+      
+      return chains ? {
+        chain_id: Number(chains.chain_id ?? 0),
+        name_kr: String(chains.name_kr ?? ''),
+        name_en: String(chains.name_en ?? '')
+      } : null
+    }
+    return null
+  })
+  const [selectedBrand, setSelectedBrand] = React.useState<Brand | null>(() => {
+    // 초기 데이터에서 브랜드 정보 설정
+    const brands = initialData.hotel_brands as Record<string, unknown> | null
+    
+    // 디버깅: selectedBrand 초기화 과정
+    const sabreId = String(initialData.sabre_id ?? '')
+    if (sabreId === '313016') {
+      console.log('=== selectedBrand 초기화 디버깅 ===')
+      console.log('initialData.hotel_brands:', brands)
+      console.log('brands가 존재하는가?', !!brands)
+      if (brands) {
+        console.log('brands.brand_id:', brands.brand_id)
+        console.log('brands.chain_id:', brands.chain_id)
+        console.log('brands.name_kr:', brands.name_kr)
+        console.log('brands.name_en:', brands.name_en)
+      }
+      console.log('===============================')
+    }
+    
+    return brands ? {
+      brand_id: Number(brands.brand_id ?? 0),
+      chain_id: Number(brands.chain_id ?? 0) || null,
+      name_kr: String(brands.name_kr ?? ''),
+      name_en: String(brands.name_en ?? '')
+    } : null
+  })
+
   // 디버깅: Sabre ID 313016인 경우 brand_id 값 콘솔에 출력
   React.useEffect(() => {
     const sabreId = String(initialData.sabre_id ?? '')
@@ -45,61 +101,12 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       console.log('destination_sort 값:', initialData.destination_sort)
       console.log('hotel_brands 데이터:', initialData.hotel_brands)
       console.log('hotel_chains 데이터:', initialData.hotel_chains)
+      console.log('selectedChain:', selectedChain)
+      console.log('selectedBrand:', selectedBrand)
       console.log('==================================')
     }
-  }, [initialData, currentBrandId])
+  }, [initialData, currentBrandId, selectedChain, selectedBrand])
   
-  // 체인/브랜드 선택 팝업 상태
-  const [isChainBrandPickerOpen, setIsChainBrandPickerOpen] = React.useState(false)
-  const [selectedChain, setSelectedChain] = React.useState<Chain | null>(() => {
-    // 브랜드의 chain_id를 기반으로 체인 정보 설정
-    const chains = initialData.hotel_chains as Record<string, unknown> | null
-    
-    // 디버깅: selectedChain 초기화 과정
-    const sabreId = String(initialData.sabre_id ?? '')
-    if (sabreId === '313016') {
-      console.log('=== selectedChain 초기화 디버깅 ===')
-      console.log('initialData.hotel_chains:', chains)
-      console.log('chains가 존재하는가?', !!chains)
-      if (chains) {
-        console.log('chains.name_kr:', chains.name_kr)
-        console.log('chains.name_en:', chains.name_en)
-      }
-      console.log('===============================')
-    }
-    
-    return chains ? {
-      chain_id: Number(chains.chain_id ?? 0),
-      chain_code: '', // chain_code 컬럼이 존재하지 않으므로 빈 문자열로 설정
-      name_kr: String(chains.name_kr ?? ''),
-      name_en: String(chains.name_en ?? '')
-    } : null
-  })
-  const [selectedBrand, setSelectedBrand] = React.useState<Brand | null>(() => {
-    const brands = initialData.hotel_brands as Record<string, unknown> | null
-    
-    // 디버깅: selectedBrand 초기화 과정
-    const sabreId = String(initialData.sabre_id ?? '')
-    if (sabreId === '313016') {
-      console.log('=== selectedBrand 초기화 디버깅 ===')
-      console.log('initialData.hotel_brands:', brands)
-      console.log('brands가 존재하는가?', !!brands)
-      if (brands) {
-        console.log('brands.name_kr:', brands.name_kr)
-        console.log('brands.name_en:', brands.name_en)
-      }
-      console.log('===============================')
-    }
-    
-    return brands ? {
-      brand_id: Number(brands.brand_id ?? 0),
-      brand_code: '', // brand_code 컬럼이 존재하지 않으므로 빈 문자열로 설정
-      chain_id: Number(brands.chain_id ?? 0) || null,
-      name_kr: String(brands.name_kr ?? ''),
-      name_en: String(brands.name_en ?? '')
-    } : null
-  })
-
   const toggleEditMode = () => {
     setIsEditMode(prev => {
       if (prev) {
@@ -210,6 +217,57 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         property_name_en: property_name_en || formData.property_name_en
       })
 
+      // 체인/브랜드 상태도 업데이트 (저장된 값으로)
+      if (result.data) {
+        // API 응답에서 체인/브랜드 정보 확인
+        if (sabreId === '313016') {
+          console.log('=== API 응답 데이터 ===')
+          console.log('result.data:', result.data)
+          console.log('저장된 chain_id:', result.data.chain_id)
+          console.log('저장된 brand_id:', result.data.brand_id)
+        }
+        
+        // 저장된 brand_id가 있다면 해당 브랜드 정보 조회
+        if (result.data.brand_id) {
+          try {
+            const brandResponse = await fetch(`/api/chain-brand/list`)
+            if (brandResponse.ok) {
+              const brandData = await brandResponse.json()
+              if (brandData.success && brandData.data.brands) {
+                const savedBrand = brandData.data.brands.find((b: any) => b.brand_id === result.data.brand_id)
+                if (savedBrand) {
+                  setSelectedBrand(savedBrand)
+                  setCurrentBrandId(savedBrand.brand_id)
+                  
+                  // 브랜드의 체인 정보도 조회
+                  if (savedBrand.chain_id) {
+                    const savedChain = brandData.data.chains.find((c: any) => c.chain_id === savedBrand.chain_id)
+                    if (savedChain) {
+                      setSelectedChain(savedChain)
+                    }
+                  }
+                  
+                  if (sabreId === '313016') {
+                    console.log('저장 후 브랜드 상태 업데이트:', savedBrand)
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error('저장 후 브랜드 정보 조회 오류:', error)
+          }
+        } else {
+          // brand_id가 없다면 체인/브랜드 선택 해제
+          setSelectedBrand(null)
+          setSelectedChain(null)
+          setCurrentBrandId(null)
+          
+          if (sabreId === '313016') {
+            console.log('체인/브랜드 선택 해제됨')
+          }
+        }
+      }
+
       // 편집 모드 상태를 저장 (모드 변경 전에)
       const wasInEditMode = isEditMode
       
@@ -279,26 +337,46 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
 
   // 체인/브랜드 선택 핸들러
   const handleChainBrandSelect = (chain: Chain | null, brand: Brand | null) => {
+    console.log('=== 체인/브랜드 선택 핸들러 ===')
+    console.log('선택된 체인:', chain)
+    console.log('선택된 브랜드:', brand)
+    
     setSelectedChain(chain)
     setSelectedBrand(brand)
     
     // 브랜드가 선택되면 currentBrandId 업데이트
     if (brand?.brand_id) {
       setCurrentBrandId(brand.brand_id)
+      console.log('currentBrandId 설정:', brand.brand_id)
     } else {
       setCurrentBrandId(null)
+      console.log('currentBrandId 해제')
     }
     
     // 브랜드가 선택되면 해당 브랜드의 체인으로 체인 정보도 업데이트
     if (brand && chain && brand.chain_id === chain.chain_id) {
       setSelectedChain(chain)
+      console.log('브랜드와 일치하는 체인으로 설정:', chain)
     } else if (brand && !chain) {
       // 브랜드만 선택된 경우, 체인 정보는 API에서 자동으로 설정될 것이므로 여기서는 처리하지 않음
+      console.log('브랜드만 선택됨, 체인은 API에서 자동 설정')
     }
+    
+    console.log('최종 상태:')
+    console.log('  selectedChain:', chain)
+    console.log('  selectedBrand:', brand)
+    console.log('  currentBrandId:', brand?.brand_id || null)
+    console.log('===============================')
   }
 
   // 체인/브랜드 필드 클릭 핸들러
   const handleChainBrandClick = () => {
+    console.log('=== 체인/브랜드 필드 클릭 ===')
+    console.log('현재 선택된 체인:', selectedChain)
+    console.log('현재 선택된 브랜드:', selectedBrand)
+    console.log('현재 currentBrandId:', currentBrandId)
+    console.log('===============================')
+    
     setIsChainBrandPickerOpen(true)
   }
 
@@ -394,7 +472,14 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
             
             {/* 체인 */}
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">체인</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">체인</label>
+                {selectedChain?.chain_id && (
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    ID: {selectedChain.chain_id}
+                  </span>
+                )}
+              </div>
               <div 
                 className={cn(
                   "flex gap-2 transition-colors",
@@ -424,6 +509,14 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                   {selectedChain?.name_en || '-'}
                 </div>
               </div>
+              {/* 디버깅 정보 */}
+              {String(initialData.sabre_id ?? '') === '313016' && (
+                <div className="text-xs text-gray-400 mt-1">
+                  선택된 체인: {selectedChain ? `${selectedChain.chain_id} (${selectedChain.name_kr})` : '없음'}
+                  <br />
+                  hotel_chains 데이터: {initialData.hotel_chains ? '있음' : '없음'}
+                </div>
+              )}
             </div>
             
             {/* 브랜드 */}
@@ -465,11 +558,19 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                   {selectedBrand?.name_en || '-'}
                 </div>
               </div>
+              {/* 디버깅 정보 */}
+              {String(initialData.sabre_id ?? '') === '313016' && (
+                <div className="text-xs text-gray-400 mt-1">
+                  선택된 브랜드: {selectedBrand ? `${selectedBrand.brand_id} (${selectedBrand.name_kr})` : '없음'}
+                  <br />
+                  currentBrandId: {currentBrandId || 'null'}
+                </div>
+              )}
             </div>
             
             {/* Rate Plan Codes */}
             <div className="space-y-1 md:col-span-2 lg:col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Rate Plan Codes (콤마 구분)</label>
+              <label className="block text-sm font-medium text-gray-700">Rate Plan Codes (rate_code 컬럼)</label>
               <div className="w-full px-3 py-2 text-sm bg-gray-50 rounded-md border border-gray-200">
                 {Array.isArray(initialData.rate_plan_codes) 
                   ? (initialData.rate_plan_codes as string[]).join(', ') || '-'
@@ -477,6 +578,12 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                 }
               </div>
               <input type="hidden" name="rate_plan_codes" value={Array.isArray(initialData.rate_plan_codes) ? (initialData.rate_plan_codes as string[]).join(', ') : ''} />
+              {/* 디버깅 정보 */}
+              {String(initialData.sabre_id ?? '') === '313016' && (
+                <div className="text-xs text-gray-400 mt-1">
+                  rate_plan_codes: {Array.isArray(initialData.rate_plan_codes) ? initialData.rate_plan_codes.join(', ') : '없음'}
+                </div>
+              )}
             </div>
           </div>
         </div>

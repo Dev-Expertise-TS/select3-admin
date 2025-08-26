@@ -6,14 +6,12 @@ import { cn } from '@/lib/utils'
 
 export type Chain = {
   chain_id: number
-  chain_code: string
   name_kr: string | null
   name_en: string | null
 }
 
 export type Brand = {
   brand_id: number
-  brand_code: string
   chain_id: number | null
   name_kr: string | null
   name_en: string | null
