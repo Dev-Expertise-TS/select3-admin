@@ -17,7 +17,7 @@ export async function GET() {
     // 테이블 존재 여부 및 컬럼 정보 확인
     try {
       // hotel_chains 테이블 스키마 확인
-      const { data: _chainsSchema, error: chainsSchemaError } = await supabase
+      const { error: chainsSchemaError } = await supabase
         .from('hotel_chains')
         .select('*')
         .limit(0)
@@ -32,7 +32,7 @@ export async function GET() {
       }
 
       // hotel_brands 테이블 스키마 확인
-      const { data: _brandsSchema, error: brandsSchemaError } = await supabase
+      const { error: brandsSchemaError } = await supabase
         .from('hotel_brands')
         .select('*')
         .limit(0)

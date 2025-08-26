@@ -35,9 +35,9 @@ export default function LoginPage() {
               setImageLoading(false)
               return
             }
-          } catch (_e) {
-            // 캐시 파싱 실패 시 무시
-          }
+                  } catch {
+          // 캐시 파싱 실패 시 무시
+        }
         }
 
         // API에서 이미지 목록 가져오기
