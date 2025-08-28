@@ -1,8 +1,6 @@
 {
   "regions": ["icn1"],
-  "env": {
-    "TZ": "Asia/Seoul"
-  },
+
   "functions": {
     "src/app/api/**/*.ts": {
       "maxDuration": 30
