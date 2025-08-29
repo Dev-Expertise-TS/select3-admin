@@ -1,6 +1,7 @@
 // 호텔 검색 요청 타입
 export interface SearchHotelRequest {
   searching_string: string;
+  limit?: number; // 선택적 limit 파라미터
 }
 
 // 호텔 검색 결과 타입

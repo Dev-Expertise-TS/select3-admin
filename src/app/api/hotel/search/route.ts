@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceRoleClient();
 
     // 빈 검색어인 경우 최신 호텔 리스트 반환
+    const limit = body.limit || 20; // limit 파라미터가 있으면 사용, 없으면 기본값 20
+    
     if (!searchTerm) {
       const { data, error } = await supabase
         .from('select_hotels')
@@ -47,7 +49,7 @@ export async function POST(request: NextRequest) {
           brand_id
         `)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(limit);
 
       if (error) {
         console.error('[hotel-search] Supabase query error (initial list):', error);

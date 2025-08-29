@@ -5,6 +5,7 @@ import { FileText, Save, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import HotelSearchWidget from '@/components/shared/hotel-search-widget'
 import { AuthGuard } from '@/components/shared/auth-guard'
+import LexicalEditorComponent from '@/components/ui/lexical-editor'
 
 interface HotelContent {
   sabre_id: string
@@ -50,6 +51,8 @@ function HotelContentManager() {
         throw new Error(data.error || '호텔 정보를 불러올 수 없습니다.')
       }
 
+      console.log('호텔 데이터:', data.data)
+      console.log('property_details:', data.data.property_details)
       setSelectedHotel(data.data)
       setPropertyDetails(data.data.property_details || '')
     } catch (err) {
@@ -123,12 +126,11 @@ function HotelContentManager() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
         {/* 왼쪽: 호텔 검색 */}
         <div className="space-y-6">
           <HotelSearchWidget
-            title="호텔 검색"
-            description="편집할 호텔을 검색하고 선택하세요"
+            hideHeader={true}
             onHotelSelect={handleHotelSelect}
             enableHotelEdit={false}
             showInitialHotels={true}
@@ -136,7 +138,7 @@ function HotelContentManager() {
         </div>
 
         {/* 오른쪽: 콘텐츠 편집 */}
-        <div className="space-y-6">
+        <div className="lg:col-span-2 space-y-6">
           {isLoading ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
               <Loader2 className="h-8 w-8 mx-auto mb-4 text-blue-600 animate-spin" />
@@ -174,20 +176,15 @@ function HotelContentManager() {
                 <label htmlFor="property-details" className="block text-sm font-medium text-gray-700 mb-2">
                   Property Details
                 </label>
-                <textarea
-                  id="property-details"
+                <LexicalEditorComponent
                   value={propertyDetails}
-                  onChange={(e) => setPropertyDetails(e.target.value)}
-                  rows={15}
-                  className={cn(
-                    "w-full px-3 py-2 border border-gray-300 rounded-md",
-                    "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-                    "resize-none font-mono text-sm"
-                  )}
+                  onChange={setPropertyDetails}
                   placeholder="Property details 콘텐츠를 입력하세요..."
+                  className="w-full"
+                  key={selectedHotel.sabre_id} // 호텔이 변경될 때마다 에디터를 새로 마운트
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  호텔의 상세 정보, 설명, 특징 등을 입력할 수 있습니다.
+                  호텔의 상세 정보, 설명, 특징 등을 리치 텍스트로 편집할 수 있습니다.
                 </p>
               </div>
 

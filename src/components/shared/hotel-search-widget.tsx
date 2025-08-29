@@ -188,7 +188,8 @@ export default function HotelSearchWidget({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          searching_string: ''
+          searching_string: '',
+          limit: 5
         }),
       });
 
@@ -672,7 +673,7 @@ export default function HotelSearchWidget({
       )}
 
       {/* 검색 폼 - 고정 */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex-shrink-0">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex-shrink-0 mb-6">
         <form onSubmit={handleSearch} className="space-y-4">
           <div>
             <label 
@@ -777,7 +778,7 @@ export default function HotelSearchWidget({
       </div>
 
       {/* 결과 영역 - 스크롤 가능 */}
-      <div className="flex-1 overflow-auto space-y-4">
+      <div className="flex-1 overflow-auto space-y-6">
         {/* 에러 메시지 */}
         {error && (
           <div 
