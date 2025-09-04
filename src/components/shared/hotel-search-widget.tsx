@@ -1,28 +1,45 @@
-'use client';
+'use client'
 
-import React, { useState, FormEvent, useEffect, useRef } from 'react';
-import { Search, Loader2, Building2, AlertCircle, CheckCircle, ChevronDown, ChevronUp, X, Play } from 'lucide-react';
-import { cn, getDateAfterDays, formatJson } from '@/lib/utils';
+import React, { useState, FormEvent, useEffect, useRef } from 'react'
+import { 
+  Search, 
+  Loader2, 
+  Building2, 
+  AlertCircle, 
+  CheckCircle, 
+  ChevronDown, 
+  ChevronUp, 
+  X, 
+  Play 
+} from 'lucide-react'
+import Link from 'next/link'
+
+import { cn, getDateAfterDays, formatJson } from '@/lib/utils'
 import { BaseButton } from '@/components/shared/form-actions'
 import DateInput from '@/components/shared/date-input'
-import { HotelSearchResult, HotelSearchApiResponse, RatePlanCodesApiResponse, ExpandedRowState, HotelDetailsRequest } from '@/types/hotel';
-import Link from 'next/link';
+import { 
+  HotelSearchResult, 
+  HotelSearchApiResponse, 
+  RatePlanCodesApiResponse, 
+  ExpandedRowState, 
+  HotelDetailsRequest 
+} from '@/types/hotel'
 
 interface HotelSearchWidgetProps {
   /** 위젯의 타이틀 */
-  title?: string;
+  title?: string
   /** 위젯의 설명 */
-  description?: string;
+  description?: string
   /** 컨테이너 클래스명 */
-  className?: string;
+  className?: string
   /** 헤더를 숨길지 여부 */
-  hideHeader?: boolean;
+  hideHeader?: boolean
   /** 호텔 편집 모드 (호텔명 클릭시 상세 편집 페이지로 이동) */
-  enableHotelEdit?: boolean;
+  enableHotelEdit?: boolean
   /** 초기 로딩 시 최신 호텔 리스트 표시 */
-  showInitialHotels?: boolean;
+  showInitialHotels?: boolean
   /** 호텔 선택 시 콜백 함수 */
-  onHotelSelect?: (sabreId: string) => void;
+  onHotelSelect?: (sabreId: string) => void
 }
 
 export default function HotelSearchWidget({ 

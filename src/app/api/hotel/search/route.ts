@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServiceRoleClient } from '@/lib/supabase/server';
-import { SearchHotelRequest, HotelSearchResult, ApiResponse } from '@/types/hotel';
+import { NextRequest, NextResponse } from 'next/server'
+
+import { createServiceRoleClient } from '@/lib/supabase/server'
+import { SearchHotelRequest, HotelSearchResult, ApiResponse } from '@/types/hotel'
 
 export async function POST(request: NextRequest) {
   try {
     // 요청 Body 파싱 및 검증
-    const body: SearchHotelRequest = await request.json();
+    const body: SearchHotelRequest = await request.json()
     
     if (body.searching_string === undefined || body.searching_string === null) {
       return NextResponse.json<ApiResponse<null>>(
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
           error: 'searching_string is required'
         },
         { status: 400 }
-      );
+      )
     }
 
     if (typeof body.searching_string !== 'string') {
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
           error: 'searching_string must be a string'
         },
         { status: 400 }
-      );
+      )
     }
 
     // 검색어 처리

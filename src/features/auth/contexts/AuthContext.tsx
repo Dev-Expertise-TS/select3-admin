@@ -2,11 +2,11 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { AuthUser } from '@/types/auth'
+import { User } from '@/types/auth'
 import { createClient } from '@/lib/supabase/client'
 
 interface AuthContextType {
-  user: AuthUser | null
+  user: User | null
   loading: boolean
   isInitialized: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
@@ -18,7 +18,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
   const supabase = createClient()
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // 2. 세션이 있는 경우 사용자 정보 구성
         const userRole = session.user.user_metadata?.role || 'user'
         
-        const authUser: AuthUser = {
+        const authUser: User = {
           id: session.user.id,
           email: session.user.email!,
           role: userRole,
@@ -120,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 2. 로그인 성공 시 사용자 정보 설정
       const userRole = authData.user.user_metadata?.role || 'user'
       
-      const authUser: AuthUser = {
+      const authUser: User = {
         id: authData.user.id,
         email: authData.user.email!,
         role: userRole,
@@ -228,7 +228,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('✅ 로그인 이벤트 감지, 사용자 정보 업데이트')
           // 로그인 이벤트 시에는 즉시 사용자 정보 설정
           const userRole = session.user.user_metadata?.role || 'user'
-          const authUser: AuthUser = {
+          const authUser: User = {
             id: session.user.id,
             email: session.user.email!,
             role: userRole,
@@ -264,7 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (session?.user && !user) {
             console.log('🔄 포커스 시 세션 복원')
             const userRole = session.user.user_metadata?.role || 'user'
-            const authUser: AuthUser = {
+            const authUser: User = {
               id: session.user.id,
               email: session.user.email!,
               role: userRole,

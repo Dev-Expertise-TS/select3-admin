@@ -11,7 +11,6 @@ export { useUsers } from './hooks/useUsers'
 // Auth 관련 타입들
 export type {
   User,
-  AuthUser,
   LoginCredentials,
   SignUpCredentials,
   AuthResponse,
