@@ -980,15 +980,22 @@ export default function HotelSearchWidget({
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {enableHotelEdit ? (
-                            <Link
-                              href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
-                              className={cn(
-                                'font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded',
-                                !hotel.property_name_ko ? 'text-gray-400 italic font-normal' : 'text-blue-600'
-                              )}
-                            >
-                              {hotel.property_name_ko || '한글명 없음'}
-                            </Link>
+                            <div className="flex gap-2">
+                              <Link
+                                href={`/admin/hotel-details/${hotel.sabre_id ?? 'null'}`}
+                                className={cn(
+                                  'font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded text-blue-600'
+                                )}
+                              >
+                                {hotel.property_name_ko || '한글명 없음'}
+                              </Link>
+                              <Link
+                                href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                                className="text-xs text-gray-500 hover:text-gray-700 underline"
+                              >
+                                편집
+                              </Link>
+                            </div>
                           ) : (
                             <button
                               type="button"
@@ -1010,10 +1017,10 @@ export default function HotelSearchWidget({
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {enableHotelEdit ? (
                             <Link
-                              href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                              href={`/admin/hotel-details/${hotel.sabre_id ?? 'null'}`}
                               className={cn(
-                                'font-medium hover:underline',
-                                !hotel.property_name_en ? 'text-gray-400 italic' : 'text-blue-600'
+                                'font-medium hover:underline text-blue-600',
+                                !hotel.property_name_en ? 'text-gray-400 italic' : ''
                               )}
                             >
                               {hotel.property_name_en || '영문명 없음'}

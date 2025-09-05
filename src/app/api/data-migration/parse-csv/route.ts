@@ -42,9 +42,17 @@ export async function POST(request: NextRequest) {
     const parseCSV = (csvText: string) => {
       // 다양한 줄바꿈 문자 처리
       const normalizedText = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-      const lines = normalizedText.split('\n').filter(line => line.trim())
+      const lines = normalizedText.split('\n')
       
       if (lines.length === 0) return { headers: [], data: [] }
+      
+      // 빈 행이 아닌 행만 필터링 (헤더는 제외)
+      const nonEmptyLines = lines.filter((line, index) => {
+        // 첫 번째 행(헤더)은 항상 포함
+        if (index === 0) return true
+        // 나머지 행은 빈 행이 아닌 경우만 포함
+        return line.trim().length > 0
+      })
 
       // CSV 행 파싱 함수 (따옴표 내부의 쉼표 처리)
       const parseCSVLine = (line: string): string[] => {
@@ -83,8 +91,8 @@ export async function POST(request: NextRequest) {
         return result
       }
 
-      const headers = parseCSVLine(lines[0])
-      const data = lines.slice(1).map((line, lineIndex) => {
+      const headers = parseCSVLine(nonEmptyLines[0])
+      const data = nonEmptyLines.slice(1).map((line, lineIndex) => {
         const values = parseCSVLine(line)
         const row: Record<string, string> = {}
         
@@ -100,16 +108,20 @@ export async function POST(request: NextRequest) {
         return row
       })
 
-      return { headers, data }
+      return { headers, data, nonEmptyLinesCount: nonEmptyLines.length }
     }
 
-    const { headers, data } = parseCSV(text)
+    const { headers, data, nonEmptyLinesCount } = parseCSV(text)
 
     // 디버깅을 위한 로그 추가
     console.log('CSV 파싱 결과:')
     console.log('Headers:', headers)
     console.log('첫 번째 데이터 행:', data[0])
     console.log('데이터 행 수:', data.length)
+    console.log('마지막 데이터 행:', data[data.length - 1])
+    console.log('원본 텍스트 길이:', text.length)
+    console.log('원본 라인 수:', text.split('\n').length)
+    console.log('필터링된 라인 수:', nonEmptyLinesCount)
 
     // select_hotels 테이블의 컬럼과 매핑 확인
     const selectHotelsColumns = [
@@ -138,7 +150,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         headers,
-        data: data.slice(0, 100), // 처음 100개 레코드만 반환
+        data: data, // 모든 레코드 반환
         totalRows: data.length,
         mappableColumns,
         selectHotelsColumns

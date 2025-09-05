@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSabreToken } from '@/lib/sabre'
+import { createServiceRoleClient } from '@/lib/supabase/server'
 
 interface HotelImage {
   id: string
@@ -26,6 +27,40 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'Sabre Hotel Code가 필요합니다.' },
         { status: 400 }
       )
+    }
+
+    // 먼저 select_hotels 테이블에서 이미지 컬럼들을 가져옴
+    const supabase = createServiceRoleClient()
+    const { data: hotelData, error: hotelError } = await supabase
+      .from('select_hotels')
+      .select('image_1, image_2, image_3, image_4, image_5, property_name_ko, property_name_en')
+      .eq('sabre_id', sabreCode)
+      .single()
+
+    const images: HotelImage[] = []
+
+    // select_hotels 테이블의 이미지들을 우선적으로 추가
+    if (hotelData && !hotelError) {
+      const hotelImages = [
+        hotelData.image_1,
+        hotelData.image_2,
+        hotelData.image_3,
+        hotelData.image_4,
+        hotelData.image_5
+      ].filter(Boolean) // null/undefined 값 제거
+
+      hotelImages.forEach((imageUrl, index) => {
+        if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim()) {
+          images.push({
+            id: `hotel-${index + 1}`,
+            url: imageUrl.trim(),
+            caption: `${hotelData.property_name_ko || hotelData.property_name_en || '호텔'} 이미지 ${index + 1}`,
+            category: 'hotel',
+            width: 800,
+            height: 600
+          })
+        }
+      })
     }
 
     // Sabre Hotel Image REST API 호출
@@ -261,15 +296,24 @@ export async function GET(request: NextRequest) {
       const images = finalImages
       dbg('parsed official images:', images.length)
 
-      if (images.length > 0) {
-        return NextResponse.json<SabreImageResponse>({ success: true, data: images }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
+      // select_hotels 테이블의 이미지들과 Sabre API 이미지들을 합침
+      const allImages = [...images, ...finalImages]
+      
+      if (allImages.length > 0) {
+        return NextResponse.json<SabreImageResponse>({ success: true, data: allImages }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
       } else {
         // 공식 API 결과가 없으면 프록시 폴백
         dbg('fallback to proxy with code:', sabreCode)
         const proxyImages = await fetchViaProxy(sabreCode)
         if (proxyImages && proxyImages.length > 0) {
           dbg('proxy images count:', proxyImages.length)
-          return NextResponse.json<SabreImageResponse>({ success: true, data: proxyImages }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
+          // select_hotels 이미지와 프록시 이미지 합침
+          const allImagesWithProxy = [...images, ...proxyImages]
+          return NextResponse.json<SabreImageResponse>({ success: true, data: allImagesWithProxy }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
+        }
+        // select_hotels에 이미지가 있으면 그것만이라도 반환
+        if (images.length > 0) {
+          return NextResponse.json<SabreImageResponse>({ success: true, data: images }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
         }
         return NextResponse.json<SabreImageResponse>({ success: false, error: '해당 호텔의 이미지를 찾을 수 없습니다.' }, { status: 404, headers: { 'Cache-Control': 'no-store' } })
       }
@@ -281,7 +325,13 @@ export async function GET(request: NextRequest) {
       const proxyImages = await fetchViaProxy(sabreCode)
       if (proxyImages && proxyImages.length > 0) {
         dbg('catch: proxy images count:', proxyImages.length)
-        return NextResponse.json<SabreImageResponse>({ success: true, data: proxyImages }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
+        // select_hotels 이미지와 프록시 이미지 합침
+        const allImagesWithProxy = [...images, ...proxyImages]
+        return NextResponse.json<SabreImageResponse>({ success: true, data: allImagesWithProxy }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
+      }
+      // select_hotels에 이미지가 있으면 그것만이라도 반환
+      if (images.length > 0) {
+        return NextResponse.json<SabreImageResponse>({ success: true, data: images }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
       }
       // 폴백 실패 시 데모 + 오류 메시지
       const errorFallbackImages: HotelImage[] = [

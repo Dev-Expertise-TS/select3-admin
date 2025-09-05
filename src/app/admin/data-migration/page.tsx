@@ -64,6 +64,10 @@ export default function DataMigrationPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(20)
   
+  // 정렬 상태
+  const [sortColumn, setSortColumn] = useState<string>('id_old')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  
   // 파일 입력 ref
   const fileInputRef = useRef<HTMLInputElement>(null)
   
@@ -244,12 +248,14 @@ export default function DataMigrationPage() {
       return
     }
 
-    // 기존 데이터 초기화 (같은 이름의 파일이어도 새로 업로드)
-    setCsvData(null)
-    setSelectedRecord(null)
-    setColumnMapping({})
-    setCsvError('')
-    setCurrentPage(1)
+          // 기존 데이터 초기화 (같은 이름의 파일이어도 새로 업로드)
+      setCsvData(null)
+      setSelectedRecord(null)
+      setColumnMapping({})
+      setCsvError('')
+      setCurrentPage(1)
+      setSortColumn('id_old')
+      setSortDirection('asc')
 
     setCsvFile(file)
     setIsUploadingCsv(true)
@@ -350,11 +356,49 @@ export default function DataMigrationPage() {
     }
   }
 
+  // 정렬 함수
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1) // 정렬 시 첫 페이지로 이동
+    setSelectedRecord(null) // 선택 해제
+  }
+
+  // 정렬된 데이터 계산
+  const getSortedData = () => {
+    if (!csvData) return []
+    
+    return [...csvData.data].sort((a, b) => {
+      const aValue = a[sortColumn] || ''
+      const bValue = b[sortColumn] || ''
+      
+      // 숫자 정렬 (id_old 같은 경우)
+      if (sortColumn === 'id_old' || sortColumn === 'sabre_id') {
+        const aNum = Number(aValue) || 0
+        const bNum = Number(bValue) || 0
+        return sortDirection === 'asc' ? aNum - bNum : bNum - aNum
+      }
+      
+      // 문자열 정렬
+      const aStr = String(aValue).toLowerCase()
+      const bStr = String(bValue).toLowerCase()
+      
+      if (aStr < bStr) return sortDirection === 'asc' ? -1 : 1
+      if (aStr > bStr) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
   // 페이지네이션 관련 함수들
-  const totalPages = csvData ? Math.ceil(csvData.data.length / itemsPerPage) : 0
+  const sortedData = getSortedData()
+  const totalPages = csvData ? Math.ceil(sortedData.length / itemsPerPage) : 0
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentData = csvData ? csvData.data.slice(startIndex, endIndex) : []
+  const currentData = sortedData.slice(startIndex, endIndex)
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -911,9 +955,139 @@ export default function DataMigrationPage() {
                     )}
                   </div>
 
+                  {/* CSV 데이터 테이블 - 고정된 컨테이너 */}
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto max-h-96" style={{ width: '100%', maxWidth: '100%' }}>
+                      <table className="table-fixed divide-y divide-gray-200" style={{ width: '100%', minWidth: '100%' }}>
+                        <thead className="bg-gray-50 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-20" style={{ width: '60px' }}>
+                              선택
+                            </th>
+                            {['slug', 'sabre_id', 'id_old', 'property_name_ko', 'property_name_en', 'city', 'chain_ko', 'property_address'].map((header) => (
+                              <th 
+                                key={header} 
+                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider truncate cursor-pointer hover:bg-gray-100 select-none" 
+                                style={{ width: '11.75%' }}
+                                onClick={() => handleSort(header)}
+                              >
+                                <div className="flex items-center gap-1">
+                                  <span>{header}</span>
+                                  {sortColumn === header && (
+                                    <span className="text-blue-600">
+                                      {sortDirection === 'asc' ? '↑' : '↓'}
+                                    </span>
+                                  )}
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {currentData.map((record, index) => (
+                            <tr 
+                              key={startIndex + index} 
+                              className={cn(
+                                "hover:bg-gray-50 cursor-pointer",
+                                selectedRecord === record && "bg-blue-50"
+                              )}
+                              onClick={() => handleRecordSelect(record)}
+                            >
+                              <td className={cn(
+                                "px-4 py-3 text-sm sticky left-0 z-10",
+                                selectedRecord === record ? "bg-blue-50" : "bg-white"
+                              )} style={{ width: '60px' }}>
+                                <input
+                                  type="radio"
+                                  name="selectedRecord"
+                                  checked={selectedRecord === record}
+                                  onChange={() => handleRecordSelect(record)}
+                                  className="h-4 w-4 text-blue-600"
+                                />
+                              </td>
+                              {['slug', 'sabre_id', 'id_old', 'property_name_ko', 'property_name_en', 'city', 'chain_ko', 'property_address'].map((header) => (
+                                <td key={header} className="px-4 py-3 text-sm text-gray-900 truncate" style={{ width: '11.75%' }} title={record[header] || '-'}>
+                                  {record[header] || '-'}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 페이지네이션 */}
+                  {totalPages > 1 && (
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-700">
+                          {startIndex + 1}-{Math.min(endIndex, sortedData.length)} of {sortedData.length} 레코드 (페이지 {currentPage}/{totalPages})
+                          <br />
+                          <span className="text-xs text-gray-500">
+                            CSV 원본: {csvData?.data?.length || 0}개, 정렬된 데이터: {sortedData.length}개, 페이지당: {itemsPerPage}개
+                          </span>
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={handlePrevPage}
+                          disabled={currentPage === 1}
+                          size="sm"
+                          variant="outline"
+                        >
+                          이전
+                        </Button>
+                        
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {/* 모든 페이지 표시 (최대 20개) */}
+                          {Array.from({ length: Math.min(totalPages, 20) }, (_, i) => {
+                            const pageNum = i + 1
+                            return (
+                              <Button
+                                key={pageNum}
+                                onClick={() => handlePageChange(pageNum)}
+                                size="sm"
+                                variant={currentPage === pageNum ? "default" : "outline"}
+                                className="w-8 h-8 p-0"
+                              >
+                                {pageNum}
+                              </Button>
+                            )
+                          })}
+                          
+                          {/* 20개를 초과하는 경우 "..." 표시 */}
+                          {totalPages > 20 && (
+                            <>
+                              <span className="text-gray-500">...</span>
+                              <Button
+                                onClick={() => handlePageChange(totalPages)}
+                                size="sm"
+                                variant={currentPage === totalPages ? "default" : "outline"}
+                                className="w-8 h-8 p-0"
+                              >
+                                {totalPages}
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                        
+                        <Button
+                          onClick={handleNextPage}
+                          disabled={currentPage === totalPages}
+                          size="sm"
+                          variant="outline"
+                        >
+                          다음
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* 컬럼 매핑 설정 */}
                   <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 className="font-medium mb-2">컬럼 매핑 설정</h4>
+                    <h4 className="font-medium mb-2">컬럼 매핑 설정 (모든 컬럼)</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {csvData.headers.map((header) => (
                         <div key={header} className="flex items-center gap-2">
@@ -934,115 +1108,10 @@ export default function DataMigrationPage() {
                         </div>
                       ))}
                     </div>
+                    <p className="text-sm text-gray-600 mt-2">
+                      총 {csvData.headers.length}개 컬럼 중 테이블에는 주요 8개 컬럼만 표시됩니다.
+                    </p>
                   </div>
-
-                  {/* CSV 데이터 테이블 - 고정된 컨테이너 */}
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="overflow-x-auto max-h-96 w-full">
-                      <table className="min-w-max divide-y divide-gray-200">
-                        <thead className="bg-gray-50 sticky top-0 z-10">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16 sticky left-0 bg-gray-50 z-20">
-                              선택
-                            </th>
-                            {csvData.headers.map((header) => (
-                              <th key={header} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-32 whitespace-nowrap">
-                                {header}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {currentData.map((record, index) => (
-                            <tr 
-                              key={startIndex + index} 
-                              className={cn(
-                                "hover:bg-gray-50 cursor-pointer",
-                                selectedRecord === record && "bg-blue-50"
-                              )}
-                              onClick={() => handleRecordSelect(record)}
-                            >
-                              <td className={cn(
-                                "px-4 py-3 text-sm w-16 sticky left-0 z-10",
-                                selectedRecord === record ? "bg-blue-50" : "bg-white"
-                              )}>
-                                <input
-                                  type="radio"
-                                  name="selectedRecord"
-                                  checked={selectedRecord === record}
-                                  onChange={() => handleRecordSelect(record)}
-                                  className="h-4 w-4 text-blue-600"
-                                />
-                              </td>
-                              {csvData.headers.map((header) => (
-                                <td key={header} className="px-4 py-3 text-sm text-gray-900 min-w-32 max-w-xs truncate whitespace-nowrap" title={record[header] || '-'}>
-                                  {record[header] || '-'}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* 페이지네이션 */}
-                  {totalPages > 1 && (
-                    <div className="mt-4 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-700">
-                          {startIndex + 1}-{Math.min(endIndex, csvData.data.length)} of {csvData.data.length} 레코드
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Button
-                          onClick={handlePrevPage}
-                          disabled={currentPage === 1}
-                          size="sm"
-                          variant="outline"
-                        >
-                          이전
-                        </Button>
-                        
-                        <div className="flex items-center gap-1">
-                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                            let pageNum;
-                            if (totalPages <= 5) {
-                              pageNum = i + 1;
-                            } else if (currentPage <= 3) {
-                              pageNum = i + 1;
-                            } else if (currentPage >= totalPages - 2) {
-                              pageNum = totalPages - 4 + i;
-                            } else {
-                              pageNum = currentPage - 2 + i;
-                            }
-                            
-                            return (
-                              <Button
-                                key={pageNum}
-                                onClick={() => handlePageChange(pageNum)}
-                                size="sm"
-                                variant={currentPage === pageNum ? "default" : "outline"}
-                                className="w-8 h-8 p-0"
-                              >
-                                {pageNum}
-                              </Button>
-                            );
-                          })}
-                        </div>
-                        
-                        <Button
-                          onClick={handleNextPage}
-                          disabled={currentPage === totalPages}
-                          size="sm"
-                          variant="outline"
-                        >
-                          다음
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
