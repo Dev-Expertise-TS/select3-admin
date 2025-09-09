@@ -83,6 +83,17 @@ export default function HotelSearchWidget({
     }
   };
 
+  // rate_plan_code를 배열로 변환하는 유틸리티 함수
+  const parseRatePlanCode = (ratePlanCode: string[] | string | null): string[] => {
+    if (Array.isArray(ratePlanCode)) {
+      return ratePlanCode;
+    }
+    if (typeof ratePlanCode === 'string' && ratePlanCode.trim()) {
+      return ratePlanCode.split(',').map(code => code.trim()).filter(code => code.length > 0);
+    }
+    return [];
+  };
+
   // 검색 핸들러 + 외부 호출 함수로 분리 (자동완성 Enter 선택 시 재사용)
   const performSearch = async (term: string) => {
     if (!term.trim()) {
@@ -393,8 +404,8 @@ export default function HotelSearchWidget({
         adults: 2,
         startDate: getDateAfterDays(14),
         endDate: getDateAfterDays(15),
-        selectedRatePlanCodes: Array.isArray(hotel.rate_plan_code) ? hotel.rate_plan_code : [],
-        originalRatePlanCodes: Array.isArray(hotel.rate_plan_code) ? hotel.rate_plan_code : [],
+        selectedRatePlanCodes: parseRatePlanCode(hotel.rate_plan_code),
+        originalRatePlanCodes: parseRatePlanCode(hotel.rate_plan_code),
         isLoading: false,
         isSaving: false,
         testResult: null,
@@ -1038,37 +1049,46 @@ export default function HotelSearchWidget({
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           <div className="flex items-center gap-2">
-                            {hotel.rate_plan_code && Array.isArray(hotel.rate_plan_code) && hotel.rate_plan_code.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {hotel.rate_plan_code.map((code, idx) => 
-                                  enableHotelEdit ? (
-                                    <Link 
-                                      href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
-                                      key={idx}
-                                      className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 hover:underline"
-                                    >
-                                      {code}
-                                    </Link>
-                                  ) : (
-                                    <span 
-                                      key={idx}
-                                      className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800"
-                                    >
-                                      {code}
-                                    </span>
-                                  )
-                                )}
-                              </div>
-                            ) : enableHotelEdit ? (
-                              <Link
-                                href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
-                                className="text-gray-400 italic hover:underline"
-                              >
-                                N/A
-                              </Link>
-                            ) : (
-                              <span className="text-gray-400 italic">N/A</span>
-                            )}
+                            {(() => {
+                              // rate_plan_code를 배열로 변환
+                              const ratePlanCodes = parseRatePlanCode(hotel.rate_plan_code);
+                              
+                              if (ratePlanCodes.length > 0) {
+                                return (
+                                  <div className="flex flex-wrap gap-1">
+                                    {ratePlanCodes.map((code, idx) => 
+                                      enableHotelEdit ? (
+                                        <Link 
+                                          href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                                          key={idx}
+                                          className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 hover:underline"
+                                        >
+                                          {code}
+                                        </Link>
+                                      ) : (
+                                        <span 
+                                          key={idx}
+                                          className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800"
+                                        >
+                                          {code}
+                                        </span>
+                                      )
+                                    )}
+                                  </div>
+                                );
+                              } else {
+                                return enableHotelEdit ? (
+                                  <Link
+                                    href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                                    className="text-gray-400 italic hover:underline"
+                                  >
+                                    N/A
+                                  </Link>
+                                ) : (
+                                  <span className="text-gray-400 italic">N/A</span>
+                                );
+                              }
+                            })()}
                             <div className="ml-auto">
                               {isExpanded ? (
                                 <ChevronUp className="h-4 w-4 text-gray-400" />
@@ -1199,7 +1219,7 @@ export default function HotelSearchWidget({
                                       Loading rate plan codes...
                                     </div>
                                   ) : allRatePlanCodes.length > 0 ? (
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded p-3">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-80 overflow-y-auto border border-gray-200 rounded p-3">
                                       {allRatePlanCodes.map((code) => {
                                         const isInOriginalDb = Array.isArray(expandedRowState.originalRatePlanCodes) && expandedRowState.originalRatePlanCodes.includes(code);
                                         const isCurrentlySelected = Array.isArray(expandedRowState.selectedRatePlanCodes) && expandedRowState.selectedRatePlanCodes.includes(code);

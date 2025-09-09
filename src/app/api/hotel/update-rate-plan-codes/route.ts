@@ -5,7 +5,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 interface UpdateRatePlanCodesRequest {
   sabre_id: string;
   paragon_id: string;
-  rate_plan_codes: string[];
+  rate_plan_code: string[];
 }
 
 export async function PATCH(request: NextRequest) {
@@ -21,9 +21,9 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    if (!Array.isArray(body.rate_plan_codes)) {
+    if (!Array.isArray(body.rate_plan_code)) {
       return new Response(
-        JSON.stringify({ success: false, error: 'rate_plan_codes must be an array' }),
+        JSON.stringify({ success: false, error: 'rate_plan_code must be an array' }),
         { status: 400, headers: { 'content-type': 'application/json' } }
       )
     }
@@ -54,27 +54,30 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 입력 정규화: 공백 제거, 빈 값 제거, 허용 목록 필터, 빈 배열 → null
-    const cleanedCodes = (body.rate_plan_codes || [])
+    const cleanedCodes = (body.rate_plan_code || [])
       .map((c) => (typeof c === 'string' ? c.trim().toUpperCase() : ''))
       .filter((c) => c.length > 0 && allowed.includes(c))
-    const normalizedCodes = cleanedCodes.length > 0 ? cleanedCodes : null
+    
+    // 배열을 쉼표로 구분된 문자열로 변환
+    const normalizedCodes = cleanedCodes.length > 0 ? cleanedCodes.join(',') : null
     console.log('[update-rate-plan-codes] allowed:', allowed)
-    console.log('[update-rate-plan-codes] normalizedCodes:', normalizedCodes)
+    console.log('[update-rate-plan-codes] cleanedCodes:', cleanedCodes)
+    console.log('[update-rate-plan-codes] normalizedCodes (string):', normalizedCodes)
 
     // 호텔 레코드 찾기 및 업데이트 (sabre_id 또는 paragon_id로 검색) - 22P02 시 재시도하며 잘못된 enum 제거
-    const tryUpdate = async (codes: string[] | null) => {
-      let q = supabase.from('select_hotels').update({ rate_plan_codes: codes })
+    const tryUpdate = async (codes: string | null) => {
+      let q = supabase.from('select_hotels').update({ rate_plan_code: codes })
       q = body.sabre_id ? q.eq('sabre_id', body.sabre_id) : q.eq('paragon_id', body.paragon_id)
-      return q.select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_codes').single()
+      return q.select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_code').single()
     }
 
-    let workingCodes: string[] | null = normalizedCodes
+    let workingCodes: string | null = normalizedCodes
     type HotelRow = {
       sabre_id: string | null
       paragon_id: string | null
-              property_name_ko: string | null
-              property_name_en: string | null
-      rate_plan_codes: string[] | null
+      property_name_ko: string | null
+      property_name_en: string | null
+      rate_plan_code: string | null
     }
     let data: HotelRow | null = null
     let usedSingleFallback = false
@@ -94,25 +97,26 @@ export async function PATCH(request: NextRequest) {
         // invalid input value for enum rate_plan_code: "XYZ"
         const m = msg.match(/enum\s+[^:]+:\s+"([^"]+)"/i)
         const bad = m?.[1]
-        if (bad && Array.isArray(workingCodes)) {
-          workingCodes = workingCodes.filter((c) => c !== bad)
-          if (workingCodes.length === 0) workingCodes = null
+        if (bad && workingCodes) {
+          // 잘못된 코드를 쉼표로 구분된 문자열에서 제거
+          const codesArray = workingCodes.split(',').filter((c) => c.trim() !== bad)
+          workingCodes = codesArray.length > 0 ? codesArray.join(',') : null
           continue
         }
         // 파싱 실패 시 모든 비허용값 제거 후 한번 더 시도
-        if (Array.isArray(workingCodes)) {
-          workingCodes = workingCodes.filter((c) => allowed.includes(c))
-          if (workingCodes.length === 0) workingCodes = null
+        if (workingCodes) {
+          const codesArray = workingCodes.split(',').filter((c) => allowed.includes(c.trim()))
+          workingCodes = codesArray.length > 0 ? codesArray.join(',') : null
           // 만약 컬럼이 enum (단일) 타입일 수 있으므로, 단일 값으로 저장 시도
-          if (workingCodes && workingCodes.length > 0 && !usedSingleFallback) {
+          if (workingCodes && !usedSingleFallback) {
             usedSingleFallback = true
-            const first = workingCodes[0]
+            const first = workingCodes.split(',')[0]
             // 일부 스키마에서 enum 단일 컬럼일 수 있어 타입을 좁혀 단일 값 시도
             const { data: d2, error: e2 } = await supabase
               .from('select_hotels')
-              .update({ rate_plan_codes: first as unknown as string })
+              .update({ rate_plan_code: first as unknown as string })
               [body.sabre_id ? 'eq' : 'eq' as const](body.sabre_id ? 'sabre_id' : 'paragon_id', body.sabre_id ? body.sabre_id : body.paragon_id)
-                              .select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_codes')
+              .select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_code')
               .single()
             if (!e2) { data = d2; break }
           }
