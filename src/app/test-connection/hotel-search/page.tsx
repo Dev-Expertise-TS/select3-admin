@@ -65,8 +65,8 @@ const apiEndpoints: ApiEndpoint[] = [
     path: '/api/hotel/update-rate-plan-codes',
     description: '호텔 요금 플랜 코드 업데이트',
     category: 'Hotel',
-    parameters: '{ sabre_id: string, rate_plan_codes: string[] }',
-    example: 'POST /api/hotel/update-rate-plan-codes\n{ "sabre_id": "123", "rate_plan_codes": ["CODE1", "CODE2"] }',
+    parameters: '{ sabre_id: string, rate_plan_code: string[] }',
+    example: 'POST /api/hotel/update-rate-plan-codes\n{ "sabre_id": "123", "rate_plan_code": ["CODE1", "CODE2"] }',
     response: '{ success: true, message: "업데이트 완료" }'
   },
 
@@ -77,7 +77,7 @@ const apiEndpoints: ApiEndpoint[] = [
     path: '/api/rate-plan-codes',
     description: 'Sabre API 요금 플랜 코드 테스트',
     category: 'Rate Plan',
-    parameters: '{ sabre_id: string, check_in: string, check_out: string, rate_plan_codes?: string[] }',
+    parameters: '{ sabre_id: string, check_in: string, check_out: string, rate_plan_code?: string[] }',
     example: 'POST /api/rate-plan-codes\n{ "sabre_id": "123", "check_in": "2024-01-01", "check_out": "2024-01-02" }',
     response: '{ success: true, data: { rate plans... } }'
   },

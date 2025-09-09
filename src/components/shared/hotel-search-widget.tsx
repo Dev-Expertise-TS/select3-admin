@@ -393,8 +393,8 @@ export default function HotelSearchWidget({
         adults: 2,
         startDate: getDateAfterDays(14),
         endDate: getDateAfterDays(15),
-        selectedRatePlanCodes: hotel.rate_plan_codes || [],
-        originalRatePlanCodes: hotel.rate_plan_codes || [],
+        selectedRatePlanCodes: Array.isArray(hotel.rate_plan_code) ? hotel.rate_plan_code : [],
+        originalRatePlanCodes: Array.isArray(hotel.rate_plan_code) ? hotel.rate_plan_code : [],
         isLoading: false,
         isSaving: false,
         testResult: null,
@@ -416,9 +416,12 @@ export default function HotelSearchWidget({
     if (!expandedRowState) return;
     
     const currentCodes = expandedRowState.selectedRatePlanCodes;
-    const updatedCodes = currentCodes.includes(code)
-      ? currentCodes.filter(c => c !== code)
-      : [...currentCodes, code];
+    // currentCodes가 배열이 아닌 경우 빈 배열로 초기화
+    const safeCodes = Array.isArray(currentCodes) ? currentCodes : [];
+    
+    const updatedCodes = safeCodes.includes(code)
+      ? safeCodes.filter(c => c !== code)
+      : [...safeCodes, code];
     
     updateExpandedRowState({ selectedRatePlanCodes: updatedCodes });
   };
@@ -454,7 +457,7 @@ export default function HotelSearchWidget({
       };
 
       // rate plan codes가 있는 경우에만 RatePlanCode와 ExactMatchOnly 필드 추가
-      if (expandedRowState.selectedRatePlanCodes.length > 0) {
+      if (Array.isArray(expandedRowState.selectedRatePlanCodes) && expandedRowState.selectedRatePlanCodes.length > 0) {
         requestBody.RatePlanCode = expandedRowState.selectedRatePlanCodes;
         requestBody.ExactMatchOnly = true;
       }
@@ -524,7 +527,7 @@ export default function HotelSearchWidget({
         body: JSON.stringify({
           sabre_id: currentHotel.sabre_id,
           paragon_id: currentHotel.paragon_id,
-          rate_plan_codes: expandedRowState.selectedRatePlanCodes
+          rate_plan_code: expandedRowState.selectedRatePlanCodes
         })
       });
 
@@ -542,7 +545,7 @@ export default function HotelSearchWidget({
       setResults(prevResults => 
         prevResults.map(hotel => 
           `${hotel.sabre_id}-${hotel.paragon_id}` === expandedRowState.hotelId
-            ? { ...hotel, rate_plan_codes: expandedRowState.selectedRatePlanCodes }
+            ? { ...hotel, rate_plan_code: expandedRowState.selectedRatePlanCodes }
             : hotel
         )
       );
@@ -1035,9 +1038,9 @@ export default function HotelSearchWidget({
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           <div className="flex items-center gap-2">
-                            {hotel.rate_plan_codes && hotel.rate_plan_codes.length > 0 ? (
+                            {hotel.rate_plan_code && Array.isArray(hotel.rate_plan_code) && hotel.rate_plan_code.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
-                                {hotel.rate_plan_codes.map((code, idx) => 
+                                {hotel.rate_plan_code.map((code, idx) => 
                                   enableHotelEdit ? (
                                     <Link 
                                       href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
@@ -1198,8 +1201,8 @@ export default function HotelSearchWidget({
                                   ) : allRatePlanCodes.length > 0 ? (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded p-3">
                                       {allRatePlanCodes.map((code) => {
-                                        const isInOriginalDb = expandedRowState.originalRatePlanCodes.includes(code);
-                                        const isCurrentlySelected = expandedRowState.selectedRatePlanCodes.includes(code);
+                                        const isInOriginalDb = Array.isArray(expandedRowState.originalRatePlanCodes) && expandedRowState.originalRatePlanCodes.includes(code);
+                                        const isCurrentlySelected = Array.isArray(expandedRowState.selectedRatePlanCodes) && expandedRowState.selectedRatePlanCodes.includes(code);
                                         
                                         return (
                                           <label key={code} className="flex items-center space-x-2">

@@ -570,18 +570,18 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
             
             {/* Rate Plan Codes */}
             <div className="space-y-1 md:col-span-2 lg:col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Rate Plan Codes (rate_code 컬럼)</label>
+              <label className="block text-sm font-medium text-gray-700">Rate Plan Codes (rate_plan_code 컬럼)</label>
               <div className="w-full px-3 py-2 text-sm bg-gray-50 rounded-md border border-gray-200">
-                {Array.isArray(initialData.rate_plan_codes) 
-                  ? (initialData.rate_plan_codes as string[]).join(', ') || '-'
+                {Array.isArray(initialData.rate_plan_code) 
+                  ? (initialData.rate_plan_code as string[]).join(', ') || '-'
                   : '-'
                 }
               </div>
-              <input type="hidden" name="rate_plan_codes" value={Array.isArray(initialData.rate_plan_codes) ? (initialData.rate_plan_codes as string[]).join(', ') : ''} />
+              <input type="hidden" name="rate_plan_code" value={Array.isArray(initialData.rate_plan_code) ? (initialData.rate_plan_code as string[]).join(', ') : ''} />
               {/* 디버깅 정보 */}
               {String(initialData.sabre_id ?? '') === '313016' && (
                 <div className="text-xs text-gray-400 mt-1">
-                  rate_plan_codes: {Array.isArray(initialData.rate_plan_codes) ? initialData.rate_plan_codes.join(', ') : '없음'}
+                  rate_plan_code: {Array.isArray(initialData.rate_plan_code) ? initialData.rate_plan_code.join(', ') : '없음'}
                 </div>
               )}
             </div>

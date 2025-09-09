@@ -14,7 +14,7 @@ export interface HotelSearchResult {
   paragon_id: string | null
   property_name_ko: string | null
   property_name_en: string | null
-  rate_plan_codes: string[] | null
+  rate_plan_code: string[] | null
   created_at: string | null
   chain_name_kr: string | null
   brand_name_kr: string | null
@@ -27,7 +27,7 @@ export interface HotelUpdateRequest {
   property_name_en?: string
   chain_id?: string
   brand_id?: string
-  rate_plan_codes?: string[]
+  rate_plan_code?: string[]
   property_details?: string
 }
 

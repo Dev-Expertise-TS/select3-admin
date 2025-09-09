@@ -145,4 +145,58 @@ export async function sabreFetch<T = unknown>(
   return json
 }
 
+export async function sabreFetchWithRetry<T = unknown>(
+  path: string,
+  init?: Omit<RequestInit, 'headers'> & { headers?: Record<string, string> },
+  maxRetries: number = 3,
+  initialDelay: number = 2000
+): Promise<T> {
+  let lastError: Error | null = null
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // 30초 타임아웃 설정
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000)
+      
+      const result = await sabreFetch<T>(path, {
+        ...init,
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      return result
+    } catch (error) {
+      lastError = error as Error
+      
+      // 마지막 시도가 아니고, 재시도 가능한 오류인 경우에만 재시도
+      if (attempt < maxRetries) {
+        const isRetryableError = 
+          error instanceof Error && (
+            error.message.includes('timeout') ||
+            error.message.includes('Connection error') ||
+            error.message.includes('provider_connection_error') ||
+            error.message.includes('500') ||
+            error.message.includes('502') ||
+            error.message.includes('503') ||
+            error.message.includes('504')
+          )
+        
+        if (isRetryableError) {
+          const delay = initialDelay * Math.pow(2, attempt) // 지수 백오프
+          debugLog(`sabreFetchWithRetry → attempt ${attempt + 1} failed, retrying in ${delay}ms:`, error)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+      }
+      
+      // 재시도 불가능한 오류이거나 마지막 시도인 경우
+      debugLog(`sabreFetchWithRetry → attempt ${attempt + 1} failed, not retrying:`, error)
+      break
+    }
+  }
+  
+  throw lastError || new Error('sabreFetchWithRetry failed after all attempts')
+}
+
 

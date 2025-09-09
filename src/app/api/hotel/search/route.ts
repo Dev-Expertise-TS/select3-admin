@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
           paragon_id, 
           property_name_ko, 
           property_name_en, 
-          rate_plan_codes, 
+          rate_plan_code, 
           created_at,
           brand_id
         `)
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
           paragon_id: row.paragon_id ? String(row.paragon_id) : null,
           property_name_ko: row.property_name_ko || null,
           property_name_en: row.property_name_en || null,
-          rate_plan_codes: row.rate_plan_codes || null,
+          rate_plan_code: row.rate_plan_code || null,
           created_at: row.created_at || null,
           chain_name_kr: chain?.name_kr || null,
           brand_name_kr: brand?.name_kr || null,
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     }
 
     // or() 사용 시 검색어에 ','가 포함되면 구문 오류를 유발할 수 있어 병렬 쿼리 후 병합 방식으로 변경
-    const baseSelect = 'sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_codes, created_at, brand_id'
+    const baseSelect = 'sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_code, created_at, brand_id'
     const isNumericSearch = /^\d+$/.test(searchTerm)
 
     type Row = { 
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       paragon_id: string | null; 
       property_name_ko: string | null; 
       property_name_en: string | null; 
-      rate_plan_codes: string[] | null; 
+      rate_plan_code: string[] | null; 
       created_at: string | null;
       brand_id: number | null;
     }
@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
         paragon_id: row.paragon_id ? String(row.paragon_id) : null,
         property_name_ko: row.property_name_ko || null,
         property_name_en: row.property_name_en || null,
-        rate_plan_codes: row.rate_plan_codes || null,
+        rate_plan_code: row.rate_plan_code || null,
         created_at: row.created_at || null,
         chain_name_kr: chain?.name_kr || null,
         brand_name_kr: brand?.name_kr || null,
