@@ -3,72 +3,123 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Loader2, Bot, CheckCircle, AlertCircle, XCircle, HelpCircle } from 'lucide-react'
+import { Search, Loader2, CheckCircle, AlertCircle, Building2, MapPin, Globe } from 'lucide-react'
 
-interface OpenAIHotelSearchResult {
-  sabreHotelCode: string
-  hotelName: string
-  confidence: number
-  reasoning: string
-  verificationStatus: 'verified' | 'partial_match' | 'no_match'
-  verificationDetails: {
-    inputHotelName: string
-    verifiedHotelName: string
-    matchScore: number
-    address?: string
-    city?: string
-    country?: string
-  }
+interface HotelInfo {
+  HotelCode?: string
+  CodeContext?: string
+  HotelName?: string
+  ChainCode?: string
+  ChainName?: string
+  BrandCode?: string
+  BrandName?: string
+  SabreRating?: string
+  SabreHotelCode?: string
+  // 기존 필드들도 유지 (호환성)
+  sabreId?: string
+  hotelName?: string
+  propertyNameKo?: string
+  propertyNameEn?: string
+  address?: string
+  city?: string
+  country?: string
+  chainName?: string
+  brandName?: string
+  phone?: string
+  email?: string
+  website?: string
+  description?: string
 }
 
-interface OpenAIHotelSearchResponse {
+interface HotelDetailsResponse {
   success: boolean
-  data?: OpenAIHotelSearchResult
+  data?: {
+    HotelDetailsInfo?: {
+      HotelInfo?: HotelInfo
+    }
+    // 기존 구조도 지원
+    sabre_id?: string
+    property_name_ko?: string
+    property_name_en?: string
+    [key: string]: any
+  }
+  error?: string
+}
+
+interface SabreHotelResponse {
+  success: boolean
+  data?: HotelInfo | {
+    HotelDetailsInfo?: {
+      HotelInfo?: HotelInfo
+    }
+    [key: string]: any
+  }
   error?: string
 }
 
 export default function SabreIdManager() {
-  const [searchTerm, setSearchTerm] = useState('')
+  const [sabreId, setSabreId] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [searchResult, setSearchResult] = useState<OpenAIHotelSearchResult | null>(null)
+  const [hotelInfo, setHotelInfo] = useState<HotelInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loadingMessage, setLoadingMessage] = useState('')
+  const [warning, setWarning] = useState<string | null>(null)
 
   const handleSearch = async () => {
-    if (!searchTerm.trim()) {
-      setError('호텔명을 입력해주세요.')
+    if (!sabreId.trim()) {
+      setError('Sabre ID를 입력해주세요.')
       return
     }
 
     setIsLoading(true)
     setError(null)
-    setSearchResult(null)
-    setLoadingMessage('OpenAI AI가 호텔명을 분석하여 Sabre Hotel Code를 찾고 있습니다...')
+    setWarning(null)
+    setHotelInfo(null)
 
     try {
-      const response = await fetch('/api/sabre-id/openai-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hotelName: searchTerm.trim() })
+      const response = await fetch(`/api/sabre/hotel-details?sabre_id=${encodeURIComponent(sabreId.trim())}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
       })
 
-      const data: OpenAIHotelSearchResponse = await response.json()
+      const data: SabreHotelResponse = await response.json()
+      
+      // 디버깅을 위한 로그
+      console.log('API 응답 상태:', response.status)
+      console.log('API 응답 데이터:', data)
 
       if (!response.ok) {
         throw new Error(data.error || 'API 요청이 실패했습니다.')
       }
 
       if (data.success && data.data) {
-        setSearchResult(data.data)
-        setLoadingMessage('')
+        // 실제 Sabre API 응답 구조 (GetHotelDetailsRS.HotelDetailsInfo.HotelInfo) 처리
+        if (typeof data.data === 'object' && 'GetHotelDetailsRS' in data.data && data.data.GetHotelDetailsRS?.HotelDetailsInfo?.HotelInfo) {
+          setHotelInfo(data.data.GetHotelDetailsRS.HotelDetailsInfo.HotelInfo)
+        }
+        // 백업 구조 (HotelDetailsInfo.HotelInfo) 처리
+        else if (typeof data.data === 'object' && 'HotelDetailsInfo' in data.data && data.data.HotelDetailsInfo?.HotelInfo) {
+          setHotelInfo(data.data.HotelDetailsInfo.HotelInfo)
+        }
+        // 직접 HotelInfo 객체인 경우
+        else if (typeof data.data === 'object' && ('HotelName' in data.data || 'SabreHotelCode' in data.data)) {
+          setHotelInfo(data.data as HotelInfo)
+        }
+        else {
+          console.error('예상치 못한 응답 구조:', data.data)
+          throw new Error('호텔 정보 형식이 올바르지 않습니다.')
+        }
+        
+        // 경고 메시지가 있으면 표시
+        if (data.error) {
+          setWarning(data.error)
+        }
       } else {
-        throw new Error(data.error || '검색 중 오류가 발생했습니다.')
+        throw new Error(data.error || '호텔 정보를 찾을 수 없습니다.')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '검색 중 오류가 발생했습니다.')
     } finally {
       setIsLoading(false)
-      setLoadingMessage('')
     }
   }
 
@@ -78,79 +129,40 @@ export default function SabreIdManager() {
     }
   }
 
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'text-green-600'
-    if (confidence >= 0.6) return 'text-yellow-600'
-    return 'text-red-600'
-  }
-
-  const getConfidenceText = (confidence: number) => {
-    if (confidence >= 0.8) return '높음'
-    if (confidence >= 0.6) return '보통'
-    return '낮음'
-  }
-
-  const getVerificationStatusColor = (status: string) => {
-    switch (status) {
-      case 'verified': return 'text-green-600'
-      case 'partial_match': return 'text-yellow-600'
-      case 'no_match': return 'text-red-600'
-      default: return 'text-gray-600'
-    }
-  }
-
-  const getVerificationStatusText = (status: string) => {
-    switch (status) {
-      case 'verified': return '검증 완료'
-      case 'partial_match': return '부분 일치'
-      case 'no_match': return '일치하지 않음'
-      default: return '알 수 없음'
-    }
-  }
-
-  const getVerificationStatusIcon = (status: string) => {
-    switch (status) {
-      case 'verified': return <CheckCircle className="h-5 w-5 text-green-600" />
-      case 'partial_match': return <HelpCircle className="h-5 w-5 text-yellow-600" />
-      case 'no_match': return <XCircle className="h-5 w-5 text-red-600" />
-      default: return <HelpCircle className="h-5 w-5 text-gray-600" />
-    }
-  }
-
   return (
     <div className="space-y-8">
       <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
         <div className="space-y-6 p-6">
           <div className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-blue-600" />
-            <h2 className="text-lg font-semibold">AI 기반 호텔 검색</h2>
+            <Building2 className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-semibold">Sabre ID 검색</h2>
           </div>
           
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-[1fr_auto]">
               <Input
                 type="text"
-                placeholder="호텔명을 입력하세요"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Sabre ID를 입력하세요 (예: 12345)"
+                value={sabreId}
+                onChange={(e) => setSabreId(e.target.value)}
                 onKeyPress={handleKeyPress}
                 disabled={isLoading}
                 className="h-10"
               />
               <Button 
                 onClick={handleSearch}
-                disabled={isLoading || !searchTerm.trim()}
+                disabled={isLoading || !sabreId.trim()}
                 className="h-10 px-8"
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    AI 검색중
+                    검색중
                   </>
                 ) : (
                   <>
                     <Search className="mr-2 h-4 w-4" />
-                    AI 검색
+                    검색
                   </>
                 )}
               </Button>
@@ -163,118 +175,116 @@ export default function SabreIdManager() {
               </div>
             )}
 
-            {isLoading && loadingMessage && (
-              <div className="flex items-center gap-2 rounded-md bg-blue-50 p-3 text-sm text-blue-700">
-                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                <div>{loadingMessage}</div>
+            {warning && (
+              <div className="flex items-start gap-2 rounded-md bg-yellow-50 p-3 text-sm text-yellow-700">
+                <AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5" />
+                <div>{warning}</div>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {searchResult && (
+      {hotelInfo && (
         <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
           <div className="border-b p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {getVerificationStatusIcon(searchResult.verificationStatus)}
-                <h3 className="text-lg font-semibold">AI 검색 결과</h3>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">AI 신뢰도:</span>
-                  <span className={`text-sm font-medium ${getConfidenceColor(searchResult.confidence)}`}>
-                    {getConfidenceText(searchResult.confidence)} ({(searchResult.confidence * 100).toFixed(0)}%)
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">검증 상태:</span>
-                  <span className={`text-sm font-medium ${getVerificationStatusColor(searchResult.verificationStatus)}`}>
-                    {getVerificationStatusText(searchResult.verificationStatus)}
-                  </span>
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <h3 className="text-lg font-semibold">호텔 정보</h3>
             </div>
           </div>
           
           <div className="p-6 space-y-6">
+            {/* 기본 정보 */}
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-500">Sabre Hotel Code</h4>
                 <div className="text-2xl font-bold text-blue-600 font-mono">
-                  {searchResult.sabreHotelCode || '-'}
+                  {hotelInfo.SabreHotelCode || hotelInfo.sabreId || '-'}
                 </div>
               </div>
               
               <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-500">검증된 호텔명</h4>
-                <div className="text-lg font-semibold text-gray-900">
-                  {searchResult.hotelName || '검증 실패'}
+                <h4 className="text-sm font-medium text-gray-500">Hotel Code</h4>
+                <div className="text-lg font-semibold text-gray-900 font-mono">
+                  {hotelInfo.HotelCode || '-'}
                 </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium text-gray-500">호텔명 매칭 검증</h4>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <span className="text-xs text-gray-500">입력된 호텔명:</span>
-                    <div className="text-sm font-medium text-gray-900 mt-1">
-                      &ldquo;{searchResult.verificationDetails.inputHotelName}&rdquo;
-                    </div>
+                {hotelInfo.CodeContext && (
+                  <div className="text-xs text-gray-500">
+                    컨텍스트: {hotelInfo.CodeContext}
                   </div>
-                  <div>
-                    <span className="text-xs text-gray-500">검증된 호텔명:</span>
-                    <div className="text-sm font-medium text-gray-900 mt-1">
-                      &ldquo;{searchResult.verificationDetails.verifiedHotelName || '검증 실패'}&rdquo;
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">매칭 점수:</span>
-                  <span className={`text-sm font-medium ${getVerificationStatusColor(searchResult.verificationStatus)}`}>
-                    {(searchResult.verificationDetails.matchScore * 100).toFixed(1)}%
-                  </span>
-                </div>
+                )}
               </div>
             </div>
 
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium text-gray-500">AI 분석 결과</h4>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-700 leading-relaxed">
-                  {searchResult.reasoning || '설명 없음'}
-                </p>
-              </div>
-            </div>
-
-            {(searchResult.verificationDetails.address || searchResult.verificationDetails.city || searchResult.verificationDetails.country) && (
+            {/* 호텔명 및 등급 */}
+            <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-500">호텔 상세 정보</h4>
-                <div className="grid gap-4 md:grid-cols-3">
-                  {searchResult.verificationDetails.address && (
-                    <div>
-                      <span className="text-xs text-gray-500">주소</span>
-                      <div className="text-sm text-gray-900 mt-1">
-                        {searchResult.verificationDetails.address}
+                <h4 className="text-sm font-medium text-gray-500">호텔명</h4>
+                <div className="text-xl font-semibold text-gray-900">
+                  {hotelInfo.HotelName || hotelInfo.propertyNameEn || hotelInfo.hotelName || '-'}
+                </div>
+              </div>
+              
+              {hotelInfo.SabreRating && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-gray-500">Sabre 등급</h4>
+                  <div className="flex items-center gap-2">
+                    <div className="text-2xl font-bold text-yellow-600">
+                      {hotelInfo.SabreRating}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      / 5.0
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 한글 호텔명 */}
+            {hotelInfo.propertyNameKo && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-500">호텔명 (한글)</h4>
+                <div className="text-lg font-semibold text-gray-900">
+                  {hotelInfo.propertyNameKo}
+                </div>
+              </div>
+            )}
+
+            {/* 체인/브랜드 정보 */}
+            {(hotelInfo.ChainName || hotelInfo.BrandName || hotelInfo.chainName || hotelInfo.brandName) && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-500">체인/브랜드</h4>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {(hotelInfo.ChainName || hotelInfo.chainName) && (
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-gray-500" />
+                      <div>
+                        <span className="text-xs text-gray-500">체인</span>
+                        <div className="text-sm font-medium text-gray-900">
+                          {hotelInfo.ChainName || hotelInfo.chainName}
+                        </div>
+                        {hotelInfo.ChainCode && (
+                          <div className="text-xs text-gray-500 font-mono">
+                            코드: {hotelInfo.ChainCode}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
-                  {searchResult.verificationDetails.city && (
-                    <div>
-                      <span className="text-xs text-gray-500">도시</span>
-                      <div className="text-sm text-gray-900 mt-1">
-                        {searchResult.verificationDetails.city}
-                      </div>
-                    </div>
-                  )}
-                  {searchResult.verificationDetails.country && (
-                    <div>
-                      <span className="text-xs text-gray-500">국가</span>
-                      <div className="text-sm text-gray-900 mt-1">
-                        {searchResult.verificationDetails.country}
+                  {(hotelInfo.BrandName || hotelInfo.brandName) && (
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-gray-500" />
+                      <div>
+                        <span className="text-xs text-gray-500">브랜드</span>
+                        <div className="text-sm font-medium text-gray-900">
+                          {hotelInfo.BrandName || hotelInfo.brandName}
+                        </div>
+                        {hotelInfo.BrandCode && (
+                          <div className="text-xs text-gray-500 font-mono">
+                            코드: {hotelInfo.BrandCode}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -282,18 +292,99 @@ export default function SabreIdManager() {
               </div>
             )}
 
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium text-gray-500">검증 상태 상세</h4>
-              <div className="flex items-center gap-2">
-                {getVerificationStatusIcon(searchResult.verificationStatus)}
-                <span className={`text-sm font-medium ${getVerificationStatusColor(searchResult.verificationStatus)}`}>
-                  {getVerificationStatusText(searchResult.verificationStatus)}
-                </span>
+            {/* 주소 정보 */}
+            {(hotelInfo.address || hotelInfo.city || hotelInfo.country) && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-500">주소 정보</h4>
+                <div className="grid gap-4 md:grid-cols-3">
+                  {hotelInfo.address && (
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
+                      <div>
+                        <span className="text-xs text-gray-500">주소</span>
+                        <div className="text-sm text-gray-900 mt-1">
+                          {hotelInfo.address}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {hotelInfo.city && (
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
+                      <div>
+                        <span className="text-xs text-gray-500">도시</span>
+                        <div className="text-sm text-gray-900 mt-1">
+                          {hotelInfo.city}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {hotelInfo.country && (
+                    <div className="flex items-start gap-2">
+                      <Globe className="h-4 w-4 text-gray-500 mt-0.5" />
+                      <div>
+                        <span className="text-xs text-gray-500">국가</span>
+                        <div className="text-sm text-gray-900 mt-1">
+                          {hotelInfo.country}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-              <p className="text-xs text-gray-500 ml-7">
-                매칭 점수 {(searchResult.verificationDetails.matchScore * 100).toFixed(1)}% 기준으로 판단됩니다.
-              </p>
-            </div>
+            )}
+
+            {/* 연락처 정보 */}
+            {(hotelInfo.phone || hotelInfo.email || hotelInfo.website) && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-500">연락처 정보</h4>
+                <div className="grid gap-4 md:grid-cols-3">
+                  {hotelInfo.phone && (
+                    <div>
+                      <span className="text-xs text-gray-500">전화번호</span>
+                      <div className="text-sm text-gray-900 mt-1">
+                        {hotelInfo.phone}
+                      </div>
+                    </div>
+                  )}
+                  {hotelInfo.email && (
+                    <div>
+                      <span className="text-xs text-gray-500">이메일</span>
+                      <div className="text-sm text-gray-900 mt-1">
+                        {hotelInfo.email}
+                      </div>
+                    </div>
+                  )}
+                  {hotelInfo.website && (
+                    <div>
+                      <span className="text-xs text-gray-500">웹사이트</span>
+                      <div className="text-sm text-gray-900 mt-1">
+                        <a 
+                          href={hotelInfo.website} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          {hotelInfo.website}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 호텔 설명 */}
+            {hotelInfo.description && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-500">호텔 설명</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    {hotelInfo.description}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -301,14 +392,14 @@ export default function SabreIdManager() {
       <div className="rounded-lg border bg-blue-50 p-6">
         <div className="flex items-start gap-3">
           <div className="rounded-lg bg-blue-600 p-2">
-            <Bot className="h-5 w-5 text-white" />
+            <Search className="h-5 w-5 text-white" />
           </div>
           <div className="space-y-2">
-            <h3 className="text-lg font-semibold text-blue-900">AI 기반 검색 시스템</h3>
+            <h3 className="text-lg font-semibold text-blue-900">Sabre ID 검색 시스템</h3>
             <div className="text-sm text-blue-800 space-y-1">
-              <p>• <strong>1단계:</strong> OpenAI AI가 호텔명을 분석하여 적합한 Sabre Hotel Code를 찾</p>
-              <p>• <strong>2단계:</strong> 찾은 코드를 Sabre API로 검증하여 실제 호텔 정보를 가져옴</p>
-              <p>• <strong>3단계:</strong> 입력된 호텔명과 검증된 호텔명을 비교하여 매칭 점수를 계산함</p>
+              <p>• <strong>직접 검색:</strong> Sabre ID를 입력하여 호텔 정보를 직접 조회합니다</p>
+              <p>• <strong>실시간 데이터:</strong> Sabre API를 통해 최신 호텔 정보를 가져옵니다</p>
+              <p>• <strong>상세 정보:</strong> 호텔명, 주소, 연락처 등 상세 정보를 제공합니다</p>
             </div>
           </div>
         </div>

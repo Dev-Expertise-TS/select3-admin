@@ -14,8 +14,8 @@ export default function AdminSabreIdPage() {
             <Building className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sabre Hotel Code 확인</h1>
-            <p className="text-sm text-gray-600 mt-1">호텔 영문명을 검색하여 Sabre Hotel Code를 조회하세요</p>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sabre ID 검색</h1>
+            <p className="text-sm text-gray-600 mt-1">Sabre ID를 입력하여 호텔 정보를 직접 조회하세요</p>
           </div>
         </div>
 
