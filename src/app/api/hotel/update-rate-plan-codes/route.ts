@@ -1,5 +1,12 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { 
+  getAllowedRatePlanCodes, 
+  validateAndNormalizeRatePlanCodes, 
+  removeInvalidCode, 
+  getFirstValidCode 
+} from '@/lib/rate-plan-validator';
+import { isSupabaseError, isPostgrestError, isJsonParseError } from '@/lib/type-guards';
 
 // 요청 타입 정의
 interface UpdateRatePlanCodesRequest {
@@ -15,52 +22,37 @@ export async function PATCH(request: NextRequest) {
     console.log('[update-rate-plan-codes] request body:', body)
     
     if (!body.sabre_id && !body.paragon_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'sabre_id or paragon_id is required' }),
-        { status: 400, headers: { 'content-type': 'application/json' } }
+      return NextResponse.json(
+        { success: false, error: 'sabre_id or paragon_id is required' },
+        { status: 400 }
       )
     }
 
     if (!Array.isArray(body.rate_plan_code)) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'rate_plan_code must be an array' }),
-        { status: 400, headers: { 'content-type': 'application/json' } }
+      return NextResponse.json(
+        { success: false, error: 'rate_plan_code must be an array' },
+        { status: 400 }
       )
     }
 
     // Supabase 관리자 클라이언트 생성
     const supabase = createServiceRoleClient();
 
-    // 허용 가능한 코드 집합 로드 (enum → 실패시 폴백)
-    const fallbackValues = ['API','ZP3','VMC','TLC','H01','S72','XLO','PPR','FAN','WMP','HPM','TID','STP']
-    let allowed: string[] = fallbackValues
-    try {
-      const { data: typeData } = await supabase
-        .from('pg_type')
-        .select('oid')
-        .eq('typname', 'rate_plan_code')
-        .single()
-      if (typeData?.oid) {
-        const { data: enumData } = await supabase
-          .from('pg_enum')
-          .select('enumlabel')
-          .eq('enumtypid', typeData.oid)
-          .order('enumsortorder', { ascending: true })
-        const enumValues = (enumData?.map((r: { enumlabel: string }) => r.enumlabel) || []).filter(Boolean)
-        if (enumValues.length > 0) allowed = enumValues
-      }
-    } catch {
-      // ignore → fallback 사용
-    }
-
-    // 입력 정규화: 공백 제거, 빈 값 제거, 허용 목록 필터, 빈 배열 → null
-    const cleanedCodes = (body.rate_plan_code || [])
-      .map((c) => (typeof c === 'string' ? c.trim().toUpperCase() : ''))
-      .filter((c) => c.length > 0 && allowed.includes(c))
+    // 허용 가능한 Rate Plan 코드 조회
+    const allowedCodes = await getAllowedRatePlanCodes()
     
-    // 배열을 쉼표로 구분된 문자열로 변환
-    const normalizedCodes = cleanedCodes.length > 0 ? cleanedCodes.join(',') : null
-    console.log('[update-rate-plan-codes] allowed:', allowed)
+    // 입력 검증 및 정규화
+    const validationResult = validateAndNormalizeRatePlanCodes(body.rate_plan_code || [], allowedCodes)
+    
+    if (!validationResult.isValid) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid rate plan codes', details: validationResult.errors },
+        { status: 400 }
+      )
+    }
+    
+    const { cleanedCodes, normalizedCodes } = validationResult
+    console.log('[update-rate-plan-codes] allowed:', allowedCodes)
     console.log('[update-rate-plan-codes] cleanedCodes:', cleanedCodes)
     console.log('[update-rate-plan-codes] normalizedCodes (string):', normalizedCodes)
 
@@ -84,13 +76,14 @@ export async function PATCH(request: NextRequest) {
     for (let i = 0; i < 10; i += 1) {
       const { data: d, error } = await tryUpdate(workingCodes)
       if (!error) { data = d; break }
-      const code = (error as { code?: string }).code
-      const msg = String((error as { message?: string }).message || '')
+      
+      const code = isSupabaseError(error) ? error.code : undefined
+      const msg = isSupabaseError(error) ? error.message || '' : String(error)
       console.error('[update-rate-plan-codes] update error:', { code, msg, workingCodes })
       if (code === 'PGRST116') {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Hotel not found' }),
-          { status: 404, headers: { 'content-type': 'application/json' } }
+        return NextResponse.json(
+          { success: false, error: 'Hotel not found' },
+          { status: 404 }
         )
       }
       if (code === '22P02') {
@@ -98,71 +91,74 @@ export async function PATCH(request: NextRequest) {
         const m = msg.match(/enum\s+[^:]+:\s+"([^"]+)"/i)
         const bad = m?.[1]
         if (bad && workingCodes) {
-          // 잘못된 코드를 쉼표로 구분된 문자열에서 제거
-          const codesArray = workingCodes.split(',').filter((c) => c.trim() !== bad)
-          workingCodes = codesArray.length > 0 ? codesArray.join(',') : null
+          // 잘못된 코드 제거
+          workingCodes = removeInvalidCode(workingCodes, bad, allowedCodes)
           continue
         }
         // 파싱 실패 시 모든 비허용값 제거 후 한번 더 시도
         if (workingCodes) {
-          const codesArray = workingCodes.split(',').filter((c) => allowed.includes(c.trim()))
+          const codesArray = workingCodes.split(',').filter((c) => allowedCodes.includes(c.trim()))
           workingCodes = codesArray.length > 0 ? codesArray.join(',') : null
           // 만약 컬럼이 enum (단일) 타입일 수 있으므로, 단일 값으로 저장 시도
           if (workingCodes && !usedSingleFallback) {
             usedSingleFallback = true
-            const first = workingCodes.split(',')[0]
-            // 일부 스키마에서 enum 단일 컬럼일 수 있어 타입을 좁혀 단일 값 시도
-            const { data: d2, error: e2 } = await supabase
-              .from('select_hotels')
-              .update({ rate_plan_code: first as unknown as string })
-              [body.sabre_id ? 'eq' : 'eq' as const](body.sabre_id ? 'sabre_id' : 'paragon_id', body.sabre_id ? body.sabre_id : body.paragon_id)
-              .select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_code')
-              .single()
-            if (!e2) { data = d2; break }
+            const first = getFirstValidCode(workingCodes)
+            if (first) {
+              // 일부 스키마에서 enum 단일 컬럼일 수 있어 타입을 좁혀 단일 값 시도
+              const { data: d2, error: e2 } = await supabase
+                .from('select_hotels')
+                .update({ rate_plan_code: first as unknown as string })
+                [body.sabre_id ? 'eq' : 'eq' as const](body.sabre_id ? 'sabre_id' : 'paragon_id', body.sabre_id ? body.sabre_id : body.paragon_id)
+                .select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_code')
+                .single()
+              if (!e2) { data = d2; break }
+            }
           }
           continue
         }
       }
       console.error('Supabase update error:', error)
-      return new Response(
-        JSON.stringify({ success: false, error: 'Database update failed', code, details: msg }),
-        { status: 500, headers: { 'content-type': 'application/json' } }
+      return NextResponse.json(
+        { success: false, error: 'Database update failed', code, details: msg },
+        { status: 500 }
       )
     }
 
     if (!data) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Database update failed (no data)' }),
-        { status: 500, headers: { 'content-type': 'application/json' } }
+      return NextResponse.json(
+        { success: false, error: 'Database update failed (no data)' },
+        { status: 500 }
       )
     }
 
     // 성공 응답
-    return new Response(
-      JSON.stringify({ success: true, data, count: 1 }),
-      { status: 200, headers: {
-        'content-type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'PATCH, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      }}
+    return NextResponse.json(
+      { success: true, data, count: 1 },
+      { 
+        status: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'PATCH, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        }
+      }
     )
 
   } catch (error) {
     console.error('API route error:', error);
     
     // JSON 파싱 오류 등 처리
-    if (error instanceof SyntaxError) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid JSON format' }),
-        { status: 400, headers: { 'content-type': 'application/json' } }
+    if (isJsonParseError(error)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid JSON format' },
+        { status: 400 }
       )
     }
 
     // 기타 예상치 못한 오류
-    return new Response(
-      JSON.stringify({ success: false, error: 'Internal server error' }),
-      { status: 500, headers: { 'content-type': 'application/json' } }
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

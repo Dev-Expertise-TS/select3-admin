@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSabreToken } from '@/lib/sabre'
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import { parseSabreImages, extractImageUrlsFromText, urlsToHotelImages, type HotelImage } from '@/lib/sabre-image-parser'
+import { SABRE_CONFIG, getSabreBaseUrl, hasSabreCredentials, sabreDebugLog } from '@/config/sabre'
 
-interface HotelImage {
-  id: string
-  url: string
-  caption?: string
-  category?: string
-  width?: number
-  height?: number
-}
+// HotelImage 타입은 이제 sabre-image-parser에서 import
 
 interface SabreImageResponse {
   success: boolean
@@ -65,127 +60,22 @@ export async function GET(request: NextRequest) {
 
     // Sabre Hotel Image REST API 호출
     // 참고: https://developer.sabre.com/docs/rest_apis/hotel/search/get_hotel_image/reference-documentation
-    // 표준 Sabre API 엔드포인트 (환경에 따라 호스트 전환)
-    const SABRE_BASE_URL = process.env.SABRE_BASE_URL || 'https://api-crt.cert.sabre.com'
-    const SABRE_VERSION = process.env.SABRE_API_VERSION || 'v1.0.0'
-    const sabreBaseUrl = `${SABRE_BASE_URL}/${SABRE_VERSION}`.replace(/\/$/, '')
-    const SABRE_DEBUG = String(process.env.SABRE_DEBUG || '').toLowerCase() === 'true'
-    const dbg = (...args: unknown[]) => { if (SABRE_DEBUG) { try { console.log('[SABRE_IMG_DEBUG]', ...args) } catch {} } }
-    const sabreImagesCandidates = (
-      code: string,
-    ) => [
-      `${sabreBaseUrl}/shop/hotels/images?hotelCode=${encodeURIComponent(code)}&imageSize=Large`,
-      `${sabreBaseUrl}/shop/hotels/images?hotelCode=${encodeURIComponent(code)}&category=ALL`,
-      `${sabreBaseUrl}/shop/hotels/images?hotelCode=${encodeURIComponent(code)}`,
-      `${sabreBaseUrl}/shop/hotels/images?HotelCode=${encodeURIComponent(code)}`,
-      `${sabreBaseUrl}/shop/hotels/image?hotelCode=${encodeURIComponent(code)}`,
-    ]
+    const sabreBaseUrl = getSabreBaseUrl()
+    const sabreImagesCandidates = (code: string) => 
+      SABRE_CONFIG.IMAGE_ENDPOINTS(SABRE_CONFIG.BASE_URL, SABRE_CONFIG.VERSION, code)
 
-    // Sabre 이미지 응답 파서 (다양한 응답 포맷 및 래퍼 대응)
-    const parseSabreImages = (payload: unknown): HotelImage[] => {
-      const images: HotelImage[] = []
-      let imageData: unknown[] = []
-
-      const unwrap = (obj: unknown): unknown => {
-        if (!obj || typeof obj !== 'object') return obj
-        const r = obj as Record<string, unknown>
-        if (Array.isArray(r.data)) return r.data
-        if (r.data && typeof r.data === 'object') return r.data
-        if (Array.isArray(r.result)) return r.result
-        if (r.result && typeof r.result === 'object') return r.result
-        if (r.payload) return r.payload as unknown
-        return obj
-      }
-
-      const root0 = unwrap(payload)
-      const root = (root0 && typeof root0 === 'object' ? root0 : payload) as Record<string, unknown>
-
-      const rs = (root as Record<string, unknown>)?.GetHotelImageRS as Record<string, unknown> | undefined
-      const hotelImages = rs?.HotelImages as Record<string, unknown> | undefined
-      const hotelImage = hotelImages?.HotelImage as unknown
-      const altImages = ((root as Record<string, unknown>)?.Images as Record<string, unknown> | undefined)?.Image as unknown
-      const contentItems = ((root as Record<string, unknown>)?.HotelContentRS as Record<string, unknown> | undefined)?.HotelContent as Record<string, unknown> | undefined
-      const mediaItems = contentItems?.MediaItems as Record<string, unknown> | undefined
-      const mediaItem = mediaItems?.MediaItem as unknown
-      const hotelImageList = ((root as Record<string, unknown>)?.HotelImageList as Record<string, unknown> | undefined)?.HotelImage as unknown
-
-      if (Array.isArray(hotelImage)) imageData = hotelImage
-      else if (hotelImage) imageData = [hotelImage]
-      else if (Array.isArray(altImages)) imageData = altImages
-      else if (altImages) imageData = [altImages]
-      else if (Array.isArray(mediaItem)) imageData = mediaItem
-      else if (mediaItem) imageData = [mediaItem]
-      else if (Array.isArray(hotelImageList)) imageData = hotelImageList
-      else if (hotelImageList) imageData = [hotelImageList]
-      else if (Array.isArray(root0)) imageData = root0 as unknown[]
-      else if (Array.isArray(payload)) imageData = payload as unknown[]
-
-      const pushImage = (url: string, idx: number, meta?: Record<string, unknown>) => {
-        const caption = (meta?.Caption || meta?.caption || meta?.description || meta?.alt) as string | undefined
-        const category = (meta?.Category || meta?.category || meta?.type || meta?.imageType) as string | undefined
-        const widthRaw = (meta?.Width || meta?.width) as string | number | undefined
-        const heightRaw = (meta?.Height || meta?.height) as string | number | undefined
-        images.push({
-          id: String(idx + 1),
-          url,
-          caption: caption ?? `호텔 이미지 ${idx + 1}`,
-          category: category ?? 'General',
-          width: typeof widthRaw === 'number' ? widthRaw : parseInt(String(widthRaw || '800')) || 800,
-          height: typeof heightRaw === 'number' ? heightRaw : parseInt(String(heightRaw || '600')) || 600,
-        })
-      }
-
-      const collectFromNode = (node: unknown) => {
-        if (!node) return 0
-        let added = 0
-        if (typeof node === 'string') {
-          const u = node.trim()
-          if (u) { pushImage(u, images.length, {}) ; added += 1 }
-          return added
-        }
-        if (Array.isArray(node)) {
-          node.forEach((n) => { added += collectFromNode(n) })
-          return added
-        }
-        const obj = node as Record<string, unknown>
-        const directUrl = (obj.URL || obj.Url || obj.url || obj.imageURL || obj.imageUrl || obj.src || obj.href) as string | undefined
-        if (typeof directUrl === 'string' && directUrl.trim()) {
-          pushImage(directUrl, images.length, obj)
-          added += 1
-        }
-        // nested arrays: Image / Images.Image / MediaItems.MediaItem / Links.Link
-        const image = obj.Image as unknown
-        const imagesNode = (obj.Images as Record<string, unknown> | undefined)?.Image as unknown
-        const media = (obj.MediaItems as Record<string, unknown> | undefined)?.MediaItem as unknown
-        const links = (obj.Links as Record<string, unknown> | undefined)?.Link as unknown
-        if (image) added += collectFromNode(image)
-        if (imagesNode) added += collectFromNode(imagesNode)
-        if (media) added += collectFromNode(media)
-        if (links) added += collectFromNode(links)
-        return added
-      }
-
-      collectFromNode(imageData)
-
-      // dedupe by URL
-      const deduped: HotelImage[] = []
-      const seen = new Set<string>()
-      for (const im of images) {
-        if (!seen.has(im.url)) { seen.add(im.url); deduped.push(im) }
-      }
-      return deduped
-    }
+    // Sabre 이미지 파서는 이제 별도 모듈에서 import
 
     // 인증 없이 사용할 수 있는 내부 프록시 폴백 호출
     const fetchViaProxy = async (hotelCode: string): Promise<HotelImage[] | null> => {
       try {
         // 1) POST with HotelCode
-        const base = 'https://sabre-nodejs-9tia3.ondigitalocean.app/public/hotel/sabre'
+        const base = SABRE_CONFIG.PROXY.BASE_URL
         const postResp = await fetch(`${base}/hotel-images`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ HotelCode: hotelCode }),
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(SABRE_CONFIG.TIMEOUT.PROXY),
         })
         if (postResp.ok) {
           const json = await postResp.json().catch(() => null)
@@ -199,7 +89,7 @@ export async function GET(request: NextRequest) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ hotelCode: hotelCode }),
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(SABRE_CONFIG.TIMEOUT.PROXY),
         })
         if (postAlt.ok) {
           const json = await postAlt.json().catch(() => null)
@@ -239,9 +129,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 2) Sabre API 인증 정보 확인 후 공식 API 호출 시도
-    const clientId = process.env.SABRE_CLIENT_ID
-    const clientSecret = process.env.SABRE_CLIENT_SECRET
-    if (!clientId || !clientSecret) {
+    if (!hasSabreCredentials()) {
       // 인증 정보 없고 프록시도 실패 → 데모
       const demoImages: HotelImage[] = [
         { id: '1', url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&h=600&fit=crop', caption: '호텔 외관', category: 'Exterior', width: 800, height: 600 },
@@ -257,7 +145,7 @@ export async function GET(request: NextRequest) {
       let ok = false
       const token = await getSabreToken()
       for (const url of sabreImagesCandidates(sabreCode)) {
-        dbg('try official:', url)
+        sabreDebugLog('try official:', url)
         try {
           const resp = await fetch(url, {
             method: 'GET',
@@ -265,9 +153,9 @@ export async function GET(request: NextRequest) {
               Authorization: `Bearer ${token}`,
               Accept: 'application/json',
             },
-            signal: AbortSignal.timeout(12000),
+            signal: AbortSignal.timeout(SABRE_CONFIG.TIMEOUT.DEFAULT),
           })
-          dbg('official status:', resp.status, resp.statusText)
+          sabreDebugLog('official status:', resp.status, resp.statusText)
           if (!resp.ok) continue
           const ctype = resp.headers.get('content-type') || ''
           if (ctype.includes('application/json')) {
@@ -278,23 +166,23 @@ export async function GET(request: NextRequest) {
             }
           } else {
             const text = await resp.text().catch(() => '')
-            // 간단 URL 추출 (jpg/png/webp)
-            const urls = Array.from(new Set((text.match(/https?:\/\/[^\s"']+\.(?:jpg|jpeg|png|webp)/gi) || []).map((u) => u.trim())))
+            // 텍스트에서 이미지 URL 추출
+            const urls = extractImageUrlsFromText(text)
             if (urls.length > 0) {
-              finalImages = urls.map((u, i) => ({ id: String(i + 1), url: u, caption: `호텔 이미지 ${i + 1}`, category: 'General', width: 800, height: 600 }))
+              finalImages = urlsToHotelImages(urls)
               ok = true
               break
             }
           }
         } catch (e) {
-          dbg('official failed:', url, e instanceof Error ? e.message : String(e))
+          sabreDebugLog('official failed:', url, e instanceof Error ? e.message : String(e))
         }
       }
       if (!ok) {
         throw new Error('Sabre 이미지 API 응답이 비어있습니다.')
       }
       const images = finalImages
-      dbg('parsed official images:', images.length)
+      sabreDebugLog('parsed official images:', images.length)
 
       // select_hotels 테이블의 이미지들과 Sabre API 이미지들을 합침
       const allImages = [...images, ...finalImages]
@@ -303,10 +191,10 @@ export async function GET(request: NextRequest) {
         return NextResponse.json<SabreImageResponse>({ success: true, data: allImages }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
       } else {
         // 공식 API 결과가 없으면 프록시 폴백
-        dbg('fallback to proxy with code:', sabreCode)
+        sabreDebugLog('fallback to proxy with code:', sabreCode)
         const proxyImages = await fetchViaProxy(sabreCode)
         if (proxyImages && proxyImages.length > 0) {
-          dbg('proxy images count:', proxyImages.length)
+          sabreDebugLog('proxy images count:', proxyImages.length)
           // select_hotels 이미지와 프록시 이미지 합침
           const allImagesWithProxy = [...images, ...proxyImages]
           return NextResponse.json<SabreImageResponse>({ success: true, data: allImagesWithProxy }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
@@ -321,10 +209,10 @@ export async function GET(request: NextRequest) {
     } catch (sabreError) {
       console.error('Sabre API 호출 오류:', sabreError)
       // 공식 API 실패 시 프록시 폴백 시도
-      dbg('catch: fallback to proxy with code:', sabreCode)
+      sabreDebugLog('catch: fallback to proxy with code:', sabreCode)
       const proxyImages = await fetchViaProxy(sabreCode)
       if (proxyImages && proxyImages.length > 0) {
-        dbg('catch: proxy images count:', proxyImages.length)
+        sabreDebugLog('catch: proxy images count:', proxyImages.length)
         // select_hotels 이미지와 프록시 이미지 합침
         const allImagesWithProxy = [...images, ...proxyImages]
         return NextResponse.json<SabreImageResponse>({ success: true, data: allImagesWithProxy }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
