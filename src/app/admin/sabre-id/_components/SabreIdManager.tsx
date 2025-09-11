@@ -58,11 +58,53 @@ interface SabreHotelResponse {
 }
 
 export default function SabreIdManager() {
+  // Sabre API 검색 관련 state
   const [sabreId, setSabreId] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [hotelInfo, setHotelInfo] = useState<HotelInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
+
+  // DB 검색 관련 state
+  const [dbSearchTerm, setDbSearchTerm] = useState('')
+  const [dbSearchLoading, setDbSearchLoading] = useState(false)
+  const [dbSearchResults, setDbSearchResults] = useState<any[]>([])
+  const [dbSearchError, setDbSearchError] = useState<string | null>(null)
+
+  // DB 검색 함수
+  const handleDbSearch = async () => {
+    if (!dbSearchTerm.trim()) {
+      setDbSearchError('검색어를 입력해주세요.')
+      return
+    }
+
+    setDbSearchLoading(true)
+    setDbSearchError(null)
+    setDbSearchResults([])
+
+    try {
+      const response = await fetch(`/api/sabre/db-search?q=${encodeURIComponent(dbSearchTerm.trim())}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'DB 검색이 실패했습니다.')
+      }
+
+      if (data.success && data.data) {
+        setDbSearchResults(data.data)
+      } else {
+        throw new Error(data.error || '검색 결과를 찾을 수 없습니다.')
+      }
+    } catch (err) {
+      setDbSearchError(err instanceof Error ? err.message : '검색 중 오류가 발생했습니다.')
+    } finally {
+      setDbSearchLoading(false)
+    }
+  }
 
   const handleSearch = async () => {
     if (!sabreId.trim()) {
@@ -135,7 +177,7 @@ export default function SabreIdManager() {
         <div className="space-y-6 p-6">
           <div className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-blue-600" />
-            <h2 className="text-lg font-semibold">Sabre ID 검색</h2>
+            <h2 className="text-lg font-semibold">Sabre API 기준 Sabre ID 검색</h2>
           </div>
           
           <div className="space-y-4">
@@ -400,6 +442,120 @@ export default function SabreIdManager() {
               <p>• <strong>직접 검색:</strong> Sabre ID를 입력하여 호텔 정보를 직접 조회합니다</p>
               <p>• <strong>실시간 데이터:</strong> Sabre API를 통해 최신 호텔 정보를 가져옵니다</p>
               <p>• <strong>상세 정보:</strong> 호텔명, 주소, 연락처 등 상세 정보를 제공합니다</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* DB 검색 영역 */}
+      <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div className="space-y-6 p-6">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-green-600" />
+            <h2 className="text-lg font-semibold">DB 기준 Sabre 호텔 및 ID 검색</h2>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+              <Input
+                type="text"
+                placeholder="호텔명 또는 Sabre ID를 입력하세요"
+                value={dbSearchTerm}
+                onChange={(e) => setDbSearchTerm(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && !dbSearchLoading) {
+                    handleDbSearch()
+                  }
+                }}
+                disabled={dbSearchLoading}
+                className="h-10"
+              />
+              <Button 
+                onClick={handleDbSearch}
+                disabled={dbSearchLoading || !dbSearchTerm.trim()}
+                className="h-10 px-8 bg-green-600 hover:bg-green-700"
+              >
+                {dbSearchLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    검색 중...
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4 mr-2" />
+                    DB 검색
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* DB 검색 에러 메시지 */}
+            {dbSearchError && (
+              <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-medium">검색 오류</h3>
+                  <p className="text-sm mt-1">{dbSearchError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* DB 검색 결과 */}
+            {dbSearchResults.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <h3 className="text-lg font-semibold text-green-900">
+                    검색 결과 ({dbSearchResults.length}개)
+                  </h3>
+                </div>
+                
+                <div className="grid gap-4">
+                  {dbSearchResults.map((hotel, index) => (
+                    <div key={index} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500">Sabre ID</h4>
+                          <p className="text-lg font-bold text-blue-600 font-mono">
+                            {hotel.sabre_id || '-'}
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500">호텔명 (영문)</h4>
+                          <p className="text-base font-semibold text-gray-900">
+                            {hotel.property_name_en || '-'}
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500">호텔명 (한글)</h4>
+                          <p className="text-base font-semibold text-gray-900">
+                            {hotel.property_name_kr || '-'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 빈 결과 메시지 */}
+            {!dbSearchLoading && dbSearchTerm && dbSearchResults.length === 0 && !dbSearchError && (
+              <div className="text-center py-8 text-gray-500">
+                <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm">검색 결과가 없습니다.</p>
+                <p className="text-xs mt-1">다른 검색어로 시도해보세요.</p>
+              </div>
+            )}
+          </div>
+
+          {/* DB 검색 시스템 설명 */}
+          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h3 className="text-lg font-semibold text-green-900">DB 기준 검색 시스템</h3>
+            <div className="text-sm text-green-800 space-y-1">
+              <p>• <strong>로컬 DB 검색:</strong> Supabase 데이터베이스의 sabre_hotels 테이블에서 검색합니다</p>
+              <p>• <strong>검색 대상:</strong> Sabre ID 및 호텔 영문명으로 검색 가능합니다</p>
+              <p>• <strong>빠른 검색:</strong> 로컬 DB를 활용하여 빠른 검색 결과를 제공합니다</p>
             </div>
           </div>
         </div>
