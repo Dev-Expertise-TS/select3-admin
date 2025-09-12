@@ -5,6 +5,7 @@ import { DollarSign, Image, Sliders, Star, Megaphone, Plus, Edit, Trash2, Eye, E
 import { AuthGuard } from '@/components/shared/auth-guard'
 import HeroCarouselManager from './_components/HeroCarouselManager'
 import PromotionManager from './_components/PromotionManager'
+import BannerManager from './_components/BannerManager'
 
 type AdType = 'banner' | 'carousel' | 'featured' | 'promotion'
 
@@ -118,7 +119,10 @@ export default function AdminAdvertisementsPage() {
 
         {/* 광고 관리 콘텐츠 */}
         <div className="space-y-6">
-          {activeTab === 'carousel' ? (
+          {activeTab === 'banner' ? (
+            // 상단 베너 관리 컴포넌트
+            <BannerManager />
+          ) : activeTab === 'carousel' ? (
             // 히어로 캐러셀 관리 컴포넌트
             <HeroCarouselManager />
           ) : activeTab === 'promotion' ? (
@@ -202,7 +206,6 @@ export default function AdminAdvertisementsPage() {
                   ) : (
                     <div className="p-6 text-center">
                       <div className="text-gray-400 mb-4">
-                        {activeTab === 'banner' && <Image className="h-12 w-12 mx-auto" />}
                         {activeTab === 'featured' && <Star className="h-12 w-12 mx-auto" />}
                       </div>
                       <p className="text-gray-500">등록된 광고가 없습니다.</p>
