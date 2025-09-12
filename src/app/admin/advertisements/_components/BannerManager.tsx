@@ -63,7 +63,7 @@ export default function BannerManager() {
     setError(null)
 
     try {
-      const response = await fetch('/api/feature-slots')
+      const response = await fetch('/api/feature-slots/banner')
       const data = await response.json()
 
       if (!response.ok) {
@@ -71,10 +71,7 @@ export default function BannerManager() {
       }
 
       if (data.success) {
-        // surface가 "상단베너"인 첫 번째 레코드 찾기
-        const bannerSlot = (data.data || []).find((slot: FeatureSlot) => 
-          slot.surface === '상단베너'
-        )
+        const bannerSlot = data.data
         setCurrentSlot(bannerSlot || null)
         
         // 폼 데이터 초기화
@@ -128,12 +125,11 @@ export default function BannerManager() {
     setSuccess(null)
 
     try {
-      const url = currentSlot ? `/api/feature-slots/${currentSlot.id}` : '/api/feature-slots'
+      const url = '/api/feature-slots/banner'
       const method = currentSlot ? 'PUT' : 'POST'
       
       const payload = {
-        ...formData,
-        surface: '상단베너' // 항상 상단베너로 설정
+        ...formData
       }
 
       const response = await fetch(url, {
@@ -172,7 +168,7 @@ export default function BannerManager() {
     }
 
     try {
-      const response = await fetch(`/api/feature-slots/${currentSlot.id}`, {
+      const response = await fetch('/api/feature-slots/banner', {
         method: 'DELETE',
       })
 
