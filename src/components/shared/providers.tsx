@@ -2,8 +2,26 @@
 
 import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { AuthProvider } from '@/features/auth/contexts/AuthContext'
+
+// 동적으로 Devtools를 로드하는 컴포넌트
+function Devtools() {
+  const [Devtools, setDevtools] = React.useState<React.ComponentType<any> | null>(null)
+
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      import('@tanstack/react-query-devtools').then((d) => {
+        setDevtools(() => d.ReactQueryDevtools)
+      }).catch(() => {
+        // Devtools 로드 실패 시 무시
+      })
+    }
+  }, [])
+
+  if (!Devtools) return null
+
+  return <Devtools initialIsOpen={false} buttonPosition="bottom-right" />
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = React.useState(() => new QueryClient({
@@ -21,9 +39,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <AuthProvider>
         {children}
       </AuthProvider>
-      {process.env.NODE_ENV === 'development' && (
-        <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-right" />
-      )}
+      <Devtools />
     </QueryClientProvider>
   )
 }
