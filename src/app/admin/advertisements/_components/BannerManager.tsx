@@ -39,14 +39,12 @@ interface Hotel {
 }
 
 export default function BannerManager() {
-  const [slots, setSlots] = useState<FeatureSlot[]>([])
+  const [currentSlot, setCurrentSlot] = useState<FeatureSlot | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   
   // 폼 상태
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [formData, setFormData] = useState<FeatureSlotForm>({
     sabre_id: '',
     slot_key: ''
@@ -54,15 +52,13 @@ export default function BannerManager() {
   const [formLoading, setFormLoading] = useState(false)
   
   
-  // 호텔 검색 팝업 상태
-  const [showHotelSearch, setShowHotelSearch] = useState(false)
-  const [searchingSlotId, setSearchingSlotId] = useState<number | null>(null)
+  // 호텔 검색 상태
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Hotel[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
 
   // 데이터 로드
-  const loadSlots = async () => {
+  const loadBannerSlot = async () => {
     setLoading(true)
     setError(null)
 
@@ -75,11 +71,24 @@ export default function BannerManager() {
       }
 
       if (data.success) {
-        // surface가 "상단베너"인 레코드만 필터링
-        const bannerSlots = (data.data || []).filter((slot: FeatureSlot) => 
+        // surface가 "상단베너"인 첫 번째 레코드 찾기
+        const bannerSlot = (data.data || []).find((slot: FeatureSlot) => 
           slot.surface === '상단베너'
         )
-        setSlots(bannerSlots)
+        setCurrentSlot(bannerSlot || null)
+        
+        // 폼 데이터 초기화
+        if (bannerSlot) {
+          setFormData({
+            sabre_id: bannerSlot.sabre_id,
+            slot_key: bannerSlot.slot_key
+          })
+        } else {
+          setFormData({
+            sabre_id: '',
+            slot_key: ''
+          })
+        }
       } else {
         throw new Error(data.error || '데이터를 불러올 수 없습니다.')
       }
@@ -92,17 +101,22 @@ export default function BannerManager() {
 
   // 초기 로드
   useEffect(() => {
-    loadSlots()
+    loadBannerSlot()
   }, [])
 
   // 폼 초기화
   const resetForm = () => {
-    setFormData({
-      sabre_id: '',
-      slot_key: ''
-    })
-    setShowForm(false)
-    setEditingId(null)
+    if (currentSlot) {
+      setFormData({
+        sabre_id: currentSlot.sabre_id,
+        slot_key: currentSlot.slot_key
+      })
+    } else {
+      setFormData({
+        sabre_id: '',
+        slot_key: ''
+      })
+    }
     setFormLoading(false)
   }
 
@@ -114,8 +128,8 @@ export default function BannerManager() {
     setSuccess(null)
 
     try {
-      const url = editingId ? `/api/feature-slots/${editingId}` : '/api/feature-slots'
-      const method = editingId ? 'PUT' : 'POST'
+      const url = currentSlot ? `/api/feature-slots/${currentSlot.id}` : '/api/feature-slots'
+      const method = currentSlot ? 'PUT' : 'POST'
       
       const payload = {
         ...formData,
@@ -137,9 +151,8 @@ export default function BannerManager() {
       }
 
       if (data.success) {
-        setSuccess(editingId ? '슬롯이 수정되었습니다.' : '새 슬롯이 추가되었습니다.')
-        resetForm()
-        loadSlots()
+        setSuccess(currentSlot ? '상단 베너가 수정되었습니다.' : '새 상단 베너가 생성되었습니다.')
+        loadBannerSlot() // 데이터 다시 로드
       } else {
         throw new Error(data.error || '저장에 실패했습니다.')
       }
@@ -150,24 +163,16 @@ export default function BannerManager() {
     }
   }
 
-  // 편집 시작
-  const handleEdit = (slot: FeatureSlot) => {
-    setFormData({
-      sabre_id: slot.sabre_id,
-      slot_key: slot.slot_key
-    })
-    setEditingId(slot.id)
-    setShowForm(true)
-  }
-
   // 삭제
-  const handleDelete = async (id: number) => {
-    if (!confirm('정말로 이 슬롯을 삭제하시겠습니까?')) {
+  const handleDelete = async () => {
+    if (!currentSlot) return
+    
+    if (!confirm('정말로 상단 베너를 삭제하시겠습니까?')) {
       return
     }
 
     try {
-      const response = await fetch(`/api/feature-slots/${id}`, {
+      const response = await fetch(`/api/feature-slots/${currentSlot.id}`, {
         method: 'DELETE',
       })
 
@@ -178,8 +183,8 @@ export default function BannerManager() {
       }
 
       if (data.success) {
-        setSuccess('슬롯이 삭제되었습니다.')
-        loadSlots()
+        setSuccess('상단 베너가 삭제되었습니다.')
+        loadBannerSlot()
       } else {
         throw new Error(data.error || '삭제에 실패했습니다.')
       }
@@ -226,7 +231,6 @@ export default function BannerManager() {
       ...prev,
       sabre_id: hotel.sabre_id
     }))
-    setShowHotelSearch(false)
     setSearchQuery('')
     setSearchResults([])
   }
@@ -250,15 +254,20 @@ export default function BannerManager() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">상단 베너 관리</h2>
-          <p className="text-sm text-gray-600 mt-1">상단 베너에 표시될 호텔 슬롯을 관리하세요</p>
+          <p className="text-sm text-gray-600 mt-1">
+            {currentSlot ? '상단 베너 설정을 수정하세요' : '상단 베너에 표시될 호텔을 설정하세요'}
+          </p>
         </div>
-        <Button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          새 슬롯 추가
-        </Button>
+        {currentSlot && (
+          <Button
+            onClick={handleDelete}
+            variant="outline"
+            className="flex items-center gap-2 text-red-600 hover:text-red-800"
+          >
+            <Trash2 className="h-4 w-4" />
+            삭제
+          </Button>
+        )}
       </div>
 
       {/* 성공/에러 메시지 */}
@@ -289,21 +298,20 @@ export default function BannerManager() {
       )}
 
       {/* 폼 */}
-      {showForm && (
-        <div className="bg-white rounded-lg border shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">
-              {editingId ? '슬롯 수정' : '새 슬롯 추가'}
-            </h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={resetForm}
-              disabled={formLoading}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+      <div className="bg-white rounded-lg border shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">
+            {currentSlot ? '상단 베너 수정' : '상단 베너 생성'}
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetForm}
+            disabled={formLoading}
+          >
+            초기화
+          </Button>
+        </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -381,31 +389,22 @@ export default function BannerManager() {
 
             <div className="flex justify-end space-x-3">
               <Button
-                type="button"
-                variant="outline"
-                onClick={resetForm}
-                disabled={formLoading}
-              >
-                취소
-              </Button>
-              <Button
                 type="submit"
                 disabled={formLoading}
                 className="flex items-center gap-2"
               >
                 {formLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 <Save className="h-4 w-4" />
-                {editingId ? '수정' : '추가'}
+                {currentSlot ? '수정' : '생성'}
               </Button>
             </div>
           </form>
         </div>
-      )}
 
-      {/* 데이터 테이블 */}
+      {/* 현재 상단 베너 정보 */}
       <div className="bg-white rounded-lg border shadow-sm">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">상단 베너 슬롯 목록</h3>
+          <h3 className="text-lg font-medium text-gray-900">현재 상단 베너 설정</h3>
         </div>
 
         {loading ? (
@@ -413,82 +412,42 @@ export default function BannerManager() {
             <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
             <p className="mt-2 text-sm text-gray-500">데이터를 불러오는 중...</p>
           </div>
-        ) : slots.length === 0 ? (
-          <div className="p-6 text-center">
-            <Building2 className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-500">등록된 상단 베너 슬롯이 없습니다.</p>
-            <Button
-              onClick={() => setShowForm(true)}
-              className="mt-4"
-              variant="outline"
-            >
-              첫 번째 슬롯 추가하기
-            </Button>
+        ) : currentSlot ? (
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-2">호텔명</label>
+                <p className="text-lg font-medium text-gray-900">
+                  {currentSlot.select_hotels?.property_name_ko || '호텔 정보 없음'}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-2">Sabre ID</label>
+                <p className="text-lg font-medium text-gray-900">{currentSlot.sabre_id}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-2">슬롯 키</label>
+                <p className="text-lg font-medium text-gray-900">{currentSlot.slot_key}</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <label className="block text-sm font-medium text-gray-500 mb-2">생성일</label>
+              <p className="text-sm text-gray-600">
+                {new Date(currentSlot.created_at).toLocaleDateString('ko-KR', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </p>
+            </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    호텔 정보
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Sabre ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    슬롯 키
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    생성일
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    작업
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {slots.map((slot) => (
-                  <tr key={slot.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {slot.select_hotels?.property_name_ko || '호텔 정보 없음'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{slot.sabre_id}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{slot.slot_key}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {new Date(slot.created_at).toLocaleDateString('ko-KR')}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(slot)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(slot.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="p-6 text-center">
+            <Building2 className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <p className="text-gray-500">설정된 상단 베너가 없습니다.</p>
+            <p className="text-sm text-gray-400 mt-2">위 폼을 사용하여 상단 베너를 설정하세요.</p>
           </div>
         )}
       </div>
