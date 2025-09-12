@@ -1,10 +1,12 @@
 'use client'
 
 import React, { useState } from 'react'
-import { DollarSign, Image, Sliders, Star, Plus, Edit, Trash2, Eye, EyeOff } from 'lucide-react'
+import { DollarSign, Image, Sliders, Star, Megaphone, Plus, Edit, Trash2, Eye, EyeOff } from 'lucide-react'
 import { AuthGuard } from '@/components/shared/auth-guard'
+import HeroCarouselManager from './_components/HeroCarouselManager'
+import PromotionManager from './_components/PromotionManager'
 
-type AdType = 'banner' | 'carousel' | 'featured'
+type AdType = 'banner' | 'carousel' | 'featured' | 'promotion'
 
 interface AdItem {
   id: string
@@ -59,6 +61,7 @@ export default function AdminAdvertisementsPage() {
   const tabs = [
     { id: 'banner', label: '상단 베너 관리', icon: Image },
     { id: 'carousel', label: '히어로 캐러셀 관리', icon: Sliders },
+    { id: 'promotion', label: '프로모션 관리', icon: Megaphone },
     { id: 'featured', label: '피처드 관리', icon: Star }
   ]
 
@@ -115,94 +118,103 @@ export default function AdminAdvertisementsPage() {
 
         {/* 광고 관리 콘텐츠 */}
         <div className="space-y-6">
-          {/* 새 광고 추가 버튼 */}
-          <div className="flex justify-end">
-            <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-              <Plus className="h-4 w-4" />
-              새 광고 추가
-            </button>
-          </div>
+          {activeTab === 'carousel' ? (
+            // 히어로 캐러셀 관리 컴포넌트
+            <HeroCarouselManager />
+          ) : activeTab === 'promotion' ? (
+            // 프로모션 관리 컴포넌트
+            <PromotionManager />
+          ) : (
+            <>
+              {/* 새 광고 추가 버튼 */}
+              <div className="flex justify-end">
+                <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                  <Plus className="h-4 w-4" />
+                  새 광고 추가
+                </button>
+              </div>
 
-          {/* 광고 목록 */}
-          <div className="bg-white rounded-lg border shadow-sm">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">
-                {tabs.find(tab => tab.id === activeTab)?.label}
-              </h3>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {filteredAds.length > 0 ? (
-                filteredAds.map((ad) => (
-                  <div key={ad.id} className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className="flex-shrink-0">
-                          <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <Image className="h-8 w-8 text-gray-400" />
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <h4 className="text-lg font-medium text-gray-900">{ad.title}</h4>
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              ad.isActive 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {ad.isActive ? '활성' : '비활성'}
-                            </span>
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              우선순위 {ad.priority}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-2">{ad.description}</p>
-                          <div className="flex items-center space-x-4 text-xs text-gray-500">
-                            <span>시작일: {ad.startDate}</span>
-                            <span>종료일: {ad.endDate}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => toggleAdStatus(ad.id)}
-                          className={`p-2 rounded-md ${
-                            ad.isActive 
-                              ? 'text-gray-600 hover:text-gray-800 hover:bg-gray-100' 
-                              : 'text-green-600 hover:text-green-800 hover:bg-green-100'
-                          }`}
-                          title={ad.isActive ? '비활성화' : '활성화'}
-                        >
-                          {ad.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                        <button className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-md" title="편집">
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => deleteAd(ad.id)}
-                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-md" 
-                          title="삭제"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="p-6 text-center">
-                  <div className="text-gray-400 mb-4">
-                    {activeTab === 'banner' && <Image className="h-12 w-12 mx-auto" />}
-                    {activeTab === 'carousel' && <Sliders className="h-12 w-12 mx-auto" />}
-                    {activeTab === 'featured' && <Star className="h-12 w-12 mx-auto" />}
-                  </div>
-                  <p className="text-gray-500">등록된 광고가 없습니다.</p>
-                  <button className="mt-2 text-blue-600 hover:text-blue-800 text-sm">
-                    첫 번째 광고를 추가해보세요
-                  </button>
+              {/* 광고 목록 */}
+              <div className="bg-white rounded-lg border shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {tabs.find(tab => tab.id === activeTab)?.label}
+                  </h3>
                 </div>
-              )}
-            </div>
-          </div>
+                <div className="divide-y divide-gray-200">
+                  {filteredAds.length > 0 ? (
+                    filteredAds.map((ad) => (
+                      <div key={ad.id} className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-4">
+                            <div className="flex-shrink-0">
+                              <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
+                                <Image className="h-8 w-8 text-gray-400" />
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <h4 className="text-lg font-medium text-gray-900">{ad.title}</h4>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  ad.isActive 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {ad.isActive ? '활성' : '비활성'}
+                                </span>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  우선순위 {ad.priority}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">{ad.description}</p>
+                              <div className="flex items-center space-x-4 text-xs text-gray-500">
+                                <span>시작일: {ad.startDate}</span>
+                                <span>종료일: {ad.endDate}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => toggleAdStatus(ad.id)}
+                              className={`p-2 rounded-md ${
+                                ad.isActive 
+                                  ? 'text-gray-600 hover:text-gray-800 hover:bg-gray-100' 
+                                  : 'text-green-600 hover:text-green-800 hover:bg-green-100'
+                              }`}
+                              title={ad.isActive ? '비활성화' : '활성화'}
+                            >
+                              {ad.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                            <button className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-md" title="편집">
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={() => deleteAd(ad.id)}
+                              className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-md" 
+                              title="삭제"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center">
+                      <div className="text-gray-400 mb-4">
+                        {activeTab === 'banner' && <Image className="h-12 w-12 mx-auto" />}
+                        {activeTab === 'featured' && <Star className="h-12 w-12 mx-auto" />}
+                      </div>
+                      <p className="text-gray-500">등록된 광고가 없습니다.</p>
+                      <button className="mt-2 text-blue-600 hover:text-blue-800 text-sm">
+                        첫 번째 광고를 추가해보세요
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </AuthGuard>
