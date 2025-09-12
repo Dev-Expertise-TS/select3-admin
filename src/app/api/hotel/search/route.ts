@@ -26,40 +26,63 @@ async function searchHotels(query: string) {
       }
     }
 
-    // 각 검색어에 대해 별도 쿼리 실행
+    // 각 검색어에 대해 별도 쿼리 실행 (sabre_id 검색 포함)
     const allResults = []
     for (const searchTerm of queries) {
-      const { data: koData, error: koError } = await supabase
-        .from('select_hotels')
-        .select(`
-          sabre_id,
-          property_name_ko,
-          property_name_en
-        `)
-        .ilike('property_name_ko', `%${searchTerm}%`)
-        .limit(25)
+      const isNumeric = !isNaN(Number(searchTerm))
+      
+      if (isNumeric) {
+        // 숫자인 경우: sabre_id 정확 일치 또는 호텔명 부분 일치
+        const { data: numericData, error: numericError } = await supabase
+          .from('select_hotels')
+          .select(`
+            sabre_id,
+            property_name_ko,
+            property_name_en
+          `)
+          .or(`sabre_id.eq.${searchTerm},property_name_ko.ilike.%${searchTerm}%,property_name_en.ilike.%${searchTerm}%`)
+          .limit(25)
 
-      if (koError) {
-        console.error('한국어 호텔 검색 오류:', koError)
-        continue
+        if (numericError) {
+          console.error('숫자 검색 오류:', numericError)
+          continue
+        }
+
+        allResults.push(...(numericData || []))
+      } else {
+        // 문자열인 경우: 호텔명만 부분 일치
+        const { data: koData, error: koError } = await supabase
+          .from('select_hotels')
+          .select(`
+            sabre_id,
+            property_name_ko,
+            property_name_en
+          `)
+          .ilike('property_name_ko', `%${searchTerm}%`)
+          .limit(25)
+
+        if (koError) {
+          console.error('한국어 호텔 검색 오류:', koError)
+          continue
+        }
+
+        const { data: enData, error: enError } = await supabase
+          .from('select_hotels')
+          .select(`
+            sabre_id,
+            property_name_ko,
+            property_name_en
+          `)
+          .ilike('property_name_en', `%${searchTerm}%`)
+          .limit(25)
+
+        if (enError) {
+          console.error('영어 호텔 검색 오류:', enError)
+          continue
+        }
+
+        allResults.push(...(koData || []), ...(enData || []))
       }
-
-      const { data: enData, error: enError } = await supabase
-        .from('select_hotels')
-        .select(`
-          sabre_id,
-          property_name_ko,
-          property_name_en
-        `)
-        .ilike('property_name_en', `%${searchTerm}%`)
-        .limit(25)
-
-      if (enError) {
-        console.error('영어 호텔 검색 오류:', enError)
-        continue
-      }
-
-      allResults.push(...(koData || []), ...(enData || []))
     }
 
     // 중복 제거 (sabre_id 기준)
@@ -75,15 +98,33 @@ async function searchHotels(query: string) {
     }
   }
 
-  // 단일 검색어의 경우 기존 방식 사용
-  const { data, error } = await supabase
-    .from('select_hotels')
-    .select(`
-      sabre_id,
-      property_name_ko,
-      property_name_en
-    `)
-    .or(`property_name_ko.ilike.%${trimmedQuery}%,property_name_en.ilike.%${trimmedQuery}%`)
+  // 단일 검색어의 경우 - 숫자인지 확인하여 sabre_id 검색 포함
+  const isNumeric = !isNaN(Number(trimmedQuery))
+  
+  let searchQuery
+  if (isNumeric) {
+    // 숫자인 경우: sabre_id 정확 일치 또는 호텔명 부분 일치
+    searchQuery = supabase
+      .from('select_hotels')
+      .select(`
+        sabre_id,
+        property_name_ko,
+        property_name_en
+      `)
+      .or(`sabre_id.eq.${trimmedQuery},property_name_ko.ilike.%${trimmedQuery}%,property_name_en.ilike.%${trimmedQuery}%`)
+  } else {
+    // 문자열인 경우: 호텔명만 부분 일치
+    searchQuery = supabase
+      .from('select_hotels')
+      .select(`
+        sabre_id,
+        property_name_ko,
+        property_name_en
+      `)
+      .or(`property_name_ko.ilike.%${trimmedQuery}%,property_name_en.ilike.%${trimmedQuery}%`)
+  }
+
+  const { data, error } = await searchQuery
     .order('property_name_ko', { ascending: true })
     .limit(50)
 
