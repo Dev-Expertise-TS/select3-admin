@@ -11,7 +11,8 @@ import {
   AlertCircle, 
   CheckCircle,
   Building2,
-  Search
+  Search,
+  Image
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -251,9 +252,18 @@ export default function BannerManager() {
     <div className="space-y-6">
       {/* 헤더 */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">상단 베너 관리</h2>
-          <p className="text-sm text-gray-600 mt-1">상단 베너에 표시될 호텔 슬롯을 관리하세요</p>
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-blue-600 p-2">
+            <Image className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-gray-900">
+              상단 베너 관리
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              select_feature_slots 테이블의 surface='상단베너' 레코드를 관리합니다
+            </p>
+          </div>
         </div>
       </div>
 
