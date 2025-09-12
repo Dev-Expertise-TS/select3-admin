@@ -164,7 +164,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { q: query } = body
+    // 두 가지 필드명 지원: 'q' 또는 'searching_string'
+    const query = body.q || body.searching_string
 
     // 검색어 타입 검증
     if (query !== undefined && typeof query !== 'string') {
