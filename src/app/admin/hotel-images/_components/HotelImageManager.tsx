@@ -27,8 +27,8 @@ export function HotelImageManager() {
   const [selectedImage, setSelectedImage] = useState<HotelImage | null>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
-  const searchImages = async (sabreCode: string) => {
-    if (!sabreCode.trim()) {
+  const searchImages = async (sabreCode: string | null) => {
+    if (!sabreCode || !sabreCode.trim()) {
       setError('Sabre Hotel Code를 입력해주세요.')
       return
     }
@@ -68,7 +68,7 @@ export function HotelImageManager() {
     }
   }
 
-  const handleHotelSelect = (sabreId: string) => {
+  const handleHotelSelect = (sabreId: string | null) => {
     searchImages(sabreId)
   }
 
