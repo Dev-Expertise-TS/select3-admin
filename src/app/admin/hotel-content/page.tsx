@@ -33,7 +33,12 @@ function HotelContentManager() {
   const [error, setError] = useState<string | null>(null)
 
   // 호텔 선택 시 콜백
-  const handleHotelSelect = async (sabreId: string) => {
+  const handleHotelSelect = async (sabreId: string | null) => {
+    if (!sabreId) {
+      setError('Sabre ID가 없는 호텔입니다.')
+      return
+    }
+
     setIsLoading(true)
     setError(null)
     setSelectedHotel(null)

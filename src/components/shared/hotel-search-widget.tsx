@@ -39,7 +39,7 @@ interface HotelSearchWidgetProps {
   /** 초기 로딩 시 최신 호텔 리스트 표시 */
   showInitialHotels?: boolean
   /** 호텔 선택 시 콜백 함수 */
-  onHotelSelect?: (sabreId: string) => void
+  onHotelSelect?: (sabreId: string | null) => void
 }
 
 export default function HotelSearchWidget({ 
@@ -377,11 +377,41 @@ export default function HotelSearchWidget({
   
   // 행 클릭 핸들러 (확장 패널 토글 또는 호텔 편집 페이지 이동)
   const handleRowClick = (hotel: HotelSearchResult) => {
+    console.log('🔍 호텔 클릭됨:', {
+      hotel: hotel,
+      sabre_id: hotel.sabre_id,
+      sabre_id_type: typeof hotel.sabre_id,
+      sabre_id_value: hotel.sabre_id,
+      property_name_ko: hotel.property_name_ko,
+      onHotelSelect_exists: !!onHotelSelect
+    });
+    
     // onHotelSelect 콜백이 있는 경우 호출
-    if (onHotelSelect && hotel.sabre_id) {
-      onHotelSelect(hotel.sabre_id);
-      return;
+    if (onHotelSelect) {
+      if (hotel.sabre_id !== null && hotel.sabre_id !== undefined) {
+        // sabre_id를 문자열로 변환
+        const sabreIdString = String(hotel.sabre_id);
+        console.log('✅ onHotelSelect 호출 (sabre_id 있음):', {
+          original: hotel.sabre_id,
+          converted: sabreIdString,
+          type: typeof sabreIdString
+        });
+        onHotelSelect(sabreIdString);
+        return;
+      } else {
+        console.log('❌ onHotelSelect 호출 (sabre_id 없음):', {
+          sabre_id: hotel.sabre_id,
+          is_null: hotel.sabre_id === null,
+          is_undefined: hotel.sabre_id === undefined,
+          property_name_ko: hotel.property_name_ko
+        });
+        // sabre_id가 없는 호텔의 경우 null을 전달하여 에러 메시지 표시
+        onHotelSelect(null);
+        return;
+      }
     }
+    
+    console.log('⚠️ onHotelSelect 콜백이 없음');
 
     // 호텔 편집 모드가 활성화된 경우 확장 패널을 열지 않음
     if (enableHotelEdit) {

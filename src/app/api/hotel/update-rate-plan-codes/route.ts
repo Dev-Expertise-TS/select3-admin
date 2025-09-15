@@ -6,7 +6,7 @@ import {
   removeInvalidCode, 
   getFirstValidCode 
 } from '@/lib/rate-plan-validator';
-import { isSupabaseError, isPostgrestError, isJsonParseError } from '@/lib/type-guards';
+import { isSupabaseError, isJsonParseError } from '@/lib/type-guards';
 
 // 요청 타입 정의
 interface UpdateRatePlanCodesRequest {
