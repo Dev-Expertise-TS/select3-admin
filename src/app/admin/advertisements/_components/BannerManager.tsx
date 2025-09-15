@@ -109,7 +109,8 @@ export default function BannerManager() {
   }
 
   // 편집 시작
-  const handleEdit = (slot: FeatureSlot) => {
+  const handleEdit = (row: unknown) => {
+    const slot = row as FeatureSlot
     setFormData({
       sabre_id: slot.sabre_id,
       slot_key: slot.slot_key
