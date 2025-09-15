@@ -15,13 +15,13 @@ interface DataTableColumn<T = Record<string, unknown>> {
   key: string
   label: string
   width?: string
-  render?: (value: unknown, row: T) => React.ReactNode
+  render?: (value: unknown, row: Record<string, unknown>) => React.ReactNode
 }
 
 interface DataTableAction<T = Record<string, unknown>> {
   label: string
   icon: React.ReactNode
-  onClick: (row: T) => void
+  onClick: (row: Record<string, unknown>) => void
   variant?: 'default' | 'outline' | 'destructive'
   className?: string
 }
@@ -208,7 +208,6 @@ export function FeatureSlotTable({
     {
       key: 'select_hotels',
       label: '호텔명',
-<<<<<<< HEAD
       render: (value) => {
         const hotelData = value as Record<string, unknown> | null
         return (
@@ -217,13 +216,6 @@ export function FeatureSlotTable({
           </span>
         )
       }
-=======
-      render: (value) => (
-        <span className="text-gray-900">
-          {String((value as Record<string, unknown>)?.property_name_ko) || '호텔 정보 없음'}
-        </span>
-      )
->>>>>>> fix/typescript-build-errors
     },
     {
       key: 'slot_key',
@@ -234,7 +226,6 @@ export function FeatureSlotTable({
       key: 'created_at',
       label: '생성일',
       width: '120px',
-<<<<<<< HEAD
       render: (value) => {
         const dateValue = typeof value === 'string' || typeof value === 'number' ? value : new Date().toISOString()
         return (
@@ -243,13 +234,6 @@ export function FeatureSlotTable({
           </span>
         )
       }
-=======
-      render: (value) => (
-        <span className="text-gray-500">
-          {new Date(String(value)).toLocaleDateString('ko-KR')}
-        </span>
-      )
->>>>>>> fix/typescript-build-errors
     }
   ]
 
