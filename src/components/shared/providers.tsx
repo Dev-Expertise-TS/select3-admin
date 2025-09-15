@@ -38,8 +38,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={client}>
       <AuthProvider>
         {children}
+        <Devtools />
       </AuthProvider>
-      <Devtools />
     </QueryClientProvider>
   )
 }
