@@ -7,9 +7,7 @@ type Brand = { brand_id: number; name_kr: string | null; name_en: string | null;
 async function getData() {
   const supabase = createServiceRoleClient()
   
-  // 환경 키 존재 여부(값은 노출하지 않음)
-  console.log('[chain-brand] env SUPABASE_SERVICE_ROLE_KEY set:', Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY))
-  console.log('[chain-brand] env NEXT_PUBLIC_SUPABASE_URL set:', Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL))
+  // 환경 키 존재 여부 확인
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     console.error('[chain-brand] SUPABASE_SERVICE_ROLE_KEY is not set')
@@ -24,7 +22,6 @@ async function getData() {
       .limit(1)
     
     if (tableCheckError) {
-      console.error('[chain-brand] hotel_chains table check error:', tableCheckError)
       if (tableCheckError.message.includes('does not exist')) {
         throw new Error('hotel_chains 테이블이 존재하지 않습니다. Supabase에서 테이블을 생성해주세요.')
       }
@@ -38,7 +35,6 @@ async function getData() {
       .limit(1)
     
     if (chainsSampleError) {
-      console.error('[chain-brand] hotel_chains sample error:', chainsSampleError)
       throw new Error(`체인 샘플 데이터 조회 오류: ${chainsSampleError.message}`)
     }
 
@@ -48,33 +44,25 @@ async function getData() {
       .limit(1)
     
     if (brandsSampleError) {
-      console.error('[chain-brand] hotel_brands sample error:', brandsSampleError)
       throw new Error(`브랜드 샘플 데이터 조회 오류: ${brandsSampleError.message}`)
     }
 
     // 실제 컬럼명 확인
     const chainsColumns = chainsSample && chainsSample.length > 0 ? Object.keys(chainsSample[0]) : []
     const brandsColumns = brandsSample && brandsSample.length > 0 ? Object.keys(brandsSample[0]) : []
-    
-    console.log('[chain-brand] Actual hotel_chains columns:', chainsColumns)
-    console.log('[chain-brand] Actual hotel_brands columns:', brandsColumns)
 
     // 체인 데이터 조회 - 실제 컬럼명 사용
     const chainsRes = await supabase.from('hotel_chains').select('*').order('chain_id', { ascending: true })
     if (chainsRes.error) {
-      console.error('[chain-brand] hotel_chains query error:', chainsRes.error)
       throw new Error(`체인 목록 조회 중 오류가 발생했습니다: ${chainsRes.error.message}`)
     }
 
     // 브랜드 데이터 조회 - 실제 컬럼명 사용
     const brandsRes = await supabase.from('hotel_brands').select('*').order('brand_id', { ascending: true })
     if (brandsRes.error) {
-      console.error('[chain-brand] hotel_brands query error:', brandsRes.error)
       throw new Error(`브랜드 목록 조회 중 오류가 발생했습니다: ${brandsRes.error.message}`)
     }
 
-    console.log('[chain-brand] Raw chains data:', chainsRes.data)
-    console.log('[chain-brand] Raw brands data:', brandsRes.data)
 
     // 타입 안전한 값 추출 헬퍼 함수
     const safeString = (value: unknown): string | null => {
@@ -136,12 +124,9 @@ async function getData() {
       }
     })
 
-    console.log('[chain-brand] Processed chains:', chains)
-    console.log('[chain-brand] Processed brands:', brands)
 
     return { chains, brands }
   } catch (error) {
-    console.error('[chain-brand] getData error:', error)
     throw error
   }
 }
@@ -149,9 +134,6 @@ async function getData() {
 export default async function ChainBrandPage() {
   try {
     const { chains, brands } = await getData()
-    // 서버 콘솔 로깅: 호텔 체인 원시 데이터
-    console.log('[chain-brand] fetched chains:', chains.length)
-    console.log('[chain-brand] fetched brands:', brands.length)
 
     return (
       <div className="space-y-6">

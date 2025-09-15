@@ -23,7 +23,7 @@ export async function PUT(request: NextRequest) {
     const supabase = createServiceRoleClient()
     
     // id, created_at은 제외 (updated_at 컬럼이 없음)
-    const { id, created_at, ...allowedUpdates } = updates;
+    const { id: _id, created_at: _created_at, ...allowedUpdates } = updates;
     
     // 호텔 데이터 업데이트
     const { data, error } = await supabase

@@ -70,7 +70,9 @@ export interface HotelDetailsRequest {
 
 // 확장 패널 상태 타입
 export interface ExpandedRowState {
+  type: 'hotel-details' | 'image-management'
   hotelId: string
+  hotel?: HotelSearchResult
   currencyCode: string
   adults: number
   startDate: string

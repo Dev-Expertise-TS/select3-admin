@@ -251,6 +251,7 @@ export default function BannerManager() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-blue-600 p-2">
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image className="h-6 w-6 text-white" />
           </div>
           <div>

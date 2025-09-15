@@ -26,20 +26,11 @@ export function AppRoot({ children }: AppRootProps) {
       return
     }
 
-    console.log('🏠 AppRoot - 인증 상태 확인:', {
-      pathname,
-      isInitialized,
-      loading,
-      hasUser: !!user,
-      userEmail: user?.email,
-      hideShell
-    })
 
     // 인증이 초기화되고 로딩이 완료된 후에만 처리
     if (isInitialized && !loading) {
       // 로그인하지 않은 사용자가 보호된 경로에 접근하려고 할 때
       if (!user && !hideShell) {
-        console.log('🔒 로그인하지 않은 사용자, 로그인 페이지로 자동 리다이렉트')
         hasRedirected.current = true
         router.replace('/login')
         return
@@ -47,7 +38,6 @@ export function AppRoot({ children }: AppRootProps) {
 
       // 이미 로그인된 사용자가 로그인 페이지에 접근하려고 할 때
       if (user && pathname === '/login') {
-        console.log('✅ 이미 로그인된 사용자, 홈으로 리다이렉트')
         hasRedirected.current = true
         router.replace('/')
         return
@@ -57,7 +47,6 @@ export function AppRoot({ children }: AppRootProps) {
 
   // 인증 상태가 초기화되지 않았으면 로딩 표시
   if (!isInitialized) {
-    console.log('🔄 AppRoot - 인증 초기화 대기 중...')
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -70,7 +59,6 @@ export function AppRoot({ children }: AppRootProps) {
 
   // 로딩 중인 경우
   if (loading) {
-    console.log('🔄 AppRoot - 인증 상태 로딩 중...')
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">

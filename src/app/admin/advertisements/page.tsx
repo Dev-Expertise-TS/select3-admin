@@ -153,6 +153,7 @@ export default function AdminAdvertisementsPage() {
                           <div className="flex items-start space-x-4">
                             <div className="flex-shrink-0">
                               <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
+                                {/* eslint-disable-next-line jsx-a11y/alt-text */}
                                 <Image className="h-8 w-8 text-gray-400" />
                               </div>
                             </div>
