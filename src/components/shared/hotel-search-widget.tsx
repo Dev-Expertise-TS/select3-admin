@@ -13,7 +13,11 @@ import {
   Play,
   Save,
   Edit3,
-  EyeOff
+  EyeOff,
+  FolderPlus,
+  FolderCheck,
+  FolderX,
+  Download
 } from 'lucide-react'
 import Link from 'next/link'
 import NextImage from 'next/image'
@@ -36,6 +40,15 @@ interface ImageInfo {
   height: number
   size: number // bytes
   format: string
+  loading: boolean
+  error: string | null
+}
+
+interface StorageFolderInfo {
+  exists: boolean
+  slug: string
+  folderPath: string
+  fileCount?: number
   loading: boolean
   error: string | null
 }
@@ -63,10 +76,17 @@ interface ImageManagementPanelProps {
       image_4: ImageInfo | null
       image_5: ImageInfo | null
     }
+    storageFolder: StorageFolderInfo | null
+    savingImages: {
+      [key: string]: boolean
+    }
   } | undefined
   onImageUrlChange: (hotelId: string, field: string, value: string) => void
   onToggleEditMode: (hotelId: string) => void
   onSaveImageUrls: (hotelId: string, sabreId: string) => void
+  onCreateStorageFolder: (hotelId: string, sabreId: string) => void
+  onCheckStorageFolder: (hotelId: string, sabreId: string) => void
+  onSaveImageToStorage: (hotelId: string, sabreId: string, imageUrl: string, imageIndex: number) => void
   formatFileSize: (bytes: number) => string
 }
 
@@ -77,8 +97,22 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
   onImageUrlChange,
   onToggleEditMode,
   onSaveImageUrls,
+  onCreateStorageFolder,
+  onCheckStorageFolder,
+  onSaveImageToStorage,
   formatFileSize
 }) => {
+  // AVIF 지원 여부 확인
+  const [supportsAVIF, setSupportsAVIF] = React.useState(false)
+  
+  React.useEffect(() => {
+    const testCanvas = document.createElement('canvas')
+    testCanvas.width = 1
+    testCanvas.height = 1
+    const testCtx = testCanvas.getContext('2d')
+    const avifSupported = testCtx?.canvas.toDataURL('image/avif').startsWith('data:image/avif') || false
+    setSupportsAVIF(avifSupported)
+  }, [])
   if (!state) {
     return (
       <div className="text-center py-8">
@@ -139,6 +173,72 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
           </div>
         </div>
       )}
+
+      {/* Storage 폴더 관리 섹션 */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h5 className="text-md font-medium text-gray-900">Storage 폴더 관리</h5>
+          <Button
+            onClick={() => onCheckStorageFolder(hotelId, String(hotel.sabre_id))}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Search className="h-4 w-4" />
+            상태 확인
+          </Button>
+        </div>
+        
+        {state.storageFolder?.loading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+            Storage 폴더 상태를 확인하는 중...
+          </div>
+        ) : state.storageFolder?.error ? (
+          <div className="flex items-center gap-2 text-sm text-red-600">
+            <AlertCircle className="h-4 w-4" />
+            {state.storageFolder.error}
+          </div>
+        ) : state.storageFolder ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              {state.storageFolder.exists ? (
+                <>
+                  <FolderCheck className="h-5 w-5 text-green-600" />
+                  <span className="text-sm text-green-700 font-medium">폴더가 존재합니다</span>
+                </>
+              ) : (
+                <>
+                  <FolderX className="h-5 w-5 text-red-600" />
+                  <span className="text-sm text-red-700 font-medium">폴더가 존재하지 않습니다</span>
+                </>
+              )}
+            </div>
+            
+            <div className="text-sm text-gray-600">
+              <div><strong>Slug:</strong> {state.storageFolder.slug}</div>
+              <div><strong>경로:</strong> select-media/{state.storageFolder.folderPath}</div>
+              {state.storageFolder.fileCount !== undefined && (
+                <div><strong>파일 수:</strong> {state.storageFolder.fileCount}개</div>
+              )}
+            </div>
+            
+            {!state.storageFolder.exists && (
+              <Button
+                onClick={() => onCreateStorageFolder(hotelId, String(hotel.sabre_id))}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+              >
+                <FolderPlus className="h-4 w-4" />
+                폴더 생성
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">
+            Storage 폴더 상태를 확인하려면 &quot;상태 확인&quot; 버튼을 클릭하세요.
+          </div>
+        )}
+      </div>
 
       {/* 로딩 상태 */}
       {state.loading && (
@@ -241,13 +341,35 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     이미지 {index + 1} URL
                   </label>
-                  <Input
-                    value={state.imageUrls[field]}
-                    onChange={(e) => onImageUrlChange(hotelId, field, e.target.value)}
-                    placeholder="https://example.com/image.jpg"
-                    disabled={!state.editingImages}
-                    className={state.editingImages ? 'max-w-sm' : 'max-w-sm bg-gray-50'}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={state.imageUrls[field]}
+                      onChange={(e) => onImageUrlChange(hotelId, field, e.target.value)}
+                      placeholder="https://example.com/image.jpg"
+                      disabled={!state.editingImages}
+                      className={state.editingImages ? 'max-w-sm' : 'max-w-sm bg-gray-50'}
+                    />
+                    {state.imageUrls[field] && state.storageFolder?.exists && (
+                      <Button
+                        onClick={() => onSaveImageToStorage(hotelId, String(hotel.sabre_id), state.imageUrls[field], index + 1)}
+                        disabled={state.savingImages?.[field] || !state.storageFolder?.exists}
+                        size="sm"
+                        className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700"
+                      >
+                        {state.savingImages?.[field] ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            저장 중...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4" />
+                            {supportsAVIF ? 'AVIF 저장' : 'WebP 저장'}
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -333,6 +455,10 @@ export default function HotelSearchWidget({
         image_3: ImageInfo | null
         image_4: ImageInfo | null
         image_5: ImageInfo | null
+      }
+      storageFolder: StorageFolderInfo | null
+      savingImages: {
+        [key: string]: boolean
       }
     }
   }>({});
@@ -438,7 +564,9 @@ export default function HotelSearchWidget({
           image_3: null,
           image_4: null,
           image_5: null
-        }
+        },
+        storageFolder: null,
+        savingImages: {}
       }
     }))
 
@@ -498,7 +626,9 @@ export default function HotelSearchWidget({
             success: null,
             editingImages: false,
             imageUrls,
-            imageInfos
+            imageInfos,
+            storageFolder: null,
+            savingImages: {}
           }
         }))
 
@@ -543,7 +673,9 @@ export default function HotelSearchWidget({
               image_3: null,
               image_4: null,
               image_5: null
-            }
+            },
+            storageFolder: null,
+            savingImages: {}
           }
         }))
       }
@@ -569,7 +701,9 @@ export default function HotelSearchWidget({
             image_3: null,
             image_4: null,
             image_5: null
-          }
+          },
+          storageFolder: null,
+          savingImages: {}
         }
       }))
     }
@@ -696,6 +830,345 @@ export default function HotelSearchWidget({
           [hotelId]: {
             ...currentState,
             saving: false,
+            error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
+          }
+        }
+      })
+    }
+  }
+
+  // Storage 폴더 상태 확인 핸들러
+  const checkStorageFolder = async (hotelId: string, sabreId: string) => {
+    setImageManagementState(prev => {
+      const currentState = prev[hotelId]
+      if (!currentState) return prev
+      
+      return {
+        ...prev,
+        [hotelId]: {
+          ...currentState,
+          storageFolder: {
+            exists: false,
+            slug: '',
+            folderPath: '',
+            loading: true,
+            error: null
+          }
+        }
+      }
+    })
+
+    try {
+      const response = await fetch(`/api/hotel/storage?sabre_id=${sabreId}`)
+      
+      if (!response.ok) {
+        throw new Error(`API 오류 (${response.status}): ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          if (!currentState) return prev
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
+              storageFolder: {
+                ...data.data,
+                loading: false,
+                error: null
+              }
+            }
+          }
+        })
+      } else {
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          if (!currentState) return prev
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
+              storageFolder: {
+                exists: false,
+                slug: '',
+                folderPath: '',
+                loading: false,
+                error: data.error || 'Storage 폴더 상태 확인에 실패했습니다.'
+              }
+            }
+          }
+        })
+      }
+    } catch (err) {
+      setImageManagementState(prev => {
+        const currentState = prev[hotelId]
+        if (!currentState) return prev
+        
+        return {
+          ...prev,
+          [hotelId]: {
+            ...currentState,
+            storageFolder: {
+              exists: false,
+              slug: '',
+              folderPath: '',
+              loading: false,
+              error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
+            }
+          }
+        }
+      })
+    }
+  }
+
+  // Storage 폴더 생성 핸들러
+  const createStorageFolder = async (hotelId: string, sabreId: string) => {
+    setImageManagementState(prev => {
+      const currentState = prev[hotelId]
+      if (!currentState) return prev
+      
+      return {
+        ...prev,
+        [hotelId]: {
+          ...currentState,
+          storageFolder: {
+            ...currentState.storageFolder!,
+            loading: true,
+            error: null
+          }
+        }
+      }
+    })
+
+    try {
+      const response = await fetch('/api/hotel/storage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sabreId: sabreId
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`API 오류 (${response.status}): ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          if (!currentState) return prev
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
+              storageFolder: {
+                exists: true,
+                slug: data.data.slug,
+                folderPath: data.data.folderPath,
+                loading: false,
+                error: null
+              },
+              success: data.data.message
+            }
+          }
+        })
+      } else {
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          if (!currentState) return prev
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
+              storageFolder: {
+                ...currentState.storageFolder!,
+                loading: false,
+                error: data.error || 'Storage 폴더 생성에 실패했습니다.'
+              }
+            }
+          }
+        })
+      }
+    } catch (err) {
+      setImageManagementState(prev => {
+        const currentState = prev[hotelId]
+        if (!currentState) return prev
+        
+        return {
+          ...prev,
+          [hotelId]: {
+            ...currentState,
+            storageFolder: {
+              ...currentState.storageFolder!,
+              loading: false,
+              error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
+            }
+          }
+        }
+      })
+    }
+  }
+
+  // 이미지를 Storage에 저장하는 핸들러 (클라이언트 사이드 AVIF 변환)
+  const saveImageToStorage = async (hotelId: string, sabreId: string, imageUrl: string, imageIndex: number) => {
+    const field = `image_${imageIndex}` as keyof typeof imageManagementState[string]['imageUrls']
+    
+    setImageManagementState(prev => {
+      const currentState = prev[hotelId]
+      if (!currentState) return prev
+      
+      return {
+        ...prev,
+        [hotelId]: {
+          ...currentState,
+          savingImages: {
+            ...currentState.savingImages,
+            [field]: true
+          },
+          error: null,
+          success: null
+        }
+      }
+    })
+
+    try {
+      // 클라이언트 사이드에서 이미지 다운로드 및 AVIF 변환
+      const imageResponse = await fetch(imageUrl)
+      if (!imageResponse.ok) {
+        throw new Error(`이미지 다운로드 실패: ${imageResponse.status}`)
+      }
+
+      const imageBlob = await imageResponse.blob()
+      
+      // Canvas를 사용하여 AVIF로 변환
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        throw new Error('Canvas 컨텍스트를 생성할 수 없습니다')
+      }
+
+      // 이미지 로드
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      
+      await new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = reject
+        img.src = URL.createObjectURL(imageBlob)
+      })
+
+      // Canvas 크기 설정
+      canvas.width = img.width
+      canvas.height = img.height
+      
+      // 이미지 그리기
+      ctx.drawImage(img, 0, 0)
+      
+      // AVIF 지원 여부 확인
+      const testCanvas = document.createElement('canvas')
+      testCanvas.width = 1
+      testCanvas.height = 1
+      const testCtx = testCanvas.getContext('2d')
+      const supportsAVIF = testCtx?.canvas.toDataURL('image/avif').startsWith('data:image/avif')
+      
+      // 지원하는 포맷으로 변환 (AVIF 우선, WebP fallback)
+      const targetFormat = supportsAVIF ? 'image/avif' : 'image/webp'
+      const fileExtension = supportsAVIF ? 'avif' : 'webp'
+      
+      const convertedBlob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob)
+          } else {
+            reject(new Error(`${targetFormat} 변환에 실패했습니다`))
+          }
+        }, targetFormat, 0.8)
+      })
+
+      // 서버에 변환된 파일 업로드
+      const formData = new FormData()
+      formData.append('file', convertedBlob, `${sabreId}-${imageIndex}.${fileExtension}`)
+      formData.append('sabreId', sabreId)
+      formData.append('imageIndex', imageIndex.toString())
+
+      const response = await fetch('/api/hotel/save-image', {
+        method: 'POST',
+        body: formData
+      })
+      
+      if (!response.ok) {
+        throw new Error(`API 오류 (${response.status}): ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          if (!currentState) return prev
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
+              savingImages: {
+                ...currentState.savingImages,
+                [field]: false
+              },
+              success: data.data.message
+            }
+          }
+        })
+
+        // Storage 폴더 상태를 다시 확인하여 파일 수 업데이트
+        setTimeout(() => {
+          checkStorageFolder(hotelId, sabreId)
+        }, 1000)
+      } else {
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          if (!currentState) return prev
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
+              savingImages: {
+                ...currentState.savingImages,
+                [field]: false
+              },
+              error: data.error || '이미지 저장에 실패했습니다.'
+            }
+          }
+        })
+      }
+
+      // 메모리 정리
+      URL.revokeObjectURL(img.src)
+    } catch (err) {
+      setImageManagementState(prev => {
+        const currentState = prev[hotelId]
+        if (!currentState) return prev
+        
+        return {
+          ...prev,
+          [hotelId]: {
+            ...currentState,
+            savingImages: {
+              ...currentState.savingImages,
+              [field]: false
+            },
             error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
           }
         }
@@ -1786,6 +2259,9 @@ export default function HotelSearchWidget({
                                     onImageUrlChange={handleImageUrlChange}
                                     onToggleEditMode={toggleImageEditMode}
                                     onSaveImageUrls={saveImageUrls}
+                                    onCreateStorageFolder={createStorageFolder}
+                                    onCheckStorageFolder={checkStorageFolder}
+                                    onSaveImageToStorage={saveImageToStorage}
                                     formatFileSize={formatFileSize}
                                   />
                                 )}
