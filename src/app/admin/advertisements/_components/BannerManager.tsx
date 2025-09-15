@@ -2,15 +2,11 @@
 
 import React, { useState, useEffect } from 'react'
 import { 
-  Plus, 
-  Edit, 
-  Trash2, 
   Save, 
   X, 
   Loader2, 
   AlertCircle, 
   CheckCircle,
-  Building2,
   Search,
   Image
 } from 'lucide-react'
@@ -166,7 +162,7 @@ export default function BannerManager() {
   }
 
   // 삭제
-  const handleDelete = async (slot: FeatureSlot) => {
+  const handleDelete = async (_slot: FeatureSlot) => {
     if (!confirm('정말로 상단 베너를 삭제하시겠습니까?')) {
       return
     }
@@ -261,7 +257,7 @@ export default function BannerManager() {
               상단 베너 관리
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              select_feature_slots 테이블의 surface='상단베너' 레코드를 관리합니다
+              select_feature_slots 테이블의 surface=&apos;상단베너&apos; 레코드를 관리합니다
             </p>
           </div>
         </div>

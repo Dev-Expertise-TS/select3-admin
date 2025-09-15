@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react'
 import { 
   Plus, 
-  Edit, 
   Trash2, 
   Save, 
   X, 
@@ -15,7 +14,6 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { FeatureSlotTable } from '@/components/shared/data-table'
 
 interface PromotionSlot {
   id: number
@@ -108,15 +106,15 @@ export default function PromotionManager() {
     setShowForm(true)
   }
 
-  // 편집 시작
-  const handleEdit = (slot: PromotionSlot) => {
-    setFormData({
-      sabre_id: slot.sabre_id,
-      slot_key: slot.slot_key
-    })
-    setEditingId(slot.id)
-    setShowForm(true)
-  }
+  // 편집 시작 (현재 사용하지 않음)
+  // const handleEdit = (slot: PromotionSlot) => {
+  //   setFormData({
+  //     sabre_id: slot.sabre_id,
+  //     slot_key: slot.slot_key
+  //   })
+  //   setEditingId(slot.id)
+  //   setShowForm(true)
+  // }
 
   // Upsert (현재 값으로 즉시 저장)
   const handleUpsert = async (slot: PromotionSlot) => {
@@ -307,7 +305,7 @@ export default function PromotionManager() {
               프로모션 관리
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              select_feature_slots 테이블의 surface가 '프로모션'인 레코드를 관리합니다
+              select_feature_slots 테이블의 surface가 &apos;프로모션&apos;인 레코드를 관리합니다
             </p>
           </div>
         </div>

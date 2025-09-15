@@ -6,7 +6,7 @@ import { AuthProvider } from '@/features/auth/contexts/AuthContext'
 
 // 동적으로 Devtools를 로드하는 컴포넌트
 function Devtools() {
-  const [Devtools, setDevtools] = React.useState<React.ComponentType<any> | null>(null)
+  const [Devtools, setDevtools] = React.useState<React.ComponentType<unknown> | null>(null)
 
   React.useEffect(() => {
     if (process.env.NODE_ENV === 'development') {

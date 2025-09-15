@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react'
 import { 
   Plus, 
-  Edit, 
   Trash2, 
   Save, 
   X, 
@@ -15,7 +14,6 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { FeatureSlotTable } from '@/components/shared/data-table'
 
 interface FeatureSlot {
   id: number
@@ -108,15 +106,15 @@ export default function HeroCarouselManager() {
     setShowForm(true)
   }
 
-  // 편집 시작
-  const handleEdit = (slot: FeatureSlot) => {
-    setFormData({
-      sabre_id: slot.sabre_id,
-      slot_key: slot.slot_key
-    })
-    setEditingId(slot.id)
-    setShowForm(true)
-  }
+  // 편집 시작 (현재 사용하지 않음)
+  // const handleEdit = (slot: FeatureSlot) => {
+  //   setFormData({
+  //     sabre_id: slot.sabre_id,
+  //     slot_key: slot.slot_key
+  //   })
+  //   setEditingId(slot.id)
+  //   setShowForm(true)
+  // }
 
   // Upsert (현재 값으로 즉시 저장)
   const handleUpsert = async (slot: FeatureSlot) => {

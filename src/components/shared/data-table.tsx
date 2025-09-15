@@ -7,8 +7,7 @@ import {
   Trash2, 
   Save, 
   Loader2, 
-  Building2,
-  Search
+  Building2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -16,13 +15,13 @@ interface DataTableColumn {
   key: string
   label: string
   width?: string
-  render?: (value: any, row: any) => React.ReactNode
+  render?: (value: unknown, row: unknown) => React.ReactNode
 }
 
 interface DataTableAction {
   label: string
   icon: React.ReactNode
-  onClick: (row: any) => void
+  onClick: (row: unknown) => void
   variant?: 'default' | 'outline' | 'destructive'
   className?: string
 }
@@ -30,7 +29,7 @@ interface DataTableAction {
 interface DataTableProps {
   title: string
   subtitle?: string
-  data: any[]
+  data: unknown[]
   columns: DataTableColumn[]
   actions?: DataTableAction[]
   loading?: boolean
@@ -180,12 +179,12 @@ export function FeatureSlotTable({
 }: {
   title: string
   subtitle?: string
-  data: any[]
+  data: unknown[]
   loading?: boolean
   onAdd?: () => void
-  onEdit?: (row: any) => void
-  onDelete?: (row: any) => void
-  onUpsert?: (row: any) => void
+  onEdit?: (row: unknown) => void
+  onDelete?: (row: unknown) => void
+  onUpsert?: (row: unknown) => void
   showUpsert?: boolean
 }) {
   const columns: DataTableColumn[] = [
