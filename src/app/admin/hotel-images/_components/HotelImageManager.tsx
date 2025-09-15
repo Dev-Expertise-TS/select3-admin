@@ -27,8 +27,8 @@ export function HotelImageManager() {
   const [selectedImage, setSelectedImage] = useState<HotelImage | null>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
-  const searchImages = async (sabreCode: string | null) => {
-    if (!sabreCode || !sabreCode.trim()) {
+  const searchImages = async (sabreCode: string | null | undefined) => {
+    if (!sabreCode || typeof sabreCode !== 'string' || !sabreCode.trim()) {
       setError('Sabre Hotel Code를 입력해주세요.')
       return
     }
@@ -68,7 +68,7 @@ export function HotelImageManager() {
     }
   }
 
-  const handleHotelSelect = (sabreId: string | null) => {
+  const handleHotelSelect = (sabreId: string | null | undefined) => {
     searchImages(sabreId)
   }
 
@@ -107,9 +107,9 @@ export function HotelImageManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-[60vh]">
       {/* 페이지 헤더 */}
-      <div className="flex items-center gap-3">
+      <div className="mb-6 flex items-center gap-3">
         <div className="rounded-lg bg-blue-600 p-2">
           <ImageIcon className="h-6 w-6 text-white" />
         </div>
@@ -120,14 +120,12 @@ export function HotelImageManager() {
       </div>
 
       {/* 공통 호텔 검색 위젯 */}
-      <div>
-        <HotelSearchWidget
-          hideHeader={true}
-          enableHotelEdit={false}
-          showInitialHotels={false}
-          onHotelSelect={handleHotelSelect}
-        />
-      </div>
+      <HotelSearchWidget
+        hideHeader={true}
+        enableHotelEdit={false}
+        showInitialHotels={false}
+        onHotelSelect={handleHotelSelect}
+      />
 
       {/* 에러 메시지 */}
       {error && (

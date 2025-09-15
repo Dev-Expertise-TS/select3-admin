@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import HotelSearchWidget from '@/components/shared/hotel-search-widget'
 // import { cn } from '@/lib/utils'
 
 export default function SabreRatesPage() {
@@ -46,6 +48,12 @@ export default function SabreRatesPage() {
     }>
   } | null>(null)
   const [error, setError] = useState('')
+
+  const handleHotelSelect = (sabreId: string | null | undefined) => {
+    if (sabreId) {
+      setHotelId(sabreId)
+    }
+  }
 
   const handleGetRates = async () => {
     if (!hotelId || !checkInDate || !checkOutDate) {
@@ -132,8 +140,25 @@ export default function SabreRatesPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Sabre API 호텔 요금 조회</h1>
+    <div className="min-h-[60vh]">
+      {/* 페이지 헤더 */}
+      <div className="mb-6 flex items-center gap-3">
+        <div className="rounded-lg bg-blue-600 p-2">
+          <DollarSign className="h-6 w-6 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sabre API 호텔 요금 조회</h1>
+          <p className="text-sm text-gray-600 mt-1">호텔을 검색하고 선택하여 요금 정보를 조회하세요</p>
+        </div>
+      </div>
+
+      {/* 호텔 검색 위젯 */}
+      <HotelSearchWidget
+        hideHeader={true}
+        enableHotelEdit={false}
+        showInitialHotels={false}
+        onHotelSelect={handleHotelSelect}
+      />
       
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4">요청 파라미터</h2>
