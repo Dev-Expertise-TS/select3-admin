@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
       // 샘플 데이터에서 null이 아닌 필드들을 not null로 추정
       const notNullFields = sampleData && sampleData.length > 0 
         ? Object.entries(sampleData[0])
-            .filter(([_, value]) => value !== null && value !== undefined)
-            .map(([key, _]) => key)
+            .filter(([, value]) => value !== null && value !== undefined)
+            .map(([key]) => key)
         : []
 
       return NextResponse.json(

@@ -409,7 +409,7 @@ export default function BannerManager() {
       <FeatureSlotTable
         title="상단 베너 슬롯 목록"
         subtitle={`총 ${slots.length}개의 항목`}
-        data={slots}
+        data={slots as unknown as Record<string, unknown>[]}
         loading={loading}
         onAdd={handleAddNew}
         onEdit={handleEdit}

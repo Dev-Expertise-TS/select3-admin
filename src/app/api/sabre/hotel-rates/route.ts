@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sabreFetchWithRetry } from '@/lib/sabre'
 
-type HotelRatesRequest = {
-  hotelId: string
-  checkInDate: string
-  checkOutDate: string
-  adults?: number
-  children?: number
-  currency?: string
-  ratePlanCodes?: string[]
-}
+// type HotelRatesRequest = {
+//   hotelId: string
+//   checkInDate: string
+//   checkOutDate: string
+//   adults?: number
+//   children?: number
+//   currency?: string
+//   ratePlanCodes?: string[]
+// }
 
 type HotelRatesResponse = {
   hotelId: string
@@ -49,10 +49,10 @@ export async function GET(request: NextRequest) {
     const hotelId = searchParams.get('hotelId')
     const checkInDate = searchParams.get('checkInDate')
     const checkOutDate = searchParams.get('checkOutDate')
-    const adults = parseInt(searchParams.get('adults') || '2')
-    const children = parseInt(searchParams.get('children') || '0')
-    const currency = searchParams.get('currency') || 'USD'
-    const ratePlanCodes = searchParams.get('ratePlanCodes')?.split(',')
+    // const adults = parseInt(searchParams.get('adults') || '2')
+    // const children = parseInt(searchParams.get('children') || '0')
+    // const currency = searchParams.get('currency') || 'USD'
+    // const ratePlanCodes = searchParams.get('ratePlanCodes')?.split(',')
 
     if (!hotelId || !checkInDate || !checkOutDate) {
       return NextResponse.json(

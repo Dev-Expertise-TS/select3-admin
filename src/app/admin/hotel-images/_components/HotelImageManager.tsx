@@ -1,41 +1,75 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Image as ImageIcon, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Image as ImageIcon, Save, Edit3, Eye, EyeOff } from 'lucide-react'
 import NextImage from 'next/image'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import HotelSearchWidget from '@/components/shared/hotel-search-widget'
 
-interface HotelImage {
-  id: string
-  url: string
-  caption?: string
-  category?: string
-  width?: number
-  height?: number
+interface HotelImageData {
+  sabre_id: string | null
+  property_name_ko: string | null
+  property_name_en: string | null
+  image_1: string | null
+  image_2: string | null
+  image_3: string | null
+  image_4: string | null
+  image_5: string | null
 }
 
 interface HotelImageResponse {
   success: boolean
-  data?: HotelImage[]
+  data?: HotelImageData
   error?: string
 }
 
 export function HotelImageManager() {
-  const [images, setImages] = useState<HotelImage[]>([])
+  const [selectedHotel, setSelectedHotel] = useState<HotelImageData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedImage, setSelectedImage] = useState<HotelImage | null>(null)
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [editingImages, setEditingImages] = useState<boolean>(false)
+  const [imageUrls, setImageUrls] = useState<{
+    image_1: string
+    image_2: string
+    image_3: string
+    image_4: string
+    image_5: string
+  }>({
+    image_1: '',
+    image_2: '',
+    image_3: '',
+    image_4: '',
+    image_5: ''
+  })
 
-  const searchImages = async (sabreCode: string) => {
-    if (!sabreCode.trim()) {
-      setError('Sabre Hotel Code를 입력해주세요.')
+  const fetchHotelImages = async (sabreCode: string | null | undefined) => {
+    console.log('🔄 fetchHotelImages 시작:', {
+      sabreCode: sabreCode,
+      sabreCodeType: typeof sabreCode,
+      sabreCodeValue: sabreCode,
+      isFalsy: !sabreCode,
+      isNotString: typeof sabreCode !== 'string',
+      isEmpty: sabreCode && typeof sabreCode === 'string' && !sabreCode.trim()
+    });
+    
+    if (!sabreCode || typeof sabreCode !== 'string' || !sabreCode.trim()) {
+      console.log('❌ fetchHotelImages 에러 조건 만족:', {
+        sabreCode: sabreCode,
+        reason: !sabreCode ? 'falsy' : typeof sabreCode !== 'string' ? 'not string' : 'empty string'
+      });
+      setError('Sabre ID가 없는 호텔입니다. 이미지 관리를 위해서는 Sabre ID가 필요합니다.')
       return
     }
+    
+    console.log('✅ fetchHotelImages 정상 진행:', sabreCode);
 
     setLoading(true)
     setError(null)
-    setImages([])
+    setSuccess(null)
+    setSelectedHotel(null)
 
     try {
       const response = await fetch(`/api/hotel/images?sabreCode=${encodeURIComponent(sabreCode.trim())}`, {
@@ -54,12 +88,17 @@ export function HotelImageManager() {
       })
 
       if (data.success && data.data) {
-        setImages(data.data)
-        if (data.error) {
-          setError(data.error)
-        }
+        setSelectedHotel(data.data)
+        setImageUrls({
+          image_1: data.data.image_1 || '',
+          image_2: data.data.image_2 || '',
+          image_3: data.data.image_3 || '',
+          image_4: data.data.image_4 || '',
+          image_5: data.data.image_5 || ''
+        })
+        setEditingImages(false)
       } else {
-        setError(data.error || '이미지를 찾을 수 없습니다.')
+        setError(data.error || '호텔 이미지 정보를 찾을 수 없습니다.')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.')
@@ -68,70 +107,118 @@ export function HotelImageManager() {
     }
   }
 
-  const handleHotelSelect = (sabreId: string) => {
-    searchImages(sabreId)
-  }
-
-  const openImageModal = (image: HotelImage, index: number) => {
-    setSelectedImage(image)
-    setCurrentImageIndex(index)
-  }
-
-  const closeImageModal = () => {
-    setSelectedImage(null)
-    setCurrentImageIndex(0)
-  }
-
-  const showPreviousImage = () => {
-    if (currentImageIndex > 0) {
-      setCurrentImageIndex(currentImageIndex - 1)
-      setSelectedImage(images[currentImageIndex - 1])
+  const handleHotelSelect = (sabreId: string | null | undefined) => {
+    console.log('🏨 HotelImageManager - 호텔 선택됨:', {
+      sabreId: sabreId,
+      sabreIdType: typeof sabreId,
+      sabreIdValue: sabreId,
+      isNull: sabreId === null,
+      isUndefined: sabreId === undefined,
+      isString: typeof sabreId === 'string',
+      isNumber: typeof sabreId === 'number'
+    });
+    
+    if (sabreId !== null && sabreId !== undefined) {
+      console.log('✅ fetchHotelImages 호출:', sabreId);
+      fetchHotelImages(sabreId)
+    } else {
+      console.log('❌ sabreId가 null/undefined여서 fetchHotelImages 호출하지 않음');
     }
   }
 
-  const showNextImage = () => {
-    if (currentImageIndex < images.length - 1) {
-      setCurrentImageIndex(currentImageIndex + 1)
-      setSelectedImage(images[currentImageIndex + 1])
+  const handleImageUrlChange = (field: keyof typeof imageUrls, value: string) => {
+    setImageUrls(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const saveImageUrls = async () => {
+    if (!selectedHotel) return
+
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await fetch('/api/hotel/update-images', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sabre_id: selectedHotel.sabre_id,
+          image_1: imageUrls.image_1 || null,
+          image_2: imageUrls.image_2 || null,
+          image_3: imageUrls.image_3 || null,
+          image_4: imageUrls.image_4 || null,
+          image_5: imageUrls.image_5 || null,
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`API 오류 (${response.status}): ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        setSuccess('이미지 URL이 성공적으로 저장되었습니다.')
+        setEditingImages(false)
+        // 업데이트된 데이터로 다시 설정
+        if (data.data) {
+          setSelectedHotel(data.data)
+        }
+      } else {
+        setError(data.error || '이미지 URL 저장에 실패했습니다.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      closeImageModal()
-    } else if (e.key === 'ArrowLeft') {
-      showPreviousImage()
-    } else if (e.key === 'ArrowRight') {
-      showNextImage()
+  const toggleEditMode = () => {
+    setEditingImages(!editingImages)
+    if (editingImages) {
+      // 편집 모드에서 나갈 때 원래 값으로 복원
+      if (selectedHotel) {
+        setImageUrls({
+          image_1: selectedHotel.image_1 || '',
+          image_2: selectedHotel.image_2 || '',
+          image_3: selectedHotel.image_3 || '',
+          image_4: selectedHotel.image_4 || '',
+          image_5: selectedHotel.image_5 || ''
+        })
+      }
     }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-[60vh]">
       {/* 페이지 헤더 */}
-      <div className="flex items-center gap-3">
+      <div className="mb-6 flex items-center gap-3">
         <div className="rounded-lg bg-blue-600 p-2">
           <ImageIcon className="h-6 w-6 text-white" />
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">호텔 이미지 관리</h1>
-          <p className="text-sm text-gray-600 mt-1">호텔을 검색하고 선택하여 해당 호텔의 이미지를 확인하세요</p>
+          <p className="text-sm text-gray-600 mt-1">호텔을 검색하고 선택하여 이미지 URL을 관리하세요</p>
         </div>
       </div>
 
       {/* 공통 호텔 검색 위젯 */}
-      <div>
-        <HotelSearchWidget
-          hideHeader={true}
-          enableHotelEdit={false}
-          showInitialHotels={false}
-          onHotelSelect={handleHotelSelect}
-        />
-      </div>
+      <HotelSearchWidget
+        hideHeader={true}
+        enableHotelEdit={false}
+        showInitialHotels={false}
+        onHotelSelect={handleHotelSelect}
+      />
 
       {/* 에러 메시지 */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <div className="flex items-center gap-2 text-red-800">
             <div className="w-2 h-2 bg-red-500 rounded-full"></div>
             {error}
@@ -139,126 +226,100 @@ export function HotelImageManager() {
         </div>
       )}
 
-      {/* 로딩 상태 */}
-      {loading && (
-        <div className="rounded-lg border bg-white p-4 text-gray-700">이미지를 불러오는 중...</div>
-      )}
-
-      {/* 이미지 리스트 */}
-      {images.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            검색 결과 ({images.length}개)
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {images.map((image, index) => (
-              <div
-                key={image.id}
-                className="group cursor-pointer bg-gray-50 rounded-lg overflow-hidden hover:shadow-lg transition-all duration-200"
-                onClick={() => openImageModal(image, index)}
-              >
-                <div className="aspect-[4/3] overflow-hidden">
-                  <NextImage
-                    unoptimized
-                    src={image.url}
-                    alt={image.caption || '호텔 이미지'}
-                    width={image.width ?? 800}
-                    height={image.height ?? 600}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                  />
-                </div>
-                <div className="p-3">
-                  <div className="text-sm font-medium text-gray-900 mb-1">
-                    {image.caption || '이미지'}
-                  </div>
-                  {image.category && (
-                    <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full inline-block">
-                      {image.category}
-                    </div>
-                  )}
-                  {image.width && image.height && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      {image.width} × {image.height}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+      {/* 성공 메시지 */}
+      {success && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-2 text-green-800">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            {success}
           </div>
         </div>
       )}
 
-      {/* 이미지 상세 보기 모달 */}
-      {selectedImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-          onKeyDown={handleKeyDown}
-          tabIndex={0}
-        >
-          <div className="relative max-w-4xl max-h-[90vh] mx-4">
-            {/* 닫기 버튼 */}
-            <button
-              onClick={closeImageModal}
-              className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
+      {/* 로딩 상태 */}
+      {loading && (
+        <div className="rounded-lg border bg-white p-4 text-gray-700 mb-6">호텔 정보를 불러오는 중...</div>
+      )}
 
-            {/* 이전/다음 버튼 */}
-            {images.length > 1 && (
-              <>
-                <button
-                  onClick={showPreviousImage}
-                  disabled={currentImageIndex === 0}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/70 disabled:opacity-50 disabled:cursor-not-allowed rounded-full text-white transition-colors"
+      {/* 호텔 이미지 편집 영역 */}
+      {selectedHotel && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">
+                {selectedHotel.property_name_ko || selectedHotel.property_name_en || '호텔 정보'}
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">Sabre ID: {selectedHotel.sabre_id}</p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={toggleEditMode}
+                variant={editingImages ? "outline" : "default"}
+                className="flex items-center gap-2"
+              >
+                {editingImages ? <EyeOff className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
+                {editingImages ? '편집 취소' : '편집하기'}
+              </Button>
+              {editingImages && (
+                <Button
+                  onClick={saveImageUrls}
+                  disabled={saving}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
                 >
-                  <ChevronLeft className="h-6 w-6" />
-                </button>
-                <button
-                  onClick={showNextImage}
-                  disabled={currentImageIndex === images.length - 1}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/70 disabled:opacity-50 disabled:cursor-not-allowed rounded-full text-white transition-colors"
-                >
-                  <ChevronRight className="h-6 w-6" />
-                </button>
-              </>
-            )}
+                  <Save className="h-4 w-4" />
+                  {saving ? '저장 중...' : '저장하기'}
+                </Button>
+              )}
+            </div>
+          </div>
 
-            {/* 이미지 */}
-            <div className="relative">
-              <NextImage
-                unoptimized
-                src={selectedImage.url}
-                alt={selectedImage.caption || '호텔 이미지'}
-                width={selectedImage.width ?? 1600}
-                height={selectedImage.height ?? 1200}
-                className="max-w-full max-h-[90vh] object-contain rounded-lg"
-              />
-
-              {/* 이미지 정보 */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6 rounded-b-lg">
-                <div className="text-white">
-                  <h3 className="text-xl font-semibold mb-2">
-                    {selectedImage.caption || '호텔 이미지'}
-                  </h3>
-                  <div className="flex items-center gap-4 text-sm">
-                    {selectedImage.category && (
-                      <span className="bg-white/20 px-3 py-1 rounded-full">
-                        {selectedImage.category}
-                      </span>
+          {/* 이미지 URL 편집 폼 */}
+          <div className="space-y-6">
+            {(['image_1', 'image_2', 'image_3', 'image_4', 'image_5'] as const).map((field, index) => (
+              <div key={field} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    이미지 {index + 1} URL
+                  </label>
+                  <Input
+                    value={imageUrls[field]}
+                    onChange={(e) => handleImageUrlChange(field, e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                    disabled={!editingImages}
+                    className={editingImages ? '' : 'bg-gray-50'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    미리보기
+                  </label>
+                  <div className="aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border">
+                    {imageUrls[field] ? (
+                      <NextImage
+                        unoptimized
+                        src={imageUrls[field]}
+                        alt={`이미지 ${index + 1}`}
+                        width={400}
+                        height={300}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                          const parent = target.parentElement
+                          if (parent) {
+                            parent.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500">이미지를 불러올 수 없습니다</div>'
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-gray-500">
+                        이미지 URL을 입력하세요
+                      </div>
                     )}
-                    {selectedImage.width && selectedImage.height && (
-                      <span>
-                        {selectedImage.width} × {selectedImage.height}
-                      </span>
-                    )}
-                    <span>
-                      {currentImageIndex + 1} / {images.length}
-                    </span>
                   </div>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
       )}
