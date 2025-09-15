@@ -1105,7 +1105,7 @@ export default function HotelSearchWidget({
       return;
     }
 
-    const hotelId = `${hotel.sabre_id}-${hotel.paragon_id}`;
+    const hotelId = String(hotel.sabre_id);
     
     if (expandedRowId === hotelId) {
       // 이미 열린 패널이면 닫기
@@ -1651,8 +1651,16 @@ export default function HotelSearchWidget({
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {results.map((hotel, index) => {
-                  const hotelId = `${hotel.sabre_id}-${hotel.paragon_id}`;
+                  const hotelId = String(hotel.sabre_id);
                   const isExpanded = expandedRowId === hotelId;
+                  
+                  console.log('🔍 호텔 렌더링:', {
+                    index,
+                    hotelId,
+                    expandedRowId,
+                    isExpanded,
+                    enableImageManagement
+                  });
                   
                   return (
                     <React.Fragment key={`hotel-${hotel.sabre_id}-${hotel.paragon_id}-${index}`}>
@@ -1821,7 +1829,15 @@ export default function HotelSearchWidget({
                       </tr>
                       
                       {/* 확장 패널 */}
-                      {isExpanded && expandedRowState && (
+                      {(() => {
+                        console.log('🖼️ 확장 패널 조건 확인:', {
+                          isExpanded,
+                          expandedRowState: expandedRowState?.type,
+                          hotelId,
+                          imageState: imageManagementState[hotelId]
+                        });
+                        return isExpanded && expandedRowState;
+                      })() && (
                         <tr>
                           <td colSpan={5} className="px-0 py-0 w-full max-w-full overflow-x-hidden">
                             <div className="bg-gray-50 border-t border-gray-200 w-full max-w-full">
