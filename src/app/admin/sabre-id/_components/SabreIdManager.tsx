@@ -41,7 +41,7 @@ interface HotelDetailsResponse {
     sabre_id?: string
     property_name_ko?: string
     property_name_en?: string
-    [key: string]: any
+    [key: string]: unknown
   }
   error?: string
 }
@@ -52,7 +52,7 @@ interface SabreHotelResponse {
     HotelDetailsInfo?: {
       HotelInfo?: HotelInfo
     }
-    [key: string]: any
+    [key: string]: unknown
   }
   error?: string
 }
@@ -68,7 +68,7 @@ export default function SabreIdManager() {
   // DB 검색 관련 state
   const [dbSearchTerm, setDbSearchTerm] = useState('')
   const [dbSearchLoading, setDbSearchLoading] = useState(false)
-  const [dbSearchResults, setDbSearchResults] = useState<any[]>([])
+  const [dbSearchResults, setDbSearchResults] = useState<unknown[]>([])
   const [dbSearchError, setDbSearchError] = useState<string | null>(null)
 
   // DB 검색 함수

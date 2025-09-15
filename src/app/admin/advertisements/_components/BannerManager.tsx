@@ -162,7 +162,7 @@ export default function BannerManager() {
   }
 
   // 삭제
-  const handleDelete = async (_slot: FeatureSlot) => {
+  const handleDelete = async () => {
     if (!confirm('정말로 상단 베너를 삭제하시겠습니까?')) {
       return
     }
@@ -250,7 +250,7 @@ export default function BannerManager() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-blue-600 p-2">
-            <Image className="h-6 w-6 text-white" />
+            <Image className="h-6 w-6 text-white" alt="상단 베너 아이콘" />
           </div>
           <div>
             <h2 className="text-xl font-bold tracking-tight text-gray-900">

@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       const responseText = await response.text()
       console.log('Sabre API 응답 텍스트:', responseText.slice(0, 500))
       
-      let hotelData: any = null
+      let hotelData: unknown = null
       
       try {
         // JSON 파싱 시도
