@@ -415,7 +415,6 @@ export default function HotelSearchWidget({
   // 호텔 이미지 데이터를 가져오는 함수
   const fetchHotelImages = async (sabreId: string) => {
     const hotelId = String(sabreId)
-    console.log('🖼️ fetchHotelImages 시작:', { sabreId, hotelId })
     
     // 초기 상태 설정 (기존 상태가 없으면 새로 생성)
     setImageManagementState(prev => ({
@@ -444,27 +443,20 @@ export default function HotelSearchWidget({
     }))
 
     try {
-      const apiUrl = `/api/hotel/images?sabreCode=${encodeURIComponent(sabreId)}`
-      console.log('🖼️ API 호출:', apiUrl)
-      
-      const response = await fetch(apiUrl, {
+      const response = await fetch(`/api/hotel/images?sabreCode=${encodeURIComponent(sabreId)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         }
       })
-      
-      console.log('🖼️ API 응답 상태:', response.status, response.statusText)
 
       if (!response.ok) {
         throw new Error(`API 오류 (${response.status}): ${response.statusText}`)
       }
 
       const data = await response.json()
-      console.log('🖼️ API 응답 데이터:', data)
 
       if (data.success && data.data) {
-        console.log('🖼️ 이미지 데이터 성공적으로 받음:', data.data)
         const imageUrls = {
           image_1: data.data.image_1 || '',
           image_2: data.data.image_2 || '',
@@ -509,8 +501,6 @@ export default function HotelSearchWidget({
             imageInfos
           }
         }))
-        
-        console.log('🖼️ 이미지 상태 업데이트 완료:', { hotelId, imageUrls })
 
         // 각 이미지 정보를 병렬로 가져오기
         Object.keys(imageUrls).forEach(async (key) => {
@@ -558,7 +548,6 @@ export default function HotelSearchWidget({
         }))
       }
     } catch (err) {
-      console.error('이미지 데이터 가져오기 오류:', err)
       setImageManagementState(prev => ({
         ...prev,
         [hotelId]: {
@@ -585,6 +574,10 @@ export default function HotelSearchWidget({
       }))
     }
   }
+
+  // ============================================================================
+  // 이미지 관리 관련 핸들러 함수들
+  // ============================================================================
 
   // 이미지 URL 변경 핸들러
   const handleImageUrlChange = (hotelId: string, field: string, value: string) => {
@@ -624,10 +617,7 @@ export default function HotelSearchWidget({
   // 이미지 저장 핸들러
   const saveImageUrls = async (hotelId: string, sabreId: string) => {
     const state = imageManagementState[hotelId]
-    if (!state) {
-      console.error('이미지 상태를 찾을 수 없습니다:', hotelId)
-      return
-    }
+    if (!state) return
 
     setImageManagementState(prev => {
       const currentState = prev[hotelId]
@@ -697,7 +687,6 @@ export default function HotelSearchWidget({
         })
       }
     } catch (err) {
-      console.error('이미지 저장 오류:', err)
       setImageManagementState(prev => {
         const currentState = prev[hotelId]
         if (!currentState) return prev
@@ -1004,39 +993,18 @@ export default function HotelSearchWidget({
     }
   };
 
-
-  
   // 행 클릭 핸들러 (확장 패널 토글 또는 호텔 편집 페이지 이동)
   const handleRowClick = (hotel: HotelSearchResult) => {
-    console.log('🔍 호텔 클릭됨:', {
-      hotel: hotel,
-      sabre_id: hotel.sabre_id,
-      sabre_id_type: typeof hotel.sabre_id,
-      sabre_id_value: hotel.sabre_id,
-      property_name_ko: hotel.property_name_ko,
-      onHotelSelect_exists: !!onHotelSelect,
-      enableImageManagement: enableImageManagement
-    });
-    
     // 이미지 관리 모드가 활성화된 경우
     if (enableImageManagement) {
-      console.log('🖼️ 이미지 관리 모드 활성화됨:', {
-        hotel: hotel,
-        sabre_id: hotel.sabre_id,
-        sabre_id_type: typeof hotel.sabre_id
-      });
-      
       if (hotel.sabre_id !== null && hotel.sabre_id !== undefined) {
         const hotelId = String(hotel.sabre_id);
-        console.log('🖼️ 호텔 ID:', hotelId);
         
         // 확장 패널 토글
         if (expandedRowId === hotelId) {
-          console.log('🖼️ 이미지 패널 닫기');
           setExpandedRowId(null);
           setExpandedRowState(null);
         } else {
-          console.log('🖼️ 이미지 패널 열기');
           setExpandedRowId(hotelId);
           setExpandedRowState({
             type: 'image-management',
@@ -1056,14 +1024,11 @@ export default function HotelSearchWidget({
           });
           
           // 이미지 데이터 로드
-          console.log('🖼️ 이미지 데이터 로드 시작:', hotel.sabre_id);
           fetchHotelImages(hotel.sabre_id);
         }
         return;
-      } else {
-        console.log('❌ 이미지 관리 모드에서 sabre_id가 없는 호텔 클릭됨');
-        return;
       }
+      return;
     }
     
     // onHotelSelect 콜백이 있는 경우 호출
@@ -1076,28 +1041,14 @@ export default function HotelSearchWidget({
           property_name_ko: hotel.property_name_ko,
           property_name_en: hotel.property_name_en
         };
-        console.log('✅ onHotelSelect 호출 (sabre_id 있음):', {
-          original: hotel.sabre_id,
-          converted: sabreIdString,
-          type: typeof sabreIdString,
-          hotelInfo: hotelInfo
-        });
         onHotelSelect(sabreIdString, hotelInfo);
         return;
       } else {
-        console.log('❌ onHotelSelect 호출 (sabre_id 없음):', {
-          sabre_id: hotel.sabre_id,
-          is_null: hotel.sabre_id === null,
-          is_undefined: hotel.sabre_id === undefined,
-          property_name_ko: hotel.property_name_ko
-        });
         // sabre_id가 없는 호텔의 경우 null을 전달하여 에러 메시지 표시
         onHotelSelect(null);
         return;
       }
     }
-    
-    console.log('⚠️ onHotelSelect 콜백이 없음');
 
     // 호텔 편집 모드가 활성화된 경우 확장 패널을 열지 않음
     if (enableHotelEdit) {
@@ -1654,14 +1605,6 @@ export default function HotelSearchWidget({
                   const hotelId = String(hotel.sabre_id);
                   const isExpanded = expandedRowId === hotelId;
                   
-                  console.log('🔍 호텔 렌더링:', {
-                    index,
-                    hotelId,
-                    expandedRowId,
-                    isExpanded,
-                    enableImageManagement
-                  });
-                  
                   return (
                     <React.Fragment key={`hotel-${hotel.sabre_id}-${hotel.paragon_id}-${index}`}>
                       <tr 
@@ -1829,15 +1772,7 @@ export default function HotelSearchWidget({
                       </tr>
                       
                       {/* 확장 패널 */}
-                      {(() => {
-                        console.log('🖼️ 확장 패널 조건 확인:', {
-                          isExpanded,
-                          expandedRowState: expandedRowState?.type,
-                          hotelId,
-                          imageState: imageManagementState[hotelId]
-                        });
-                        return isExpanded && expandedRowState;
-                      })() && (
+                      {isExpanded && expandedRowState && (
                         <tr>
                           <td colSpan={5} className="px-0 py-0 w-full max-w-full overflow-x-hidden">
                             <div className="bg-gray-50 border-t border-gray-200 w-full max-w-full">
