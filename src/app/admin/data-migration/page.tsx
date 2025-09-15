@@ -207,7 +207,7 @@ export default function DataMigrationPage() {
 
     try {
       // sabre_id를 제외한 데이터만 전송
-      const { sabre_id: _sabre_id, ...hotelData } = editingData
+      const { sabre_id, ...hotelData } = editingData
 
       const response = await fetch('/api/hotel/create', {
         method: 'POST',

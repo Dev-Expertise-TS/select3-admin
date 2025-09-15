@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 호텔 데이터에 sabre_id 추가 (id는 자동 생성되므로 제외)
-    const { id: _id, created_at: _created_at, ...allowedHotelData } = hotel_data;
+    const { id, created_at, ...allowedHotelData } = hotel_data;
     const insertData = {
       sabre_id,
       ...allowedHotelData,

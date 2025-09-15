@@ -94,7 +94,7 @@ export async function PUT(
     const surface = '히어로' // 히어로 캐러셀은 항상 '히어로' surface 사용
 
     // 중복 검사 (자기 자신 제외)
-    const { data: existingData, error: _checkError } = await supabase
+    const { data: existingData } = await supabase
       .from('select_feature_slots')
       .select('id')
       .eq('sabre_id', sabre_id)
