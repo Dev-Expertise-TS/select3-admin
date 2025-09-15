@@ -10,9 +10,15 @@ import {
   ChevronDown, 
   ChevronUp, 
   X, 
-  Play 
+  Play,
+  Save,
+  Edit3,
+  EyeOff
 } from 'lucide-react'
 import Link from 'next/link'
+import NextImage from 'next/image'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 import { cn, getDateAfterDays, formatJson } from '@/lib/utils'
 import { BaseButton } from '@/components/shared/form-actions'
@@ -24,6 +30,233 @@ import {
   ExpandedRowState, 
   HotelDetailsRequest 
 } from '@/types/hotel'
+
+interface ImageInfo {
+  width: number
+  height: number
+  size: number // bytes
+  format: string
+  loading: boolean
+  error: string | null
+}
+
+interface ImageManagementPanelProps {
+  hotel: HotelSearchResult
+  hotelId: string
+  state: {
+    loading: boolean
+    saving: boolean
+    error: string | null
+    success: string | null
+    editingImages: boolean
+    imageUrls: {
+      image_1: string
+      image_2: string
+      image_3: string
+      image_4: string
+      image_5: string
+    }
+    imageInfos: {
+      image_1: ImageInfo | null
+      image_2: ImageInfo | null
+      image_3: ImageInfo | null
+      image_4: ImageInfo | null
+      image_5: ImageInfo | null
+    }
+  } | undefined
+  onImageUrlChange: (hotelId: string, field: string, value: string) => void
+  onToggleEditMode: (hotelId: string) => void
+  onSaveImageUrls: (hotelId: string, sabreId: string) => void
+  formatFileSize: (bytes: number) => string
+}
+
+const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
+  hotel,
+  hotelId,
+  state,
+  onImageUrlChange,
+  onToggleEditMode,
+  onSaveImageUrls,
+  formatFileSize
+}) => {
+  if (!state) {
+    return (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-2 text-gray-600">이미지 정보를 불러오는 중...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* 호텔 정보 헤더 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-lg font-semibold text-gray-900">
+            {hotel.property_name_ko || hotel.property_name_en || '호텔 정보'}
+          </h4>
+          <p className="text-sm text-gray-600 mt-1">Sabre ID: {hotel.sabre_id}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => onToggleEditMode(hotelId)}
+            variant={state.editingImages ? "outline" : "default"}
+            className="flex items-center gap-2"
+          >
+            {state.editingImages ? <EyeOff className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
+            {state.editingImages ? '편집 취소' : '편집하기'}
+          </Button>
+          {state.editingImages && (
+            <Button
+              onClick={() => onSaveImageUrls(hotelId, String(hotel.sabre_id))}
+              disabled={state.saving}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+            >
+              <Save className="h-4 w-4" />
+              {state.saving ? '저장 중...' : '저장하기'}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* 에러 메시지 */}
+      {state.error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-red-800">
+            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+            {state.error}
+          </div>
+        </div>
+      )}
+
+      {/* 성공 메시지 */}
+      {state.success && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-green-800">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            {state.success}
+          </div>
+        </div>
+      )}
+
+      {/* 로딩 상태 */}
+      {state.loading && (
+        <div className="rounded-lg border bg-white p-4 text-gray-700">이미지 정보를 불러오는 중...</div>
+      )}
+
+      {/* 이미지 편집 폼 */}
+      {!state.loading && (
+        <div className="space-y-6">
+          {(['image_1', 'image_2', 'image_3', 'image_4', 'image_5'] as const).map((field, index) => (
+            <div key={field} className="bg-white rounded-lg p-4 border border-gray-200">
+              <h5 className="text-md font-semibold text-gray-900 mb-3">이미지 {index + 1}</h5>
+              
+              <div className="space-y-3">
+                {/* 미리보기 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    미리보기
+                  </label>
+                  <div className="aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border shadow-sm max-w-sm">
+                    {state.imageUrls[field] ? (
+                      <NextImage
+                        unoptimized
+                        src={state.imageUrls[field]}
+                        alt={`이미지 ${index + 1}`}
+                        width={300}
+                        height={225}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                          const parent = target.parentElement
+                          if (parent) {
+                            parent.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500">이미지를 불러올 수 없습니다</div>'
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-gray-500">
+                        이미지 URL을 입력하세요
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 이미지 정보 표시 */}
+                {state.imageUrls[field] && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      이미지 정보
+                    </label>
+                    <div className="bg-gray-50 rounded-lg border p-3 max-w-sm">
+                      {state.imageInfos?.[field]?.loading ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+                          이미지 정보를 불러오는 중...
+                        </div>
+                      ) : state.imageInfos?.[field]?.error ? (
+                        <div className="text-sm text-red-600">
+                          {state.imageInfos[field].error}
+                        </div>
+                      ) : state.imageInfos?.[field] ? (
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">크기:</span>
+                            <span className="font-medium">
+                              {state.imageInfos[field].width} × {state.imageInfos[field].height}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">용량:</span>
+                            <span className="font-medium">
+                              {formatFileSize(state.imageInfos[field].size)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">형식:</span>
+                            <span className="font-medium uppercase">
+                              {state.imageInfos[field].format}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">비율:</span>
+                            <span className="font-medium">
+                              {(state.imageInfos[field].width / state.imageInfos[field].height).toFixed(2)}:1
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500">
+                          이미지 정보를 가져오는 중...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 이미지 URL 입력 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    이미지 {index + 1} URL
+                  </label>
+                  <Input
+                    value={state.imageUrls[field]}
+                    onChange={(e) => onImageUrlChange(hotelId, field, e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                    disabled={!state.editingImages}
+                    className={state.editingImages ? 'max-w-sm' : 'max-w-sm bg-gray-50'}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface HotelSearchWidgetProps {
   /** 위젯의 타이틀 */
@@ -38,8 +271,14 @@ interface HotelSearchWidgetProps {
   enableHotelEdit?: boolean
   /** 초기 로딩 시 최신 호텔 리스트 표시 */
   showInitialHotels?: boolean
+  /** 이미지 관리 모드 활성화 */
+  enableImageManagement?: boolean
   /** 호텔 선택 시 콜백 함수 */
-  onHotelSelect?: (sabreId: string | null) => void
+  onHotelSelect?: (sabreId: string | null, hotelInfo?: {
+    sabre_id: string
+    property_name_ko: string | null
+    property_name_en: string | null
+  }) => void
 }
 
 export default function HotelSearchWidget({ 
@@ -49,6 +288,7 @@ export default function HotelSearchWidget({
   hideHeader = false,
   enableHotelEdit = false,
   showInitialHotels = false,
+  enableImageManagement = false,
   onHotelSelect
 }: HotelSearchWidgetProps) {
   // State 관리
@@ -72,6 +312,31 @@ export default function HotelSearchWidget({
   const [allRatePlanCodes, setAllRatePlanCodes] = useState<string[]>([]);
   const [ratePlanCodesLoading, setRatePlanCodesLoading] = useState(false);
 
+  // 이미지 관리 관련 state
+  const [imageManagementState, setImageManagementState] = useState<{
+    [hotelId: string]: {
+      loading: boolean
+      saving: boolean
+      error: string | null
+      success: string | null
+      editingImages: boolean
+      imageUrls: {
+        image_1: string
+        image_2: string
+        image_3: string
+        image_4: string
+        image_5: string
+      }
+      imageInfos: {
+        image_1: ImageInfo | null
+        image_2: ImageInfo | null
+        image_3: ImageInfo | null
+        image_4: ImageInfo | null
+        image_5: ImageInfo | null
+      }
+    }
+  }>({});
+
   // 날짜 포맷팅 함수 (YYYY-MM-DD)
   const formatDate = (dateString: string | null): string => {
     if (!dateString) return '-';
@@ -82,6 +347,372 @@ export default function HotelSearchWidget({
       return '-';
     }
   };
+
+  // 파일 크기를 사람이 읽기 쉬운 형태로 변환
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  // 이미지 정보를 가져오는 함수
+  const fetchImageInfo = async (url: string): Promise<ImageInfo> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      
+      img.onload = () => {
+        // 이미지 크기 정보
+        const width = img.naturalWidth
+        const height = img.naturalHeight
+        
+        // 파일 크기를 가져오기 위해 fetch 사용
+        fetch(url, { method: 'HEAD' })
+          .then(response => {
+            const contentLength = response.headers.get('content-length')
+            const contentType = response.headers.get('content-type') || 'unknown'
+            
+            const size = contentLength ? parseInt(contentLength, 10) : 0
+            const format = contentType.split('/')[1] || 'unknown'
+            
+            resolve({
+              width,
+              height,
+              size,
+              format,
+              loading: false,
+              error: null
+            })
+          })
+          .catch(() => {
+            resolve({
+              width,
+              height,
+              size: 0,
+              format: 'unknown',
+              loading: false,
+              error: '크기 정보를 가져올 수 없습니다'
+            })
+          })
+      }
+      
+      img.onerror = () => {
+        resolve({
+          width: 0,
+          height: 0,
+          size: 0,
+          format: 'unknown',
+          loading: false,
+          error: '이미지를 불러올 수 없습니다'
+        })
+      }
+      
+      img.src = url
+    })
+  }
+
+  // 호텔 이미지 데이터를 가져오는 함수
+  const fetchHotelImages = async (sabreId: string) => {
+    const hotelId = String(sabreId)
+    console.log('🖼️ fetchHotelImages 시작:', { sabreId, hotelId })
+    
+    // 초기 상태 설정 (기존 상태가 없으면 새로 생성)
+    setImageManagementState(prev => ({
+      ...prev,
+      [hotelId]: {
+        loading: true,
+        saving: false,
+        error: null,
+        success: null,
+        editingImages: false,
+        imageUrls: {
+          image_1: '',
+          image_2: '',
+          image_3: '',
+          image_4: '',
+          image_5: ''
+        },
+        imageInfos: {
+          image_1: null,
+          image_2: null,
+          image_3: null,
+          image_4: null,
+          image_5: null
+        }
+      }
+    }))
+
+    try {
+      const apiUrl = `/api/hotel/images?sabreCode=${encodeURIComponent(sabreId)}`
+      console.log('🖼️ API 호출:', apiUrl)
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      
+      console.log('🖼️ API 응답 상태:', response.status, response.statusText)
+
+      if (!response.ok) {
+        throw new Error(`API 오류 (${response.status}): ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      console.log('🖼️ API 응답 데이터:', data)
+
+      if (data.success && data.data) {
+        console.log('🖼️ 이미지 데이터 성공적으로 받음:', data.data)
+        const imageUrls = {
+          image_1: data.data.image_1 || '',
+          image_2: data.data.image_2 || '',
+          image_3: data.data.image_3 || '',
+          image_4: data.data.image_4 || '',
+          image_5: data.data.image_5 || ''
+        }
+
+        // 이미지 정보 업데이트
+        const imageInfos = {
+          image_1: null as ImageInfo | null,
+          image_2: null as ImageInfo | null,
+          image_3: null as ImageInfo | null,
+          image_4: null as ImageInfo | null,
+          image_5: null as ImageInfo | null
+        }
+
+        // 모든 이미지 정보를 로딩 상태로 초기화
+        Object.keys(imageInfos).forEach(key => {
+          const field = key as keyof typeof imageUrls
+          if (imageUrls[field]) {
+            imageInfos[field] = {
+              width: 0,
+              height: 0,
+              size: 0,
+              format: 'unknown',
+              loading: true,
+              error: null
+            }
+          }
+        })
+
+        setImageManagementState(prev => ({
+          ...prev,
+          [hotelId]: {
+            loading: false,
+            saving: false,
+            error: null,
+            success: null,
+            editingImages: false,
+            imageUrls,
+            imageInfos
+          }
+        }))
+        
+        console.log('🖼️ 이미지 상태 업데이트 완료:', { hotelId, imageUrls })
+
+        // 각 이미지 정보를 병렬로 가져오기
+        Object.keys(imageUrls).forEach(async (key) => {
+          const field = key as keyof typeof imageUrls
+          const url = imageUrls[field]
+          
+          if (url) {
+            const info = await fetchImageInfo(url)
+            setImageManagementState(prev => ({
+              ...prev,
+              [hotelId]: {
+                ...prev[hotelId],
+                imageInfos: {
+                  ...prev[hotelId].imageInfos,
+                  [field]: info
+                }
+              }
+            }))
+          }
+        })
+      } else {
+        setImageManagementState(prev => ({
+          ...prev,
+          [hotelId]: {
+            loading: false,
+            saving: false,
+            error: data.error || '호텔 이미지 정보를 찾을 수 없습니다.',
+            success: null,
+            editingImages: false,
+            imageUrls: {
+              image_1: '',
+              image_2: '',
+              image_3: '',
+              image_4: '',
+              image_5: ''
+            },
+            imageInfos: {
+              image_1: null,
+              image_2: null,
+              image_3: null,
+              image_4: null,
+              image_5: null
+            }
+          }
+        }))
+      }
+    } catch (err) {
+      console.error('이미지 데이터 가져오기 오류:', err)
+      setImageManagementState(prev => ({
+        ...prev,
+        [hotelId]: {
+          loading: false,
+          saving: false,
+          error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.',
+          success: null,
+          editingImages: false,
+          imageUrls: {
+            image_1: '',
+            image_2: '',
+            image_3: '',
+            image_4: '',
+            image_5: ''
+          },
+          imageInfos: {
+            image_1: null,
+            image_2: null,
+            image_3: null,
+            image_4: null,
+            image_5: null
+          }
+        }
+      }))
+    }
+  }
+
+  // 이미지 URL 변경 핸들러
+  const handleImageUrlChange = (hotelId: string, field: string, value: string) => {
+    setImageManagementState(prev => {
+      const currentState = prev[hotelId]
+      if (!currentState) return prev
+      
+      return {
+        ...prev,
+        [hotelId]: {
+          ...currentState,
+          imageUrls: {
+            ...currentState.imageUrls,
+            [field]: value
+          }
+        }
+      }
+    })
+  }
+
+  // 이미지 편집 모드 토글
+  const toggleImageEditMode = (hotelId: string) => {
+    setImageManagementState(prev => {
+      const currentState = prev[hotelId]
+      if (!currentState) return prev
+      
+      return {
+        ...prev,
+        [hotelId]: {
+          ...currentState,
+          editingImages: !currentState.editingImages
+        }
+      }
+    })
+  }
+
+  // 이미지 저장 핸들러
+  const saveImageUrls = async (hotelId: string, sabreId: string) => {
+    const state = imageManagementState[hotelId]
+    if (!state) {
+      console.error('이미지 상태를 찾을 수 없습니다:', hotelId)
+      return
+    }
+
+    setImageManagementState(prev => {
+      const currentState = prev[hotelId]
+      if (!currentState) return prev
+      
+      return {
+        ...prev,
+        [hotelId]: {
+          ...currentState,
+          saving: true,
+          error: null,
+          success: null
+        }
+      }
+    })
+
+    try {
+      const response = await fetch('/api/hotel/update-images', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sabre_id: sabreId,
+          image_1: state.imageUrls.image_1 || null,
+          image_2: state.imageUrls.image_2 || null,
+          image_3: state.imageUrls.image_3 || null,
+          image_4: state.imageUrls.image_4 || null,
+          image_5: state.imageUrls.image_5 || null,
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`API 오류 (${response.status}): ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          if (!currentState) return prev
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
+              saving: false,
+              success: '이미지 URL이 성공적으로 저장되었습니다.',
+              editingImages: false
+            }
+          }
+        })
+      } else {
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          if (!currentState) return prev
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
+              saving: false,
+              error: data.error || '이미지 URL 저장에 실패했습니다.'
+            }
+          }
+        })
+      }
+    } catch (err) {
+      console.error('이미지 저장 오류:', err)
+      setImageManagementState(prev => {
+        const currentState = prev[hotelId]
+        if (!currentState) return prev
+        
+        return {
+          ...prev,
+          [hotelId]: {
+            ...currentState,
+            saving: false,
+            error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
+          }
+        }
+      })
+    }
+  }
 
   // rate_plan_code를 배열로 변환하는 유틸리티 함수
   const parseRatePlanCode = (ratePlanCode: string[] | string | null): string[] => {
@@ -383,20 +1014,75 @@ export default function HotelSearchWidget({
       sabre_id_type: typeof hotel.sabre_id,
       sabre_id_value: hotel.sabre_id,
       property_name_ko: hotel.property_name_ko,
-      onHotelSelect_exists: !!onHotelSelect
+      onHotelSelect_exists: !!onHotelSelect,
+      enableImageManagement: enableImageManagement
     });
+    
+    // 이미지 관리 모드가 활성화된 경우
+    if (enableImageManagement) {
+      console.log('🖼️ 이미지 관리 모드 활성화됨:', {
+        hotel: hotel,
+        sabre_id: hotel.sabre_id,
+        sabre_id_type: typeof hotel.sabre_id
+      });
+      
+      if (hotel.sabre_id !== null && hotel.sabre_id !== undefined) {
+        const hotelId = String(hotel.sabre_id);
+        console.log('🖼️ 호텔 ID:', hotelId);
+        
+        // 확장 패널 토글
+        if (expandedRowId === hotelId) {
+          console.log('🖼️ 이미지 패널 닫기');
+          setExpandedRowId(null);
+          setExpandedRowState(null);
+        } else {
+          console.log('🖼️ 이미지 패널 열기');
+          setExpandedRowId(hotelId);
+          setExpandedRowState({
+            type: 'image-management',
+            hotelId: hotelId,
+            hotel: hotel,
+            currencyCode: 'KRW',
+            adults: 2,
+            startDate: getDateAfterDays(14),
+            endDate: getDateAfterDays(15),
+            selectedRatePlanCodes: [],
+            originalRatePlanCodes: [],
+            isLoading: false,
+            isSaving: false,
+            testResult: null,
+            error: null,
+            saveSuccess: false
+          });
+          
+          // 이미지 데이터 로드
+          console.log('🖼️ 이미지 데이터 로드 시작:', hotel.sabre_id);
+          fetchHotelImages(hotel.sabre_id);
+        }
+        return;
+      } else {
+        console.log('❌ 이미지 관리 모드에서 sabre_id가 없는 호텔 클릭됨');
+        return;
+      }
+    }
     
     // onHotelSelect 콜백이 있는 경우 호출
     if (onHotelSelect) {
       if (hotel.sabre_id !== null && hotel.sabre_id !== undefined) {
         // sabre_id를 문자열로 변환
         const sabreIdString = String(hotel.sabre_id);
+        const hotelInfo = {
+          sabre_id: sabreIdString,
+          property_name_ko: hotel.property_name_ko,
+          property_name_en: hotel.property_name_en
+        };
         console.log('✅ onHotelSelect 호출 (sabre_id 있음):', {
           original: hotel.sabre_id,
           converted: sabreIdString,
-          type: typeof sabreIdString
+          type: typeof sabreIdString,
+          hotelInfo: hotelInfo
         });
-        onHotelSelect(sabreIdString);
+        onHotelSelect(sabreIdString, hotelInfo);
         return;
       } else {
         console.log('❌ onHotelSelect 호출 (sabre_id 없음):', {
@@ -429,7 +1115,9 @@ export default function HotelSearchWidget({
       // 새 패널 열기
       setExpandedRowId(hotelId);
       setExpandedRowState({
+        type: 'hotel-details',
         hotelId,
+        hotel: hotel,
         currencyCode: 'KRW',
         adults: 2,
         startDate: getDateAfterDays(14),
@@ -1138,7 +1826,23 @@ export default function HotelSearchWidget({
                           <td colSpan={5} className="px-0 py-0 w-full max-w-full overflow-x-hidden">
                             <div className="bg-gray-50 border-t border-gray-200 w-full max-w-full">
                               <div className="px-6 py-6 w-full max-w-full">
-                                {/* 패널 헤더 */}
+                                {/* 이미지 관리 모드 */}
+                                {expandedRowState.type === 'image-management' && expandedRowState.hotel && (
+                                  <ImageManagementPanel 
+                                    hotel={expandedRowState.hotel}
+                                    hotelId={hotelId}
+                                    state={imageManagementState[hotelId]}
+                                    onImageUrlChange={handleImageUrlChange}
+                                    onToggleEditMode={toggleImageEditMode}
+                                    onSaveImageUrls={saveImageUrls}
+                                    formatFileSize={formatFileSize}
+                                  />
+                                )}
+                                
+                                {/* 기존 패널 헤더 (이미지 관리 모드가 아닐 때만) */}
+                                {expandedRowState.type !== 'image-management' && (
+                                  <>
+                                    {/* 패널 헤더 */}
                                 <div className="flex items-center justify-between mb-6">
                                   <h4 className="text-lg font-medium text-gray-900">
                                     호텔 상세 정보 테스트
@@ -1450,6 +2154,8 @@ export default function HotelSearchWidget({
                                     <Play className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                                     <p className="text-sm">Test 버튼을 클릭하여 API를 테스트하세요</p>
                                   </div>
+                                )}
+                                  </>
                                 )}
                               </div>
                             </div>
