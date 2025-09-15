@@ -207,7 +207,7 @@ export default function DataMigrationPage() {
 
     try {
       // sabre_id를 제외한 데이터만 전송
-      const { sabre_id, ...hotelData } = editingData
+      const { sabre_id: _sabre_id, ...hotelData } = editingData
 
       const response = await fetch('/api/hotel/create', {
         method: 'POST',
@@ -322,7 +322,7 @@ export default function DataMigrationPage() {
       return
     }
 
-    const mappedColumns = Object.entries(columnMapping).filter(([_, target]) => target)
+    const mappedColumns = Object.entries(columnMapping).filter(([, target]) => target)
     if (mappedColumns.length === 0) {
       alert('컬럼 매핑을 설정해주세요')
       return

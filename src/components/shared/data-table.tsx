@@ -11,14 +11,14 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-interface DataTableColumn<T = Record<string, unknown>> {
+interface DataTableColumn {
   key: string
   label: string
   width?: string
   render?: (value: unknown, row: Record<string, unknown>) => React.ReactNode
 }
 
-interface DataTableAction<T = Record<string, unknown>> {
+interface DataTableAction {
   label: string
   icon: React.ReactNode
   onClick: (row: Record<string, unknown>) => void
@@ -30,8 +30,8 @@ interface DataTableProps<T = Record<string, unknown>> {
   title: string
   subtitle?: string
   data: T[]
-  columns: DataTableColumn<T>[]
-  actions?: DataTableAction<T>[]
+  columns: DataTableColumn[]
+  actions?: DataTableAction[]
   loading?: boolean
   emptyState?: {
     icon?: React.ReactNode
@@ -191,7 +191,7 @@ export function FeatureSlotTable({
   onUpsert?: (row: Record<string, unknown>) => void
   showUpsert?: boolean
 }) {
-  const columns: DataTableColumn<Record<string, unknown>>[] = [
+  const columns: DataTableColumn[] = [
     {
       key: 'id',
       label: 'ID',
@@ -237,7 +237,7 @@ export function FeatureSlotTable({
     }
   ]
 
-  const actions: DataTableAction<Record<string, unknown>>[] = []
+  const actions: DataTableAction[] = []
   
   if (onEdit) {
     actions.push({

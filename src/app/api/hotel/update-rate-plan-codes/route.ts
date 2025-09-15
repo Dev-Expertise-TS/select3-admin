@@ -6,7 +6,7 @@ import {
   removeInvalidCode, 
   getFirstValidCode 
 } from '@/lib/rate-plan-validator';
-import { isSupabaseError, isJsonParseError } from '@/lib/type-guards';
+import { isSupabaseError } from '@/lib/type-guards';
 
 // 요청 타입 정의
 interface UpdateRatePlanCodesRequest {
@@ -148,7 +148,7 @@ export async function PATCH(request: NextRequest) {
     console.error('API route error:', error);
     
     // JSON 파싱 오류 등 처리
-    if (isJsonParseError(error)) {
+    if (error instanceof SyntaxError) {
       return NextResponse.json(
         { success: false, error: 'Invalid JSON format' },
         { status: 400 }

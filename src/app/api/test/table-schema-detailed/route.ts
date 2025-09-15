@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       const notNullFields = sampleData && sampleData.length > 0 
         ? Object.entries(sampleData[0])
             .filter(([, value]) => value !== null && value !== undefined)
-            .map(([key]) => key)
+            .map(([key,]) => key)
         : []
 
       return NextResponse.json(

@@ -31,20 +31,20 @@ interface HotelInfo {
   description?: string
 }
 
-interface HotelDetailsResponse {
-  success: boolean
-  data?: {
-    HotelDetailsInfo?: {
-      HotelInfo?: HotelInfo
-    }
-    // 기존 구조도 지원
-    sabre_id?: string
-    property_name_ko?: string
-    property_name_en?: string
-    [key: string]: unknown
-  }
-  error?: string
-}
+// interface HotelDetailsResponse {
+//   success: boolean
+//   data?: {
+//     HotelDetailsInfo?: {
+//       HotelInfo?: HotelInfo
+//     }
+//     // 기존 구조도 지원
+//     sabre_id?: string
+//     property_name_ko?: string
+//     property_name_en?: string
+//     [key: string]: unknown
+//   }
+//   error?: string
+// }
 
 interface SabreHotelResponse {
   success: boolean

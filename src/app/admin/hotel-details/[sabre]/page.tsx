@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { Image as ImageIcon, X, ChevronLeft, ChevronRight, Building2, MapPin, Star } from 'lucide-react'
+import { Image as ImageIcon, X, ChevronLeft, ChevronRight, Building2, MapPin } from 'lucide-react'
 import NextImage from 'next/image'
-import { cn } from '@/lib/utils'
 
 interface HotelImage {
   id: string

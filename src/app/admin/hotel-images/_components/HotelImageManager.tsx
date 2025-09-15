@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Image as ImageIcon, Save, Edit3, Eye, EyeOff } from 'lucide-react'
+import { Image as ImageIcon, Save, Edit3, EyeOff } from 'lucide-react'
 import NextImage from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

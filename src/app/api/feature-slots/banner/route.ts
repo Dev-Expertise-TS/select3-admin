@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 
 // GET: 상단 베너 슬롯 조회
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const supabase = createServiceRoleClient()
 
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     const surface = '상단베너'
 
     // 기존 상단 베너가 있는지 확인
-    const { data: existingData, error: checkError } = await supabase
+    const { data: existingData, error: _checkError } = await supabase
       .from('select_feature_slots')
       .select('id')
       .eq('surface', surface)
@@ -227,7 +227,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // DELETE: 상단 베너 슬롯 삭제
-export async function DELETE(request: NextRequest) {
+export async function DELETE(_request: NextRequest) {
   try {
     const supabase = createServiceRoleClient()
 

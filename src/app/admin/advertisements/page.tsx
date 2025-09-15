@@ -153,7 +153,7 @@ export default function AdminAdvertisementsPage() {
                           <div className="flex items-start space-x-4">
                             <div className="flex-shrink-0">
                               <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
-                                <Image className="h-8 w-8 text-gray-400" />
+                                <Image className="h-8 w-8 text-gray-400"  />
                               </div>
                             </div>
                             <div className="flex-1 min-w-0">

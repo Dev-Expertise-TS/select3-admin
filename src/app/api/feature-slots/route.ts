@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 
 // GET: select_feature_slots 목록 조회
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const supabase = createServiceRoleClient()
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     const surface = '히어로' // 히어로 캐러셀은 항상 '히어로' surface 사용
 
     // 중복 검사
-    const { data: existingData, error: checkError } = await supabase
+    const { data: existingData, error: _checkError } = await supabase
       .from('select_feature_slots')
       .select('id')
       .eq('sabre_id', sabre_id)
