@@ -131,32 +131,36 @@ export function DataTable({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {data.map((row, index) => (
-                <tr key={row.id || index} className="hover:bg-gray-50">
-                  {columns.map((column) => (
-                    <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {column.render ? column.render(row[column.key], row) : row[column.key]}
-                    </td>
-                  ))}
-                  {actions.length > 0 && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex gap-2">
-                        {actions.map((action, actionIndex) => (
-                          <Button
-                            key={actionIndex}
-                            size="sm"
-                            variant={action.variant || 'outline'}
-                            onClick={() => action.onClick(row)}
-                            className={action.className}
-                          >
-                            {action.icon}
-                          </Button>
-                        ))}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
+              {data.map((row, index) => {
+                const rowData = row as Record<string, unknown>
+                const rowId = typeof rowData.id === 'string' || typeof rowData.id === 'number' ? rowData.id : index
+                return (
+                  <tr key={rowId} className="hover:bg-gray-50">
+                    {columns.map((column) => (
+                      <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {column.render ? column.render(rowData[column.key], rowData) : String(rowData[column.key] ?? '')}
+                      </td>
+                    ))}
+                    {actions.length > 0 && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex gap-2">
+                          {actions.map((action, actionIndex) => (
+                            <Button
+                              key={actionIndex}
+                              size="sm"
+                              variant={action.variant || 'outline'}
+                              onClick={() => action.onClick(rowData)}
+                              className={action.className}
+                            >
+                              {action.icon}
+                            </Button>
+                          ))}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -198,17 +202,20 @@ export function FeatureSlotTable({
       label: 'Sabre ID',
       width: '120px',
       render: (value) => (
-        <span className="font-mono text-blue-600">{value}</span>
+        <span className="font-mono text-blue-600">{String(value ?? '')}</span>
       )
     },
     {
       key: 'select_hotels',
       label: '호텔명',
-      render: (value) => (
-        <span className="text-gray-900">
-          {value?.property_name_ko || '호텔 정보 없음'}
-        </span>
-      )
+      render: (value) => {
+        const hotelData = value as Record<string, unknown> | null
+        return (
+          <span className="text-gray-900">
+            {hotelData?.property_name_ko ? String(hotelData.property_name_ko) : '호텔 정보 없음'}
+          </span>
+        )
+      }
     },
     {
       key: 'slot_key',
@@ -219,11 +226,14 @@ export function FeatureSlotTable({
       key: 'created_at',
       label: '생성일',
       width: '120px',
-      render: (value) => (
-        <span className="text-gray-500">
-          {new Date(value).toLocaleDateString('ko-KR')}
-        </span>
-      )
+      render: (value) => {
+        const dateValue = typeof value === 'string' || typeof value === 'number' ? value : new Date().toISOString()
+        return (
+          <span className="text-gray-500">
+            {new Date(dateValue).toLocaleDateString('ko-KR')}
+          </span>
+        )
+      }
     }
   ]
 
