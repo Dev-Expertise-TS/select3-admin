@@ -11,27 +11,27 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-interface DataTableColumn {
+interface DataTableColumn<T = Record<string, unknown>> {
   key: string
   label: string
   width?: string
-  render?: (value: unknown, row: unknown) => React.ReactNode
+  render?: (value: unknown, row: T) => React.ReactNode
 }
 
-interface DataTableAction {
+interface DataTableAction<T = Record<string, unknown>> {
   label: string
   icon: React.ReactNode
-  onClick: (row: unknown) => void
+  onClick: (row: T) => void
   variant?: 'default' | 'outline' | 'destructive'
   className?: string
 }
 
-interface DataTableProps {
+interface DataTableProps<T = Record<string, unknown>> {
   title: string
   subtitle?: string
-  data: unknown[]
-  columns: DataTableColumn[]
-  actions?: DataTableAction[]
+  data: T[]
+  columns: DataTableColumn<T>[]
+  actions?: DataTableAction<T>[]
   loading?: boolean
   emptyState?: {
     icon?: React.ReactNode
@@ -46,7 +46,7 @@ interface DataTableProps {
   addButtonClassName?: string
 }
 
-export function DataTable({
+export function DataTable<T = Record<string, unknown>>({
   title,
   subtitle,
   data,
@@ -58,7 +58,7 @@ export function DataTable({
   addButtonLabel = '새 항목 추가',
   addButtonIcon = <Plus className="h-4 w-4" />,
   addButtonClassName = 'bg-purple-600 hover:bg-purple-700'
-}: DataTableProps) {
+}: DataTableProps<T>) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       {/* 헤더 */}
@@ -132,10 +132,10 @@ export function DataTable({
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {data.map((row, index) => (
-                <tr key={row.id || index} className="hover:bg-gray-50">
+                <tr key={String((row as Record<string, unknown>).id) || index} className="hover:bg-gray-50">
                   {columns.map((column) => (
                     <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {column.render ? column.render(row[column.key], row) : row[column.key]}
+                      {column.render ? column.render((row as Record<string, unknown>)[column.key], row) : String((row as Record<string, unknown>)[column.key] ?? '')}
                     </td>
                   ))}
                   {actions.length > 0 && (
@@ -179,15 +179,15 @@ export function FeatureSlotTable({
 }: {
   title: string
   subtitle?: string
-  data: unknown[]
+  data: Record<string, unknown>[]
   loading?: boolean
   onAdd?: () => void
-  onEdit?: (row: unknown) => void
-  onDelete?: (row: unknown) => void
-  onUpsert?: (row: unknown) => void
+  onEdit?: (row: Record<string, unknown>) => void
+  onDelete?: (row: Record<string, unknown>) => void
+  onUpsert?: (row: Record<string, unknown>) => void
   showUpsert?: boolean
 }) {
-  const columns: DataTableColumn[] = [
+  const columns: DataTableColumn<Record<string, unknown>>[] = [
     {
       key: 'id',
       label: 'ID',
@@ -198,7 +198,7 @@ export function FeatureSlotTable({
       label: 'Sabre ID',
       width: '120px',
       render: (value) => (
-        <span className="font-mono text-blue-600">{value}</span>
+        <span className="font-mono text-blue-600">{String(value ?? '')}</span>
       )
     },
     {
@@ -206,7 +206,7 @@ export function FeatureSlotTable({
       label: '호텔명',
       render: (value) => (
         <span className="text-gray-900">
-          {value?.property_name_ko || '호텔 정보 없음'}
+          {String((value as Record<string, unknown>)?.property_name_ko) || '호텔 정보 없음'}
         </span>
       )
     },
@@ -221,13 +221,13 @@ export function FeatureSlotTable({
       width: '120px',
       render: (value) => (
         <span className="text-gray-500">
-          {new Date(value).toLocaleDateString('ko-KR')}
+          {new Date(String(value)).toLocaleDateString('ko-KR')}
         </span>
       )
     }
   ]
 
-  const actions: DataTableAction[] = []
+  const actions: DataTableAction<Record<string, unknown>>[] = []
   
   if (onEdit) {
     actions.push({

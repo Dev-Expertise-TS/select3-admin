@@ -525,29 +525,30 @@ export default function SabreIdManager() {
                   {dbSearchResults.map((hotelData, index) => {
                     const hotel = hotelData as Record<string, unknown>
                     return (
-                    <div key={index} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-500">Sabre ID</h4>
-                          <p className="text-lg font-bold text-blue-600 font-mono">
-                            {(hotel.sabre_id as string) || '-'}
-                          </p>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-500">호텔명 (영문)</h4>
-                          <p className="text-base font-semibold text-gray-900">
-                            {(hotel.property_name_en as string) || '-'}
-                          </p>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-500">호텔명 (한글)</h4>
-                          <p className="text-base font-semibold text-gray-900">
-                            {(hotel.property_name_kr as string) || '-'}
-                          </p>
+                      <div key={index} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <div>
+                            <h4 className="text-sm font-medium text-gray-500">Sabre ID</h4>
+                            <p className="text-lg font-bold text-blue-600 font-mono">
+                              {(hotel.sabre_id as string) || '-'}
+                            </p>
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-medium text-gray-500">호텔명 (영문)</h4>
+                            <p className="text-base font-semibold text-gray-900">
+                              {(hotel.property_name_en as string) || '-'}
+                            </p>
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-medium text-gray-500">호텔명 (한글)</h4>
+                            <p className="text-base font-semibold text-gray-900">
+                              {(hotel.property_name_kr as string) || '-'}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
