@@ -134,17 +134,28 @@ export default function SabreIdManager() {
       }
 
       if (data.success && data.data) {
+        const responseData = data.data as Record<string, unknown>
+        
         // 실제 Sabre API 응답 구조 (GetHotelDetailsRS.HotelDetailsInfo.HotelInfo) 처리
-        if (typeof data.data === 'object' && 'GetHotelDetailsRS' in data.data && data.data.GetHotelDetailsRS?.HotelDetailsInfo?.HotelInfo) {
-          setHotelInfo(data.data.GetHotelDetailsRS.HotelDetailsInfo.HotelInfo)
+        if (typeof responseData === 'object' && 'GetHotelDetailsRS' in responseData) {
+          const getHotelDetailsRS = responseData.GetHotelDetailsRS as Record<string, unknown>
+          if (getHotelDetailsRS && typeof getHotelDetailsRS === 'object' && 'HotelDetailsInfo' in getHotelDetailsRS) {
+            const hotelDetailsInfo = getHotelDetailsRS.HotelDetailsInfo as Record<string, unknown>
+            if (hotelDetailsInfo && typeof hotelDetailsInfo === 'object' && 'HotelInfo' in hotelDetailsInfo) {
+              setHotelInfo(hotelDetailsInfo.HotelInfo as HotelInfo)
+            }
+          }
         }
         // 백업 구조 (HotelDetailsInfo.HotelInfo) 처리
-        else if (typeof data.data === 'object' && 'HotelDetailsInfo' in data.data && data.data.HotelDetailsInfo?.HotelInfo) {
-          setHotelInfo(data.data.HotelDetailsInfo.HotelInfo)
+        else if (typeof responseData === 'object' && 'HotelDetailsInfo' in responseData) {
+          const hotelDetailsInfo = responseData.HotelDetailsInfo as Record<string, unknown>
+          if (hotelDetailsInfo && typeof hotelDetailsInfo === 'object' && 'HotelInfo' in hotelDetailsInfo) {
+            setHotelInfo(hotelDetailsInfo.HotelInfo as HotelInfo)
+          }
         }
         // 직접 HotelInfo 객체인 경우
-        else if (typeof data.data === 'object' && ('HotelName' in data.data || 'SabreHotelCode' in data.data)) {
-          setHotelInfo(data.data as HotelInfo)
+        else if (typeof responseData === 'object' && ('HotelName' in responseData || 'SabreHotelCode' in responseData)) {
+          setHotelInfo(responseData as HotelInfo)
         }
         else {
           console.error('예상치 못한 응답 구조:', data.data)
