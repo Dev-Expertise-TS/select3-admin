@@ -510,9 +510,6 @@ function HotelBlogsManager() {
           blog={editingBlog}
           onSave={() => {
             loadBlogs()
-            setShowCreateModal(false)
-            setShowEditModal(false)
-            setEditingBlog(null)
           }}
         />
       )}
@@ -574,11 +571,13 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setSuccessMessage(null)
 
     try {
       const url = blog ? `/api/hotel-articles/${blog.id}` : '/api/hotel-articles'
@@ -595,6 +594,8 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
       const result = await response.json()
 
       if (result.success) {
+        setSuccessMessage(blog ? '블로그가 성공적으로 수정되었습니다.' : '블로그가 성공적으로 생성되었습니다.')
+        // 블로그 목록 새로고침
         onSave()
       } else {
         setError(result.error || '저장에 실패했습니다.')
@@ -643,6 +644,15 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
               <div className="flex items-center gap-2">
                 <div className="text-red-600">⚠️</div>
                 <p className="text-red-800">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <div className="text-green-600">✅</div>
+                <p className="text-green-800">{successMessage}</p>
               </div>
             </div>
           )}
