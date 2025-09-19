@@ -1,36 +1,21 @@
-import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import { createApiSuccessResponse, createApiErrorResponse, withErrorHandling } from '@/lib/api-utils'
+import type { BenefitRow } from '@/types/benefits'
 
-interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: string
-}
+export const GET = withErrorHandling(async () => {
+  const supabase = createServiceRoleClient()
+  
+  const { data, error } = await supabase
+    .from('select_hotel_benefits')
+    .select('benefit_id, benefit, benefit_description, start_date, end_date')
+    .order('benefit', { ascending: true })
 
-type Row = {
-  benefit_id: string | number | null
-  benefit: string | null
-  benefit_description: string | null
-  start_date: string | null
-  end_date: string | null
-}
-
-export async function GET() {
-  try {
-    const supabase = createServiceRoleClient()
-    const { data, error } = await supabase
-      .from('select_hotel_benefits')
-      .select('benefit_id, benefit, benefit_description, start_date, end_date')
-      .order('benefit', { ascending: true })
-
-    if (error) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json<ApiResponse<Row[]>>({ success: true, data: (data as Row[]) ?? [] }, { status: 200 })
-  } catch {
-    return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Internal server error' }, { status: 500 })
+  if (error) {
+    throw error
   }
-}
+
+  const benefits = (data as BenefitRow[]) ?? []
+  return createApiSuccessResponse(benefits)
+})
 
 

@@ -13,6 +13,7 @@ import {
 import { AuthGuard } from '@/components/shared/auth-guard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { HotelAutocomplete } from '@/components/shared/hotel-autocomplete'
 import { cn } from '@/lib/utils'
 
 interface HotelBlog {
@@ -427,7 +428,8 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
       formData.s10_sabre_id,
       formData.s11_sabre_id,
       formData.s12_sabre_id
-    ].filter(id => id && typeof id === 'string' && id.trim())
+    ].filter(id => id && String(id).trim())
+      .map(id => String(id).trim())
 
     if (sabreIds.length === 0) {
       setHotelInfo({})
@@ -444,7 +446,9 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
       })
 
       const result = await response.json()
+      console.log('호텔 정보 로드 응답:', result)
       if (result.success) {
+        console.log('호텔 정보 설정:', result.data)
         setHotelInfo(result.data)
       }
     } catch (err) {
@@ -600,17 +604,22 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Sabre ID
                   </label>
-                  <Input
-                    type="text"
+                  <HotelAutocomplete
                     value={formData[`s${sectionNum}_sabre_id` as keyof typeof formData] as string}
-                    onChange={(e) => setFormData(prev => ({ ...prev, [`s${sectionNum}_sabre_id`]: e.target.value }))}
-                    placeholder={`섹션 ${sectionNum} 호텔 Sabre ID`}
+                    onChange={(value) => setFormData(prev => ({ ...prev, [`s${sectionNum}_sabre_id`]: value }))}
+                    placeholder={`섹션 ${sectionNum} 호텔명 또는 Sabre ID 입력`}
                   />
                   {formData[`s${sectionNum}_sabre_id` as keyof typeof formData] && (
                     <div className="mt-1">
                       {(() => {
-                        const sabreId = formData[`s${sectionNum}_sabre_id` as keyof typeof formData] as string
+                        const sabreId = String(formData[`s${sectionNum}_sabre_id` as keyof typeof formData] || '').trim()
                         const hotel = hotelInfo[sabreId]
+                        console.log(`섹션 ${sectionNum} 호텔 정보:`, {
+                          sabreId,
+                          hotel,
+                          hotelInfo,
+                          allKeys: Object.keys(hotelInfo)
+                        })
                         return hotel ? (
                           <div className="text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
                             ✓ {hotel.property_name_ko}

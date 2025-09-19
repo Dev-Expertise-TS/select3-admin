@@ -173,6 +173,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const query = searchParams.get('q')
 
+    console.log('호텔 검색 API 호출:', { query, url: request.url })
+
     const result = await searchHotels(query || '')
     
     return NextResponse.json(

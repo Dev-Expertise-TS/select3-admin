@@ -4,13 +4,7 @@ import React from 'react'
 import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
 
-export type BenefitRow = {
-  benefit_id: string | number
-  benefit: string | null
-  benefit_description: string | null
-  start_date: string | null
-  end_date: string | null
-}
+import type { BenefitRow } from '@/types/benefits'
 
 interface Props {
   initial: BenefitRow[]

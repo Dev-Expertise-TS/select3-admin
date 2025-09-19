@@ -2,6 +2,8 @@
 // 호텔 관련 타입 정의
 // ============================================================================
 
+import type { ApiResponse } from './api'
+
 // 호텔 검색 요청 타입
 export interface SearchHotelRequest {
   searching_string: string
@@ -29,18 +31,6 @@ export interface HotelUpdateRequest {
   brand_id?: string
   rate_plan_code?: string[]
   property_details?: string
-}
-
-// ============================================================================
-// API 응답 타입
-// ============================================================================
-
-// 기본 API 응답 타입
-export interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: string
-  count?: number
 }
 
 // 호텔 검색 API 응답 타입
