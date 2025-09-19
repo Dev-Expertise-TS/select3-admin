@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
           .select(`
             sabre_id,
             property_name_en,
-            property_name_kr
+            property_name_ko
           `)
           .or(`sabre_id.eq.${query},property_name_en.ilike.%${query}%`)
       } else {
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
           .select(`
             sabre_id,
             property_name_en,
-            property_name_kr
+            property_name_ko
           `)
           .ilike('property_name_en', `%${query}%`)
       }

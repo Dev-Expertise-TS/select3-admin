@@ -542,7 +542,7 @@ export default function SabreIdManager() {
                           <div>
                             <h4 className="text-sm font-medium text-gray-500">호텔명 (한글)</h4>
                             <p className="text-base font-semibold text-gray-900">
-                              {(hotel.property_name_kr as string) || '-'}
+                              {(hotel.property_name_ko as string) || '-'}
                             </p>
                           </div>
                         </div>
