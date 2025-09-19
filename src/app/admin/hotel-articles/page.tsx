@@ -8,7 +8,8 @@ import {
   Edit, 
   Trash2, 
   Loader2,
-  Calendar
+  Calendar,
+  Eye
 } from 'lucide-react'
 import { AuthGuard } from '@/components/shared/auth-guard'
 import { Button } from '@/components/ui/button'
@@ -53,7 +54,7 @@ interface HotelBlog {
 
 export default function AdminHotelArticlesPage() {
   return (
-    <AuthGuard requiredRole="admin">
+    <AuthGuard>
       <HotelBlogsManager />
     </AuthGuard>
   )
@@ -70,7 +71,9 @@ function HotelBlogsManager() {
   const [totalCount, setTotalCount] = useState(0)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showViewModal, setShowViewModal] = useState(false)
   const [editingBlog, setEditingBlog] = useState<HotelBlog | null>(null)
+  const [viewingBlog, setViewingBlog] = useState<HotelBlog | null>(null)
 
   // 블로그 목록 로드
   const loadBlogs = async () => {
@@ -118,9 +121,16 @@ function HotelBlogsManager() {
     }
   }
 
+  // 페이지 변경 시 블로그 목록 다시 로드
   useEffect(() => {
     loadBlogs()
-  }, [currentPage, searchTerm, publishFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentPage, searchTerm, publishFilter])
+
+  // 검색 및 필터 핸들러
+  const handleSearch = () => {
+    setCurrentPage(1) // 검색 시 첫 페이지로 이동
+    loadBlogs()
+  }
 
   // 블로그 삭제
   const handleDelete = async (id: number) => {
@@ -130,12 +140,10 @@ function HotelBlogsManager() {
       const response = await fetch(`/api/hotel-articles/${id}`, {
         method: 'DELETE'
       })
-
       const result = await response.json()
 
       if (result.success) {
         loadBlogs()
-        alert('블로그가 성공적으로 삭제되었습니다.')
       } else {
         alert(result.error || '블로그 삭제에 실패했습니다.')
       }
@@ -146,16 +154,15 @@ function HotelBlogsManager() {
   }
 
   // 발행 상태 변경
-  const handlePublishChange = async (id: number, newPublish: boolean) => {
+  const handlePublishChange = async (id: number, publish: boolean) => {
     try {
       const response = await fetch(`/api/hotel-articles/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ publish: newPublish })
+        body: JSON.stringify({ publish })
       })
-
       const result = await response.json()
 
       if (result.success) {
@@ -170,7 +177,9 @@ function HotelBlogsManager() {
   }
 
   const getPublishColor = (publish: boolean) => {
-    return publish ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+    return publish 
+      ? "bg-green-100 text-green-800" 
+      : "bg-yellow-100 text-yellow-800"
   }
 
   const getPublishText = (publish: boolean) => {
@@ -215,7 +224,7 @@ function HotelBlogsManager() {
               <option value="false">초안</option>
             </select>
           </div>
-          <Button onClick={() => setShowCreateModal(true)}>
+          <Button onClick={() => setShowCreateModal(true)} className="cursor-pointer">
             <Plus className="h-4 w-4 mr-2" />
             새 블로그
           </Button>
@@ -224,13 +233,16 @@ function HotelBlogsManager() {
 
       {/* 에러 메시지 */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-sm text-red-600">{error}</p>
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <div className="text-red-600">⚠️</div>
+            <p className="text-red-800">{error}</p>
+          </div>
         </div>
       )}
 
       {/* 블로그 목록 */}
-      <div className="bg-white rounded-lg border">
+      <div className="bg-white rounded-lg border overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -312,9 +324,22 @@ function HotelBlogsManager() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
+                        setViewingBlog(blog)
+                        setShowViewModal(true)
+                      }}
+                      className="text-blue-600 hover:text-blue-700 cursor-pointer"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
                         setEditingBlog(blog)
                         setShowEditModal(true)
                       }}
+                      className="cursor-pointer"
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -322,7 +347,7 @@ function HotelBlogsManager() {
                     <button
                       onClick={() => handlePublishChange(blog.id, !blog.publish)}
                       className={cn(
-                        "text-xs px-2 py-1 border rounded",
+                        "text-xs px-2 py-1 border rounded cursor-pointer",
                         blog.publish 
                           ? "bg-green-100 text-green-800 border-green-200" 
                           : "bg-yellow-100 text-yellow-800 border-yellow-200"
@@ -335,7 +360,7 @@ function HotelBlogsManager() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleDelete(blog.id)}
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 cursor-pointer"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -360,7 +385,7 @@ function HotelBlogsManager() {
                   variant="outline"
                   onClick={() => setCurrentPage(1)}
                   disabled={currentPage === 1}
-                  className="px-2"
+                  className="px-2 cursor-pointer"
                 >
                   «
                 </Button>
@@ -371,6 +396,7 @@ function HotelBlogsManager() {
                   variant="outline"
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
+                  className="cursor-pointer"
                 >
                   이전
                 </Button>
@@ -390,7 +416,7 @@ function HotelBlogsManager() {
                           size="sm"
                           variant="outline"
                           onClick={() => setCurrentPage(1)}
-                          className="px-3"
+                          className="px-3 cursor-pointer"
                         >
                           1
                         </Button>
@@ -412,7 +438,7 @@ function HotelBlogsManager() {
                           size="sm"
                           variant={i === currentPage ? "default" : "outline"}
                           onClick={() => setCurrentPage(i)}
-                          className="px-3"
+                          className="px-3 cursor-pointer"
                         >
                           {i}
                         </Button>
@@ -434,7 +460,7 @@ function HotelBlogsManager() {
                           size="sm"
                           variant="outline"
                           onClick={() => setCurrentPage(totalPages)}
-                          className="px-3"
+                          className="px-3 cursor-pointer"
                         >
                           {totalPages}
                         </Button>
@@ -451,6 +477,7 @@ function HotelBlogsManager() {
                   variant="outline"
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
+                  className="cursor-pointer"
                 >
                   다음
                 </Button>
@@ -461,7 +488,7 @@ function HotelBlogsManager() {
                   variant="outline"
                   onClick={() => setCurrentPage(totalPages)}
                   disabled={currentPage === totalPages}
-                  className="px-2"
+                  className="px-2 cursor-pointer"
                 >
                   »
                 </Button>
@@ -487,6 +514,18 @@ function HotelBlogsManager() {
             setShowEditModal(false)
             setEditingBlog(null)
           }}
+        />
+      )}
+
+      {/* 블로그 보기 모달 */}
+      {showViewModal && (
+        <BlogViewModal
+          isOpen={showViewModal}
+          onClose={() => {
+            setShowViewModal(false)
+            setViewingBlog(null)
+          }}
+          blog={viewingBlog}
         />
       )}
     </div>
@@ -535,57 +574,6 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hotelInfo, setHotelInfo] = useState<Record<string, { sabre_id: string; property_name_ko: string; property_name_en: string }>>({})
-
-  // 호텔 정보 로드
-  const loadHotelInfo = async () => {
-    const sabreIds = [
-      formData.s1_sabre_id,
-      formData.s2_sabre_id,
-      formData.s3_sabre_id,
-      formData.s4_sabre_id,
-      formData.s5_sabre_id,
-      formData.s6_sabre_id,
-      formData.s7_sabre_id,
-      formData.s8_sabre_id,
-      formData.s9_sabre_id,
-      formData.s10_sabre_id,
-      formData.s11_sabre_id,
-      formData.s12_sabre_id
-    ].filter(id => id && String(id).trim())
-      .map(id => String(id).trim())
-
-    if (sabreIds.length === 0) {
-      setHotelInfo({})
-      return
-    }
-
-    try {
-      const response = await fetch('/api/hotel-articles/hotel-info', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ sabreIds })
-      })
-
-      const result = await response.json()
-      console.log('호텔 정보 로드 응답:', result)
-      if (result.success) {
-        console.log('호텔 정보 설정:', result.data)
-        setHotelInfo(result.data)
-      }
-    } catch (err) {
-      console.error('호텔 정보 로드 오류:', err)
-    }
-  }
-
-  // Sabre ID 변경 시 호텔 정보 로드
-  useEffect(() => {
-    if (isOpen) {
-      loadHotelInfo()
-    }
-  }, [formData.s1_sabre_id, formData.s2_sabre_id, formData.s3_sabre_id, formData.s4_sabre_id, formData.s5_sabre_id, formData.s6_sabre_id, formData.s7_sabre_id, formData.s8_sabre_id, formData.s9_sabre_id, formData.s10_sabre_id, formData.s11_sabre_id, formData.s12_sabre_id, isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -608,12 +596,11 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
 
       if (result.success) {
         onSave()
-        alert(blog ? '블로그가 성공적으로 수정되었습니다.' : '블로그가 성공적으로 생성되었습니다.')
       } else {
         setError(result.error || '저장에 실패했습니다.')
       }
     } catch (err) {
-      console.error('블로그 저장 오류:', err)
+      console.error('저장 오류:', err)
       setError('저장 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
@@ -623,149 +610,163 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="absolute left-1/2 top-1/2 w-[min(95vw,1000px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {blog ? '블로그 편집' : '새 블로그 생성'}
-          </h2>
-          <Button type="button" variant="secondary" size="sm" onClick={onClose}>
-            닫기
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-blue-600 p-2">
+              <Newspaper className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                {blog ? '블로그 수정' : '새 블로그 생성'}
+              </h2>
+              <p className="text-sm text-gray-600">
+                {blog ? '블로그 정보를 수정합니다' : '새로운 블로그를 생성합니다'}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 cursor-pointer"
+          >
+            ✕
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* 폼 */}
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <div className="text-red-600">⚠️</div>
+                <p className="text-red-800">{error}</p>
+              </div>
             </div>
           )}
 
           {/* 기본 정보 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+          <div className="mb-8">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">기본 정보</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Slug *
+                </label>
+                <Input
+                  type="text"
+                  value={formData.slug}
+                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                  placeholder="블로그 URL 슬러그"
+                  required
+                />
+              </div>
+              <div className="flex items-center">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.publish}
+                    onChange={(e) => setFormData({ ...formData, publish: e.target.checked })}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-700">발행</span>
+                </label>
+              </div>
+            </div>
+            <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Slug *
+                제목 *
               </label>
               <Input
                 type="text"
-                value={formData.slug}
-                onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
-                placeholder="블로그 슬러그를 입력하세요"
+                value={formData.main_title}
+                onChange={(e) => setFormData({ ...formData, main_title: e.target.value })}
+                placeholder="블로그 제목"
                 required
               />
             </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="publish"
-                checked={formData.publish}
-                onChange={(e) => setFormData(prev => ({ ...prev, publish: e.target.checked }))}
-                className="h-4 w-4 text-blue-600"
-              />
-              <label htmlFor="publish" className="text-sm font-medium text-gray-700">
-                발행
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                부제목
               </label>
+              <Input
+                type="text"
+                value={formData.sub_title}
+                onChange={(e) => setFormData({ ...formData, sub_title: e.target.value })}
+                placeholder="블로그 부제목"
+              />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              메인 제목 *
-            </label>
-            <Input
-              type="text"
-              value={formData.main_title}
-              onChange={(e) => setFormData(prev => ({ ...prev, main_title: e.target.value }))}
-              placeholder="메인 제목을 입력하세요"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              부제목
-            </label>
-            <Input
-              type="text"
-              value={formData.sub_title}
-              onChange={(e) => setFormData(prev => ({ ...prev, sub_title: e.target.value }))}
-              placeholder="부제목을 입력하세요"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              메인 이미지 URL
-            </label>
-            <Input
-              type="url"
-              value={formData.main_image}
-              onChange={(e) => setFormData(prev => ({ ...prev, main_image: e.target.value }))}
-              placeholder="메인 이미지 URL을 입력하세요"
-            />
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                대표 이미지 URL
+              </label>
+              <Input
+                type="url"
+                value={formData.main_image}
+                onChange={(e) => setFormData({ ...formData, main_image: e.target.value })}
+                placeholder="https://example.com/image.jpg"
+              />
+            </div>
           </div>
 
           {/* 섹션별 내용 */}
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((sectionNum) => (
-            <div key={sectionNum} className="border border-gray-200 rounded-lg p-4">
-              <h3 className="text-md font-medium text-gray-900 mb-3">섹션 {sectionNum}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    내용
-                  </label>
-                  <textarea
-                    value={formData[`s${sectionNum}_contents` as keyof typeof formData] as string}
-                    onChange={(e) => setFormData(prev => ({ ...prev, [`s${sectionNum}_contents`]: e.target.value }))}
-                    placeholder={`섹션 ${sectionNum} 내용을 입력하세요`}
-                    className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+          <div className="space-y-6">
+            <h3 className="text-lg font-medium text-gray-900">섹션별 내용</h3>
+            {[
+              { key: 's1_contents', sabreKey: 's1_sabre_id', title: '섹션 1' },
+              { key: 's2_contents', sabreKey: 's2_sabre_id', title: '섹션 2' },
+              { key: 's3_contents', sabreKey: 's3_sabre_id', title: '섹션 3' },
+              { key: 's4_contents', sabreKey: 's4_sabre_id', title: '섹션 4' },
+              { key: 's5_contents', sabreKey: 's5_sabre_id', title: '섹션 5' },
+              { key: 's6_contents', sabreKey: 's6_sabre_id', title: '섹션 6' },
+              { key: 's7_contents', sabreKey: 's7_sabre_id', title: '섹션 7' },
+              { key: 's8_contents', sabreKey: 's8_sabre_id', title: '섹션 8' },
+              { key: 's9_contents', sabreKey: 's9_sabre_id', title: '섹션 9' },
+              { key: 's10_contents', sabreKey: 's10_sabre_id', title: '섹션 10' },
+              { key: 's11_contents', sabreKey: 's11_sabre_id', title: '섹션 11' },
+              { key: 's12_contents', sabreKey: 's12_sabre_id', title: '섹션 12' }
+            ].map(({ key, sabreKey, title }) => (
+              <div key={key} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-gray-700">{title}</h4>
+                  <div className="w-64">
+                    <HotelAutocomplete
+                      value={formData[sabreKey as keyof typeof formData] as string}
+                      onChange={(value) => {
+                        setFormData({ ...formData, [sabreKey]: value })
+                      }}
+                      placeholder="호텔 검색..."
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sabre ID
-                  </label>
-                  <HotelAutocomplete
-                    value={formData[`s${sectionNum}_sabre_id` as keyof typeof formData] as string}
-                    onChange={(value) => setFormData(prev => ({ ...prev, [`s${sectionNum}_sabre_id`]: value }))}
-                    placeholder={`섹션 ${sectionNum} 호텔명 또는 Sabre ID 입력`}
-                  />
-                  {formData[`s${sectionNum}_sabre_id` as keyof typeof formData] && (
-                    <div className="mt-1">
-                      {(() => {
-                        const sabreId = String(formData[`s${sectionNum}_sabre_id` as keyof typeof formData] || '').trim()
-                        const hotel = hotelInfo[sabreId]
-                        console.log(`섹션 ${sectionNum} 호텔 정보:`, {
-                          sabreId,
-                          hotel,
-                          hotelInfo,
-                          allKeys: Object.keys(hotelInfo)
-                        })
-                        return hotel ? (
-                          <div className="text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
-                            ✓ {hotel.property_name_ko}
-                          </div>
-                        ) : (
-                          <div className="text-sm text-red-600 bg-red-50 px-2 py-1 rounded">
-                            ✗ 호텔을 찾을 수 없습니다
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </div>
+                <textarea
+                  value={formData[key as keyof typeof formData] as string}
+                  onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                  placeholder={`${title} 내용을 입력하세요 (HTML 지원)`}
+                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4">
-            <Button type="button" variant="secondary" onClick={onClose}>
+          {/* 버튼 */}
+          <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={loading}
+              className="cursor-pointer"
+            >
               취소
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 cursor-pointer"
+            >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -782,4 +783,152 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
   )
 }
 
+// 블로그 보기 모달 컴포넌트
+interface BlogViewModalProps {
+  isOpen: boolean
+  onClose: () => void
+  blog: HotelBlog | null
+}
 
+function BlogViewModal({ isOpen, onClose, blog }: BlogViewModalProps) {
+  if (!isOpen || !blog) return null
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-blue-600 p-2">
+              <Newspaper className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">블로그 보기</h2>
+              <p className="text-sm text-gray-600">블로그 내용을 확인합니다</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 cursor-pointer"
+          >
+            ✕
+          </Button>
+        </div>
+
+        {/* 내용 */}
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+          {/* 기본 정보 */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <h3 className="text-lg font-medium text-gray-900">{blog.main_title}</h3>
+              <span className={cn(
+                "px-2 py-1 rounded-full text-xs font-medium",
+                blog.publish 
+                  ? "bg-green-100 text-green-800" 
+                  : "bg-yellow-100 text-yellow-800"
+              )}>
+                {blog.publish ? '발행됨' : '초안'}
+              </span>
+            </div>
+            
+            {blog.sub_title && (
+              <p className="text-gray-600 mb-4">{blog.sub_title}</p>
+            )}
+
+            <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+              <div className="flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                생성일: {new Date(blog.created_at).toLocaleDateString()}
+              </div>
+              <div className="flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                수정일: {new Date(blog.updated_at).toLocaleDateString()}
+              </div>
+              <div className="text-gray-600">
+                Slug: {blog.slug}
+              </div>
+            </div>
+
+            {/* 대표 이미지 */}
+            {blog.main_image && (
+              <div className="mb-6">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">대표 이미지</h4>
+                <div className="max-w-md">
+                  <img
+                    src={blog.main_image}
+                    alt={blog.main_title}
+                    className="w-full h-48 object-cover rounded-lg border"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 섹션별 내용 */}
+          <div className="space-y-6">
+            {[
+              { key: 's1_contents', title: '섹션 1' },
+              { key: 's2_contents', title: '섹션 2' },
+              { key: 's3_contents', title: '섹션 3' },
+              { key: 's4_contents', title: '섹션 4' },
+              { key: 's5_contents', title: '섹션 5' },
+              { key: 's6_contents', title: '섹션 6' },
+              { key: 's7_contents', title: '섹션 7' },
+              { key: 's8_contents', title: '섹션 8' },
+              { key: 's9_contents', title: '섹션 9' },
+              { key: 's10_contents', title: '섹션 10' },
+              { key: 's11_contents', title: '섹션 11' },
+              { key: 's12_contents', title: '섹션 12' }
+            ].map(({ key, title }) => {
+              const content = blog[key as keyof HotelBlog] as string
+              const sabreIdKey = key.replace('_contents', '_sabre_id') as keyof HotelBlog
+              const sabreId = blog[sabreIdKey] as string
+              
+              if (!content || content.trim() === '') return null
+
+              return (
+                <div key={key} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium text-gray-700">{title}</h4>
+                    {sabreId && (
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        호텔 ID: {sabreId}
+                      </span>
+                    )}
+                  </div>
+                  <div 
+                    className="prose prose-sm max-w-none text-gray-600"
+                    dangerouslySetInnerHTML={{ __html: content }}
+                  />
+                </div>
+              )
+            })}
+          </div>
+
+          {/* 내용이 없는 경우 */}
+          {!blog.s1_contents && !blog.s2_contents && !blog.s3_contents && 
+           !blog.s4_contents && !blog.s5_contents && !blog.s6_contents &&
+           !blog.s7_contents && !blog.s8_contents && !blog.s9_contents &&
+           !blog.s10_contents && !blog.s11_contents && !blog.s12_contents && (
+            <div className="text-center py-8 text-gray-500">
+              <Newspaper className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <p>아직 작성된 내용이 없습니다.</p>
+            </div>
+          )}
+        </div>
+
+        {/* 푸터 */}
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+          <Button variant="outline" onClick={onClose} className="cursor-pointer">
+            닫기
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
