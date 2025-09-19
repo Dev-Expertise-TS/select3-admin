@@ -427,6 +427,13 @@ export default function HotelSearchWidget({
   const [suppressSuggest, setSuppressSuggest] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const firstResultRef = useRef<HTMLButtonElement | null>(null);
+
+  // 초기 호텔 목록 로드
+  useEffect(() => {
+    if (showInitialHotels && !hasSearched) {
+      loadInitialHotels();
+    }
+  }, [showInitialHotels, hasSearched]);
   
   // 확장 패널 관련 state
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
@@ -1187,6 +1194,50 @@ export default function HotelSearchWidget({
     return [];
   };
 
+  // 초기 호텔 목록 로드
+  const loadInitialHotels = async () => {
+    setLoading(true);
+    setError(null);
+    setResults([]);
+    setHasSearched(true);
+
+    try {
+      const response = await fetch('/api/hotel/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ searching_string: '' }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        setError(`서버 오류 (${response.status}): ${errorText}`)
+        return
+      }
+
+      const data: HotelSearchApiResponse = await response.json().catch(() => {
+        setError('서버 응답을 파싱할 수 없습니다.')
+        return null
+      })
+
+      if (!data) return
+
+      if (!data.success) {
+        setError(data.error || '초기 호텔 목록을 불러올 수 없습니다.');
+        return;
+      }
+
+      setResults(data.data || []);
+      setCount(data.count || 0);
+    } catch (err) {
+      console.error('Initial hotels load error:', err);
+      setError('초기 호텔 목록을 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 검색 핸들러 + 외부 호출 함수로 분리 (자동완성 Enter 선택 시 재사용)
   const performSearch = async (term: string) => {
     if (!term.trim()) {
@@ -1297,51 +1348,6 @@ export default function HotelSearchWidget({
       loadInitialHotels();
     }
   }, [showInitialHotels]);
-
-  const loadInitialHotels = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/hotel/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          searching_string: '',
-          limit: 5
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        setError(`서버 오류 (${response.status}): ${errorText}`)
-        return
-      }
-
-      const data: HotelSearchApiResponse = await response.json().catch(() => {
-        setError('서버 응답을 파싱할 수 없습니다.')
-        return null
-      })
-
-      if (!data) return
-
-      if (!data.success) {
-        setError(data.error || '초기 호텔 리스트를 불러올 수 없습니다.');
-        return;
-      }
-
-      setResults(data.data || []);
-      setCount(data.count || 0);
-      setHasSearched(true);
-    } catch (error) {
-      console.error('Initial hotels loading failed:', error);
-      setError('초기 호텔 리스트를 불러오는 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // 호텔명 입력 제안 - 호텔 업데이트(영문명)과 동일 UX
   useEffect(() => {

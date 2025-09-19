@@ -3,15 +3,37 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 
 // 공통 검색 함수
 async function searchHotels(query: string) {
+  const supabase = createServiceRoleClient()
+  
+  // 빈 검색어인 경우 초기 호텔 목록 반환 (최근 50개)
   if (!query || query.trim().length === 0) {
+    const { data, error } = await supabase
+      .from('select_hotels')
+      .select(`
+        sabre_id,
+        property_name_ko,
+        property_name_en
+      `)
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    if (error) {
+      console.error('초기 호텔 목록 조회 오류:', error)
+      return {
+        success: false,
+        error: '초기 호텔 목록을 불러올 수 없습니다.',
+        status: 500
+      }
+    }
+
     return {
-      success: false,
-      error: '검색어를 입력해주세요.',
-      status: 400
+      success: true,
+      data: data || [],
+      count: data?.length || 0,
+      status: 200
     }
   }
 
-  const supabase = createServiceRoleClient()
   const trimmedQuery = query.trim()
 
   // 쉼표가 포함된 검색어의 경우 별도 쿼리 실행 (아키텍처 가이드 준수)

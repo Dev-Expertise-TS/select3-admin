@@ -18,7 +18,9 @@ import {
   Building,
   Search,
   Save,
-  Edit3
+  Edit3,
+  CheckSquare,
+  Square
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -55,9 +57,11 @@ export default function DataMigrationPage() {
     selectHotelsColumns: string[]
   } | null>(null)
   const [selectedRecord, setSelectedRecord] = useState<Record<string, string> | null>(null)
+  const [selectedRecords, setSelectedRecords] = useState<Set<number>>(new Set())
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({})
   const [isUploadingCsv, setIsUploadingCsv] = useState(false)
   const [isUpserting, setIsUpserting] = useState(false)
+  const [isBatchUpserting, setIsBatchUpserting] = useState(false)
   const [csvError, setCsvError] = useState('')
   
   // 페이지네이션 상태
@@ -251,6 +255,7 @@ export default function DataMigrationPage() {
           // 기존 데이터 초기화 (같은 이름의 파일이어도 새로 업로드)
       setCsvData(null)
       setSelectedRecord(null)
+      setSelectedRecords(new Set())
       setColumnMapping({})
       setCsvError('')
       setCurrentPage(1)
@@ -302,9 +307,75 @@ export default function DataMigrationPage() {
     }
   }
 
-  // 레코드 선택 처리
+  // 레코드 선택 처리 (단일 선택)
   const handleRecordSelect = (record: Record<string, string>) => {
     setSelectedRecord(record)
+  }
+
+  // 멀티 선택 처리
+  const handleMultiSelect = (index: number) => {
+    setSelectedRecords(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(index)) {
+        newSet.delete(index)
+      } else {
+        newSet.add(index)
+      }
+      return newSet
+    })
+  }
+
+  // 전체 선택/해제
+  const handleSelectAll = () => {
+    if (selectedRecords.size === currentData.length) {
+      setSelectedRecords(new Set())
+    } else {
+      setSelectedRecords(new Set(currentData.map((_, index) => startIndex + index)))
+    }
+  }
+
+  // 선택된 레코드들 일괄 upsert
+  const handleBatchUpsert = async () => {
+    if (selectedRecords.size === 0) {
+      alert('선택된 레코드가 없습니다')
+      return
+    }
+
+    const mappedColumns = Object.entries(columnMapping).filter(([, target]) => target)
+    if (mappedColumns.length === 0) {
+      alert('컬럼 매핑을 설정해주세요')
+      return
+    }
+
+    setIsBatchUpserting(true)
+
+    try {
+      const selectedData = Array.from(selectedRecords).map(index => sortedData[index])
+      
+      const response = await fetch('/api/data-migration/batch-upsert-hotel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          records: selectedData,
+          columnMapping
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        alert(`${selectedRecords.size}개 레코드가 성공적으로 처리되었습니다. 생성: ${result.createdCount}개, 업데이트: ${result.updatedCount}개`)
+        setSelectedRecords(new Set())
+        setSelectedRecord(null)
+      } else {
+        alert(result.error || '일괄 upsert 중 오류가 발생했습니다')
+      }
+    } catch (error) {
+      console.error('일괄 upsert 오류:', error)
+      alert('일괄 upsert 중 오류가 발생했습니다')
+    } finally {
+      setIsBatchUpserting(false)
+    }
   }
 
   // 컬럼 매핑 변경 처리
@@ -366,6 +437,7 @@ export default function DataMigrationPage() {
     }
     setCurrentPage(1) // 정렬 시 첫 페이지로 이동
     setSelectedRecord(null) // 선택 해제
+    setSelectedRecords(new Set()) // 멀티 선택 해제
   }
 
   // 정렬된 데이터 계산
@@ -403,12 +475,14 @@ export default function DataMigrationPage() {
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
     setSelectedRecord(null) // 페이지 변경 시 선택 해제
+    setSelectedRecords(new Set()) // 멀티 선택 해제
   }
 
   const handlePrevPage = () => {
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1)
       setSelectedRecord(null)
+      setSelectedRecords(new Set())
     }
   }
 
@@ -416,6 +490,7 @@ export default function DataMigrationPage() {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1)
       setSelectedRecord(null)
+      setSelectedRecords(new Set())
     }
   }
 
@@ -932,15 +1007,43 @@ export default function DataMigrationPage() {
                     <h3 className="text-lg font-medium">
                       CSV 데이터 ({csvData.totalRows}개 레코드, {startIndex + 1}-{Math.min(endIndex, csvData.data.length)} 표시)
                     </h3>
-                    {selectedRecord && (
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      {selectedRecords.size > 0 && (
                         <span className="text-sm text-blue-600">
-                          선택된 레코드: {selectedRecord.sabre_id || 'N/A'}
+                          선택된 레코드: {selectedRecords.size}개
                         </span>
+                      )}
+                      {selectedRecord && (
+                        <span className="text-sm text-green-600">
+                          단일 선택: {selectedRecord.sabre_id || 'N/A'}
+                        </span>
+                      )}
+                      {selectedRecords.size > 0 && (
+                        <Button
+                          onClick={handleBatchUpsert}
+                          disabled={isBatchUpserting}
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          {isBatchUpserting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              일괄 처리중...
+                            </>
+                          ) : (
+                            <>
+                              <CheckSquare className="h-4 w-4 mr-2" />
+                              선택된 레코드 일괄 Upsert ({selectedRecords.size}개)
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      {selectedRecord && (
                         <Button
                           onClick={handleUpsertRecord}
                           disabled={isUpserting}
                           size="sm"
+                          variant="outline"
                         >
                           {isUpserting ? (
                             <>
@@ -948,11 +1051,11 @@ export default function DataMigrationPage() {
                               처리중...
                             </>
                           ) : (
-                            '선택된 레코드 Upsert'
+                            '단일 레코드 Upsert'
                           )}
                         </Button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
 
                   {/* CSV 데이터 테이블 - 고정된 컨테이너 */}
@@ -962,7 +1065,19 @@ export default function DataMigrationPage() {
                         <thead className="bg-gray-50 sticky top-0 z-10">
                           <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-20" style={{ width: '60px' }}>
-                              선택
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={handleSelectAll}
+                                  className="flex items-center gap-1 hover:text-blue-600"
+                                >
+                                  {selectedRecords.size === currentData.length && currentData.length > 0 ? (
+                                    <CheckSquare className="h-4 w-4" />
+                                  ) : (
+                                    <Square className="h-4 w-4" />
+                                  )}
+                                  <span className="text-xs">전체</span>
+                                </button>
+                              </div>
                             </th>
                             {['slug', 'sabre_id', 'id_old', 'property_name_ko', 'property_name_en', 'city', 'chain_ko', 'property_address'].map((header) => (
                               <th 
@@ -984,34 +1099,48 @@ export default function DataMigrationPage() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {currentData.map((record, index) => (
-                            <tr 
-                              key={startIndex + index} 
-                              className={cn(
-                                "hover:bg-gray-50 cursor-pointer",
-                                selectedRecord === record && "bg-blue-50"
-                              )}
-                              onClick={() => handleRecordSelect(record)}
-                            >
-                              <td className={cn(
-                                "px-4 py-3 text-sm sticky left-0 z-10",
-                                selectedRecord === record ? "bg-blue-50" : "bg-white"
-                              )} style={{ width: '60px' }}>
-                                <input
-                                  type="radio"
-                                  name="selectedRecord"
-                                  checked={selectedRecord === record}
-                                  onChange={() => handleRecordSelect(record)}
-                                  className="h-4 w-4 text-blue-600"
-                                />
-                              </td>
+                          {currentData.map((record, index) => {
+                            const globalIndex = startIndex + index
+                            const isMultiSelected = selectedRecords.has(globalIndex)
+                            const isSingleSelected = selectedRecord === record
+                            
+                            return (
+                              <tr 
+                                key={globalIndex} 
+                                className={cn(
+                                  "hover:bg-gray-50",
+                                  isMultiSelected && "bg-blue-50",
+                                  isSingleSelected && "bg-green-50"
+                                )}
+                              >
+                                <td className={cn(
+                                  "px-4 py-3 text-sm sticky left-0 z-10",
+                                  isMultiSelected ? "bg-blue-50" : isSingleSelected ? "bg-green-50" : "bg-white"
+                                )} style={{ width: '60px' }}>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={isMultiSelected}
+                                      onChange={() => handleMultiSelect(globalIndex)}
+                                      className="h-4 w-4 text-blue-600"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <button
+                                      onClick={() => handleRecordSelect(record)}
+                                      className="text-xs text-gray-500 hover:text-blue-600"
+                                    >
+                                      단일
+                                    </button>
+                                  </div>
+                                </td>
                               {['slug', 'sabre_id', 'id_old', 'property_name_ko', 'property_name_en', 'city', 'chain_ko', 'property_address'].map((header) => (
                                 <td key={header} className="px-4 py-3 text-sm text-gray-900 truncate" style={{ width: '11.75%' }} title={record[header] || '-'}>
                                   {record[header] || '-'}
                                 </td>
                               ))}
-                            </tr>
-                          ))}
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>
