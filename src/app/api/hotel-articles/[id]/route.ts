@@ -117,18 +117,19 @@ export async function PUT(
     if (s10_contents !== undefined) updateData.s10_contents = s10_contents
     if (s11_contents !== undefined) updateData.s11_contents = s11_contents
     if (s12_contents !== undefined) updateData.s12_contents = s12_contents
-    if (s1_sabre_id !== undefined) updateData.s1_sabre_id = s1_sabre_id
-    if (s2_sabre_id !== undefined) updateData.s2_sabre_id = s2_sabre_id
-    if (s3_sabre_id !== undefined) updateData.s3_sabre_id = s3_sabre_id
-    if (s4_sabre_id !== undefined) updateData.s4_sabre_id = s4_sabre_id
-    if (s5_sabre_id !== undefined) updateData.s5_sabre_id = s5_sabre_id
-    if (s6_sabre_id !== undefined) updateData.s6_sabre_id = s6_sabre_id
-    if (s7_sabre_id !== undefined) updateData.s7_sabre_id = s7_sabre_id
-    if (s8_sabre_id !== undefined) updateData.s8_sabre_id = s8_sabre_id
-    if (s9_sabre_id !== undefined) updateData.s9_sabre_id = s9_sabre_id
-    if (s10_sabre_id !== undefined) updateData.s10_sabre_id = s10_sabre_id
-    if (s11_sabre_id !== undefined) updateData.s11_sabre_id = s11_sabre_id
-    if (s12_sabre_id !== undefined) updateData.s12_sabre_id = s12_sabre_id
+    // sabre_id 필드들은 bigint 타입이므로 빈 문자열을 null로 변환
+    if (s1_sabre_id !== undefined) updateData.s1_sabre_id = s1_sabre_id === '' ? null : s1_sabre_id
+    if (s2_sabre_id !== undefined) updateData.s2_sabre_id = s2_sabre_id === '' ? null : s2_sabre_id
+    if (s3_sabre_id !== undefined) updateData.s3_sabre_id = s3_sabre_id === '' ? null : s3_sabre_id
+    if (s4_sabre_id !== undefined) updateData.s4_sabre_id = s4_sabre_id === '' ? null : s4_sabre_id
+    if (s5_sabre_id !== undefined) updateData.s5_sabre_id = s5_sabre_id === '' ? null : s5_sabre_id
+    if (s6_sabre_id !== undefined) updateData.s6_sabre_id = s6_sabre_id === '' ? null : s6_sabre_id
+    if (s7_sabre_id !== undefined) updateData.s7_sabre_id = s7_sabre_id === '' ? null : s7_sabre_id
+    if (s8_sabre_id !== undefined) updateData.s8_sabre_id = s8_sabre_id === '' ? null : s8_sabre_id
+    if (s9_sabre_id !== undefined) updateData.s9_sabre_id = s9_sabre_id === '' ? null : s9_sabre_id
+    if (s10_sabre_id !== undefined) updateData.s10_sabre_id = s10_sabre_id === '' ? null : s10_sabre_id
+    if (s11_sabre_id !== undefined) updateData.s11_sabre_id = s11_sabre_id === '' ? null : s11_sabre_id
+    if (s12_sabre_id !== undefined) updateData.s12_sabre_id = s12_sabre_id === '' ? null : s12_sabre_id
 
     const { data, error } = await supabase
       .from('select_hotel_blogs')

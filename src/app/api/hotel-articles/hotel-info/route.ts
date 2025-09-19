@@ -59,10 +59,17 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceRoleClient()
 
+    // Sabre ID를 문자열로 변환하여 처리
+    const cleanSabreIds = sabreIds
+      .filter(id => id && id.trim())
+      .map(id => String(id).trim())
+
+    console.log('조회할 Sabre IDs:', cleanSabreIds)
+
     const { data, error } = await supabase
       .from('select_hotels')
       .select('sabre_id, property_name_ko, property_name_en')
-      .in('sabre_id', sabreIds.filter(id => id && id.trim()))
+      .in('sabre_id', cleanSabreIds)
 
     if (error) {
       console.error('호텔 정보 일괄 조회 오류:', error)
@@ -77,6 +84,12 @@ export async function POST(request: NextRequest) {
       acc[hotel.sabre_id] = hotel
       return acc
     }, {} as Record<string, { sabre_id: string; property_name_ko: string; property_name_en: string }>)
+
+    console.log('호텔 정보 API 응답:', {
+      sabreIds,
+      foundHotels: data?.length || 0,
+      hotelMap
+    })
 
     return NextResponse.json({
       success: true,
