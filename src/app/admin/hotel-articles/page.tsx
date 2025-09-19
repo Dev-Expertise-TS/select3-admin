@@ -67,6 +67,7 @@ function HotelBlogsManager() {
   const [publishFilter, setPublishFilter] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingBlog, setEditingBlog] = useState<HotelBlog | null>(null)
@@ -79,7 +80,7 @@ function HotelBlogsManager() {
     try {
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        limit: '20'
+        limit: '5'
       })
 
       if (searchTerm) params.append('search', searchTerm)
@@ -105,6 +106,7 @@ function HotelBlogsManager() {
         })
         setBlogs(sortedBlogs)
         setTotalPages(result.pagination.totalPages)
+        setTotalCount(result.pagination.total)
       } else {
         setError(result.error || '블로그를 불러올 수 없습니다.')
       }
@@ -243,12 +245,38 @@ function HotelBlogsManager() {
           <div className="divide-y divide-gray-200">
             {blogs.map((blog, index) => (
               <div key={`blog-${blog.id}-${index}`} className="p-6 hover:bg-gray-50">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                <div className="flex items-start gap-4">
+                  {/* 대표 이미지 */}
+                  <div className="flex-shrink-0">
+                    {blog.main_image ? (
+                      <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100">
+                        <img
+                          src={blog.main_image}
+                          alt={blog.main_title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            target.style.display = 'none'
+                            target.nextElementSibling?.classList.remove('hidden')
+                          }}
+                        />
+                        <div className="w-full h-full items-center justify-center bg-gray-100 text-gray-400" style={{ display: 'none' }}>
+                          <Newspaper className="h-8 w-8" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-24 h-24 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
+                        <Newspaper className="h-8 w-8" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 블로그 정보 */}
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-medium text-gray-900">{blog.main_title}</h3>
+                      <h3 className="text-lg font-medium text-gray-900 truncate">{blog.main_title}</h3>
                       <span className={cn(
-                        "px-2 py-1 rounded-full text-xs font-medium",
+                        "px-2 py-1 rounded-full text-xs font-medium flex-shrink-0",
                         getPublishColor(blog.publish)
                       )}>
                         {getPublishText(blog.publish)}
@@ -266,7 +294,7 @@ function HotelBlogsManager() {
                     </div>
 
                     {blog.sub_title && (
-                      <p className="text-gray-600 mb-3 text-sm">
+                      <p className="text-gray-600 mb-3 text-sm line-clamp-1">
                         {blog.sub_title}
                       </p>
                     )}
@@ -278,7 +306,8 @@ function HotelBlogsManager() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 ml-4">
+                  {/* 액션 버튼들 */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
                       size="sm"
                       variant="outline"
@@ -322,9 +351,21 @@ function HotelBlogsManager() {
           <div className="px-6 py-4 border-t border-gray-200">
             <div className="flex items-center justify-between">
               <div className="text-sm text-gray-700">
-                페이지 {currentPage} / {totalPages}
+                총 {totalCount}개의 블로그 (페이지 {currentPage} / {totalPages})
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                {/* 첫 페이지로 */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="px-2"
+                >
+                  «
+                </Button>
+                
+                {/* 이전 페이지 */}
                 <Button
                   size="sm"
                   variant="outline"
@@ -333,6 +374,78 @@ function HotelBlogsManager() {
                 >
                   이전
                 </Button>
+
+                {/* 페이지 번호들 */}
+                <div className="flex items-center gap-1">
+                  {(() => {
+                    const pages = []
+                    const startPage = Math.max(1, currentPage - 2)
+                    const endPage = Math.min(totalPages, currentPage + 2)
+                    
+                    // 첫 페이지가 1이 아니면 ... 표시
+                    if (startPage > 1) {
+                      pages.push(
+                        <Button
+                          key={1}
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setCurrentPage(1)}
+                          className="px-3"
+                        >
+                          1
+                        </Button>
+                      )
+                      if (startPage > 2) {
+                        pages.push(
+                          <span key="ellipsis1" className="px-2 text-gray-500">
+                            ...
+                          </span>
+                        )
+                      }
+                    }
+                    
+                    // 중간 페이지들
+                    for (let i = startPage; i <= endPage; i++) {
+                      pages.push(
+                        <Button
+                          key={i}
+                          size="sm"
+                          variant={i === currentPage ? "default" : "outline"}
+                          onClick={() => setCurrentPage(i)}
+                          className="px-3"
+                        >
+                          {i}
+                        </Button>
+                      )
+                    }
+                    
+                    // 마지막 페이지가 끝이 아니면 ... 표시
+                    if (endPage < totalPages) {
+                      if (endPage < totalPages - 1) {
+                        pages.push(
+                          <span key="ellipsis2" className="px-2 text-gray-500">
+                            ...
+                          </span>
+                        )
+                      }
+                      pages.push(
+                        <Button
+                          key={totalPages}
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setCurrentPage(totalPages)}
+                          className="px-3"
+                        >
+                          {totalPages}
+                        </Button>
+                      )
+                    }
+                    
+                    return pages
+                  })()}
+                </div>
+
+                {/* 다음 페이지 */}
                 <Button
                   size="sm"
                   variant="outline"
@@ -340,6 +453,17 @@ function HotelBlogsManager() {
                   disabled={currentPage === totalPages}
                 >
                   다음
+                </Button>
+                
+                {/* 마지막 페이지로 */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-2"
+                >
+                  »
                 </Button>
               </div>
             </div>

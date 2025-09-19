@@ -30,7 +30,25 @@ export async function GET(request: NextRequest) {
     const from = (page - 1) * limit
     const to = from + limit - 1
 
-    const { data, error, count } = await query
+    // 전체 개수를 가져오기 위한 별도 쿼리
+    let countQuery = supabase
+      .from('select_hotel_blogs')
+      .select('*', { count: 'exact', head: true })
+
+    // 검색 조건 추가
+    if (search) {
+      countQuery = countQuery.or(`main_title.ilike.%${search}%,sub_title.ilike.%${search}%`)
+    }
+
+    // 발행 상태 필터
+    if (publish) {
+      countQuery = countQuery.eq('publish', publish === 'true')
+    }
+
+    const { count } = await countQuery
+    
+    // 실제 데이터를 가져옴
+    const { data, error } = await query
       .order('updated_at', { ascending: false })
       .order('id', { ascending: false })
       .range(from, to)
