@@ -13,7 +13,9 @@ export async function GET() {
       {
         success: true,
         data: ratePlanCodes,
-        count: ratePlanCodes.length
+        meta: {
+          count: ratePlanCodes.length
+        }
       },
       { 
         status: 200,

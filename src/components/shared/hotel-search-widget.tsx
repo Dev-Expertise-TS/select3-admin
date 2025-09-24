@@ -1229,7 +1229,7 @@ export default function HotelSearchWidget({
       }
 
       setResults(data.data || []);
-      setCount(data.count || 0);
+      setCount(data.meta?.count || 0);
     } catch (err) {
       console.error('Initial hotels load error:', err);
       setError('초기 호텔 목록을 불러오는 중 오류가 발생했습니다.');
@@ -1279,7 +1279,7 @@ export default function HotelSearchWidget({
       }
 
       setResults(data.data || []);
-      setCount(data.count || 0);
+      setCount(data.meta?.count || 0);
     } catch (err) {
       console.error('Search error:', err);
       setError('네트워크 오류가 발생했습니다.');

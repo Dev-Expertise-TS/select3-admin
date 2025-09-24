@@ -16,7 +16,7 @@ interface FormActions<T> {
   setField: (field: keyof T, value: T[keyof T]) => void
   setFields: (fields: Partial<T>) => void
   setError: (field: keyof T, error: string) => void
-  setErrors: (errors: Partial<Record<keyof T, string>>) => void
+  setMultipleErrors: (errors: Partial<Record<keyof T, string>>) => void
   clearErrors: () => void
   reset: () => void
   submit: (onSubmit: (data: T) => Promise<void>) => Promise<void>
@@ -75,7 +75,7 @@ export function useForm<T extends Record<string, unknown>>(
     setErrors(prev => ({ ...prev, [field]: error }))
   }, [])
 
-  const setErrors = useCallback((newErrors: Partial<Record<keyof T, string>>) => {
+  const setMultipleErrors = useCallback((newErrors: Partial<Record<keyof T, string>>) => {
     setErrors(prev => ({ ...prev, ...newErrors }))
   }, [])
 
@@ -111,7 +111,7 @@ export function useForm<T extends Record<string, unknown>>(
     setField,
     setFields,
     setError,
-    setErrors,
+    setMultipleErrors,
     clearErrors,
     reset,
     submit

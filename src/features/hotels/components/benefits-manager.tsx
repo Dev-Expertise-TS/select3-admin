@@ -6,6 +6,8 @@ import { useQuery } from '@tanstack/react-query'
 
 import type { BenefitRow } from '@/types/benefits'
 
+export type { BenefitRow }
+
 interface Props {
   initial: BenefitRow[]
   onAddClick?: () => void

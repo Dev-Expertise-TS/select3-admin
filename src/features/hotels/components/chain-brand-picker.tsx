@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Chain, Brand } from '@/types/chain-brand'
 
+export type { Chain, Brand }
+
 interface Props {
   isOpen: boolean
   onClose: () => void
