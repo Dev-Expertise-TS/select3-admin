@@ -132,7 +132,12 @@ export function withErrorHandling<T extends unknown[]>(
     try {
       return await handler(...args)
     } catch (error) {
-      console.error('API 핸들러 오류:', error)
+      console.error('API 핸들러 오류:', {
+        message: error instanceof Error ? error.message : String(error),
+        details: error instanceof Error ? error.stack : String(error),
+        hint: '',
+        code: ''
+      })
       
       const { message, code, status } = transformSupabaseError(error)
       
