@@ -8,7 +8,7 @@ import { highlightRowFields } from '@/components/shared/field-highlight'
 import HotelSearchWidget from '@/components/shared/hotel-search-widget'
 
 export type Chain = { chain_id: number; name_kr: string | null; name_en: string | null; slug: string | null }
-export type Brand = { brand_id: number; name_kr: string | null; name_en: string | null; slug: string | null; chain_id: number | null }
+export type Brand = { brand_id: number; name_kr: string | null; name_en: string | null; chain_id: number | null }
 
 interface Props {
   chains: Chain[]
@@ -389,7 +389,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
               )}
               {chainsState.length === 0 && !addingChain && (
                 <tr>
-                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={3}>
+                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={2}>
                     <div className="space-y-2">
                       <p>체인 데이터가 없습니다.</p>
                       <p className="text-blue-600">&quot;체인 추가&quot; 버튼을 클릭하여 첫 번째 체인을 생성하세요.</p>
@@ -423,15 +423,14 @@ export function ChainBrandManager({ chains, brands }: Props) {
           <table className="w-full text-sm table-fixed">
             <thead>
               <tr className="bg-muted/60">
-                <th className="px-1 py-2 text-left w-1/4">브랜드</th>
-                <th className="px-1 py-2 text-left w-1/4">Slug</th>
-                <th className="px-1 py-2 text-right w-1/2">Actions</th>
+                <th className="px-1 py-2 text-left w-2/3">브랜드</th>
+                <th className="px-1 py-2 text-right w-1/3">Actions</th>
               </tr>
             </thead>
             <tbody>
               {selectedChainId == null && (
                 <tr>
-                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={3}>
+                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={2}>
                     <div className="space-y-2">
                       <p>왼쪽 테이블에서 체인을 선택하세요.</p>
                       <p className="text-blue-600">체인을 선택한 후 브랜드를 추가할 수 있습니다.</p>
@@ -441,7 +440,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
               )}
               {selectedChainId != null && filteredBrands.length === 0 && (
                 <tr>
-                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={3}>
+                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={2}>
                     <div className="space-y-2">
                       <p>선택한 체인의 브랜드가 없습니다.</p>
                       <p className="text-blue-600">&quot;브랜드 추가&quot; 버튼을 클릭하여 첫 번째 브랜드를 생성하세요.</p>
@@ -466,9 +465,6 @@ export function ChainBrandManager({ chains, brands }: Props) {
                         )}
                       </div>
                     </td>
-                    <td className="px-1 py-2">
-                      <input form={formId} name="slug" defaultValue={String(b.slug ?? '')} onKeyDown={preventEnter} placeholder="slug" className="w-full rounded border px-2 py-1 text-xs" />
-                    </td>
                     <td className="px-1 py-2 text-right">
                       <div className="flex items-center justify-end gap-0.5">
                         <Button
@@ -491,11 +487,9 @@ export function ChainBrandManager({ chains, brands }: Props) {
                               // form 속성으로 연결된 input들을 직접 찾기
                               const nameKrInput = document.querySelector(`input[form="${formId}"][name="name_kr"]`) as HTMLInputElement | null
                               const nameEnInput = document.querySelector(`input[form="${formId}"][name="name_en"]`) as HTMLInputElement | null
-                              const slugInput = document.querySelector(`input[form="${formId}"][name="slug"]`) as HTMLInputElement | null
                               const nkr = (nameKrInput?.value ?? '').trim()
                               const nen = (nameEnInput?.value ?? '').trim()
-                              const slug = (slugInput?.value ?? '').trim()
-                              console.log('[brand][client] updating existing:', { brand_id: b.brand_id, chain_id: selectedChainId, name_kr: nkr, name_en: nen, slug: slug })
+                              console.log('[brand][client] updating existing:', { brand_id: b.brand_id, chain_id: selectedChainId, name_kr: nkr, name_en: nen })
                               
                               if (!nkr && !nen) {
                                 setDialogMessage('브랜드(한글) 또는 브랜드(영문) 중 하나는 입력해야 합니다.')
@@ -509,7 +503,6 @@ export function ChainBrandManager({ chains, brands }: Props) {
                               fd.append('chain_id', String(selectedChainId ?? ''))
                               fd.append('name_kr', nkr)
                               fd.append('name_en', nen)
-                              fd.append('slug', slug)
                               const res = await fetch('/api/chain-brand/brand/save', { method: 'POST', body: fd })
                               const json = await res.json().catch(() => null)
                               if (json?.success && json.data) {
@@ -517,7 +510,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
                                 setBrandsState((prev) => prev.map((x) => (x.brand_id === json.data.brand_id ? (json.data as Brand) : x)))
                                 // 공통 하이라이트 적용
                                 const row = nameKrInput?.closest('tr') ?? null
-                                highlightRowFields(row, 'input[name="name_kr"], input[name="name_en"], input[name="slug"]')
+                                highlightRowFields(row, 'input[name="name_kr"], input[name="name_en"]')
                               } else {
                                 const errMsg = (json && json.error) ? String(json.error) : '저장 중 오류가 발생했습니다.'
                                 setDialogMessage(errMsg)
@@ -559,9 +552,6 @@ export function ChainBrandManager({ chains, brands }: Props) {
                       선택된 체인 ID: {selectedChainId ?? '없음'}
                     </div>
                   </td>
-                  <td className="px-1 py-2">
-                    <input form={createFormId} name="slug" placeholder="slug" onKeyDown={preventEnter} className="w-full rounded border px-2 py-1 text-xs" />
-                  </td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button
@@ -579,7 +569,6 @@ export function ChainBrandManager({ chains, brands }: Props) {
                           // form 속성으로 연결된 input들을 직접 찾기
                           const nameKrInput = document.querySelector(`input[form="${createFormId}"][name="name_kr"]`) as HTMLInputElement | null
                           const nameEnInput = hasNameEn ? document.querySelector(`input[form="${createFormId}"][name="name_en"]`) as HTMLInputElement | null : null
-                          const slugInput = document.querySelector(`input[form="${createFormId}"][name="slug"]`) as HTMLInputElement | null
                           
                           if (!nameKrInput) {
                             setDialogMessage('입력 필드를 찾을 수 없습니다.')
@@ -590,13 +579,11 @@ export function ChainBrandManager({ chains, brands }: Props) {
                           
                           const nkr = (nameKrInput.value ?? '').trim()
                           const nen = hasNameEn ? (nameEnInput?.value ?? '').trim() : ''
-                          const slug = (slugInput?.value ?? '').trim()
                           
                           console.log('[brand][client] new brand values:', { 
                             chain_id: selectedChainId,
                             name_kr: nkr, 
                             name_en: nen,
-                            slug: slug,
                             hasNameEn
                           })
                           
@@ -614,13 +601,11 @@ export function ChainBrandManager({ chains, brands }: Props) {
                           if (hasNameEn) {
                             fd.append('name_en', nen)
                           }
-                          fd.append('slug', slug)
                           
                           // FormData 내용 검증
                           const formDataObj = {
                             chain_id: fd.get('chain_id'),
                             name_kr: fd.get('name_kr'),
-                            slug: fd.get('slug'),
                             ...(hasNameEn && { name_en: fd.get('name_en') })
                           }
                           
@@ -654,8 +639,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
                                 brand_id: json.data.brand_id,
                                 chain_id: selectedChainId,
                                 name_kr: nkr,
-                                name_en: hasNameEn ? nen : null,
-                                slug: slug
+                                name_en: hasNameEn ? nen : null
                               }
                               
                               setBrandsState((prev) => [...prev, newBrand])
@@ -666,7 +650,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
                                 setTimeout(() => {
                                   const newBrandRow = document.querySelector(`tr[data-brand-id="${json.data.brand_id}"]`)
                                   if (newBrandRow) {
-                                    highlightRowFields(newBrandRow, 'input[name="name_kr"], input[name="name_en"], input[name="slug"]')
+                                    highlightRowFields(newBrandRow, 'input[name="name_kr"], input[name="name_en"]')
                                   }
                                 }, 50)
                               })

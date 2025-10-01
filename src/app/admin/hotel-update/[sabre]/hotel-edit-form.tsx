@@ -87,8 +87,7 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       brand_id: Number(brands.brand_id ?? 0),
       chain_id: Number(brands.chain_id ?? 0) || null,
       name_kr: String(brands.name_kr ?? ''),
-      name_en: String(brands.name_en ?? ''),
-      slug: String(brands.slug ?? '')
+      name_en: String(brands.name_en ?? '')
     } : null
   })
 
