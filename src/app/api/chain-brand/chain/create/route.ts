@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const name_kr = String(formData.get('name_kr') ?? '').trim()
     const name_en = String(formData.get('name_en') ?? '').trim()
+    const slug = String(formData.get('slug') ?? '').trim()
 
     if (!name_kr && !name_en) {
       return NextResponse.json({ 
@@ -18,7 +19,11 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceRoleClient()
     const { data, error } = await supabase
       .from('hotel_chains')
-      .insert({ chain_name_kr: name_kr || null, chain_name_en: name_en || null })
+      .insert({ 
+        chain_name_kr: name_kr || null, 
+        chain_name_en: name_en || null,
+        slug: slug || null
+      })
       .select('*')
       .single()
     

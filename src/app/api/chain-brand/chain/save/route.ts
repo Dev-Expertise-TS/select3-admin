@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
     const chain_id = Number(formData.get('chain_id'))
     const name_kr = String(formData.get('name_kr') ?? '')
     const name_en = String(formData.get('name_en') ?? '')
+    const slug = String(formData.get('slug') ?? '')
 
     if (!chain_id) {
       return NextResponse.json({ success: false, error: 'chain_id is required' }, { status: 400 })
@@ -16,7 +17,11 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceRoleClient()
     const { error } = await supabase
       .from('hotel_chains')
-      .update({ chain_name_kr: name_kr || null, chain_name_en: name_en || null })
+      .update({ 
+        chain_name_kr: name_kr || null, 
+        chain_name_en: name_en || null,
+        slug: slug || null
+      })
       .eq('chain_id', chain_id)
     if (error) throw error
 

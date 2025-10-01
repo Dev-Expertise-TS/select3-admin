@@ -11,6 +11,7 @@ export interface Chain {
   chain_id: number
   name_kr: string | null
   name_en: string | null
+  slug: string | null
   created_at?: string
   updated_at?: string
 }
@@ -22,6 +23,7 @@ export interface Brand {
   brand_id: number
   name_kr: string | null
   name_en: string | null
+  slug: string | null
   chain_id: number | null
   created_at?: string
   updated_at?: string
@@ -51,6 +53,7 @@ export type ChainBrandListApiResponse = ApiResponse<{
 export interface ChainRequest {
   name_kr?: string
   name_en?: string
+  slug?: string
 }
 
 /**
@@ -59,6 +62,7 @@ export interface ChainRequest {
 export interface BrandRequest {
   name_kr?: string
   name_en?: string
+  slug?: string
   chain_id?: number
 }
 

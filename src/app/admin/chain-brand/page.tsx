@@ -1,8 +1,8 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { ChainBrandManager } from './_components/ChainBrandManager'
 
-type Chain = { chain_id: number; name_kr: string | null; name_en: string | null }
-type Brand = { brand_id: number; name_kr: string | null; name_en: string | null; chain_id: number | null }
+type Chain = { chain_id: number; name_kr: string | null; name_en: string | null; slug: string | null }
+type Brand = { brand_id: number; name_kr: string | null; name_en: string | null; slug: string | null; chain_id: number | null }
 
 async function getData() {
   const supabase = createServiceRoleClient()
@@ -87,11 +87,17 @@ async function getData() {
       const nameEnKey = chainsColumns.find(key => 
         key.toLowerCase().includes('name') && key.toLowerCase().includes('en')
       ) || 'name_en'
+      
+      // slug 컬럼 찾기
+      const slugKey = chainsColumns.find(key => 
+        key.toLowerCase() === 'slug'
+      ) || 'slug'
 
       return {
         chain_id: Number(r[chainIdKey] ?? 0),
         name_kr: safeString(r[nameKrKey]),
         name_en: safeString(r[nameEnKey]),
+        slug: safeString(r[slugKey]),
       }
     })
 
@@ -115,12 +121,18 @@ async function getData() {
       const nameEnKey = brandsColumns.find(key => 
         key.toLowerCase().includes('name') && key.toLowerCase().includes('en')
       ) || 'name_en'
+      
+      // slug 컬럼 찾기
+      const slugKey = brandsColumns.find(key => 
+        key.toLowerCase() === 'slug'
+      ) || 'slug'
 
       return {
         brand_id: Number(r[brandIdKey] ?? 0),
         chain_id: r[chainIdKey] ? Number(r[chainIdKey]) : null,
         name_kr: safeString(r[nameKrKey]),
         name_en: safeString(r[nameEnKey]),
+        slug: safeString(r[slugKey]),
       }
     })
 

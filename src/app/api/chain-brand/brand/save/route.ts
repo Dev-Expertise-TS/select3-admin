@@ -8,8 +8,10 @@ export async function POST(request: NextRequest) {
     const brand_id = brand_id_raw && brand_id_raw !== '' ? Number(brand_id_raw) : null
     const name_kr_raw = String(formData.get('name_kr') ?? '')
     const name_en_raw = String(formData.get('name_en') ?? '')
+    const slug_raw = String(formData.get('slug') ?? '')
     const name_kr = name_kr_raw.trim()
     const name_en = name_en_raw.trim()
+    const slug = slug_raw.trim()
     const chain_id_raw = formData.get('chain_id')
     const chain_id = chain_id_raw == null || String(chain_id_raw).trim() === '' ? null : Number(chain_id_raw)
 
@@ -17,6 +19,7 @@ export async function POST(request: NextRequest) {
       brand_id,
       name_kr,
       name_en,
+      slug,
       chain_id,
       brand_id_raw,
       chain_id_raw
@@ -74,11 +77,16 @@ export async function POST(request: NextRequest) {
       col.toLowerCase().includes('name') && col.toLowerCase().includes('en')
     ) || null // name_en 컬럼이 없을 수 있음
 
+    const slugColumn = actualColumns.find(col => 
+      col.toLowerCase() === 'slug'
+    ) || 'slug'
+
     console.log('[chain-brand][brand/save] column mapping:', {
       brandIdColumn,
       chainIdColumn,
       nameKrColumn,
       nameEnColumn,
+      slugColumn,
       hasNameEn: !!nameEnColumn
     })
 
@@ -88,6 +96,7 @@ export async function POST(request: NextRequest) {
       brand_id,
       name_kr,
       name_en,
+      slug,
       chain_id,
     })
 
@@ -97,6 +106,7 @@ export async function POST(request: NextRequest) {
       const updateData: Record<string, unknown> = { [chainIdColumn]: chain_id }
       if (nameKrColumn) updateData[nameKrColumn] = name_kr || null
       if (nameEnColumn) updateData[nameEnColumn] = name_en || null
+      updateData[slugColumn] = slug || null
       
       console.log('[chain-brand][brand/save] updating with:', updateData)
       
@@ -111,6 +121,7 @@ export async function POST(request: NextRequest) {
       const insertData: Record<string, unknown> = { [chainIdColumn]: chain_id }
       if (nameKrColumn) insertData[nameKrColumn] = name_kr || null
       if (nameEnColumn) insertData[nameEnColumn] = name_en || null
+      insertData[slugColumn] = slug || null
       
       console.log('[chain-brand][brand/save] inserting:', insertData)
       
