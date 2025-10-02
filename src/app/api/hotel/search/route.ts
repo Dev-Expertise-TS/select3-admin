@@ -12,7 +12,21 @@ async function searchHotels(query: string) {
       .select(`
         sabre_id,
         property_name_ko,
-        property_name_en
+        property_name_en,
+        brand_id,
+        created_at,
+        updated_at,
+        hotel_brands!left(
+          brand_id,
+          brand_name_kr,
+          brand_name_en,
+          chain_id,
+          hotel_chains!left(
+            chain_id,
+            chain_name_kr,
+            chain_name_en
+          )
+        )
       `)
       .order('created_at', { ascending: false })
       .limit(50)
@@ -60,7 +74,19 @@ async function searchHotels(query: string) {
           .select(`
             sabre_id,
             property_name_ko,
-            property_name_en
+            property_name_en,
+            brand_id,
+            hotel_brands!inner(
+              brand_id,
+              name_kr,
+              name_en,
+              chain_id,
+              hotel_chains!inner(
+                chain_id,
+                name_kr,
+                name_en
+              )
+            )
           `)
           .or(`sabre_id.eq.${searchTerm},property_name_ko.ilike.%${searchTerm}%,property_name_en.ilike.%${searchTerm}%`)
           .limit(25)
@@ -78,7 +104,19 @@ async function searchHotels(query: string) {
           .select(`
             sabre_id,
             property_name_ko,
-            property_name_en
+            property_name_en,
+            brand_id,
+            hotel_brands!inner(
+              brand_id,
+              name_kr,
+              name_en,
+              chain_id,
+              hotel_chains!inner(
+                chain_id,
+                name_kr,
+                name_en
+              )
+            )
           `)
           .ilike('property_name_ko', `%${searchTerm}%`)
           .limit(25)
@@ -93,7 +131,19 @@ async function searchHotels(query: string) {
           .select(`
             sabre_id,
             property_name_ko,
-            property_name_en
+            property_name_en,
+            brand_id,
+            hotel_brands!inner(
+              brand_id,
+              name_kr,
+              name_en,
+              chain_id,
+              hotel_chains!inner(
+                chain_id,
+                name_kr,
+                name_en
+              )
+            )
           `)
           .ilike('property_name_en', `%${searchTerm}%`)
           .limit(25)
@@ -131,7 +181,21 @@ async function searchHotels(query: string) {
       .select(`
         sabre_id,
         property_name_ko,
-        property_name_en
+        property_name_en,
+        brand_id,
+        created_at,
+        updated_at,
+        hotel_brands!left(
+          brand_id,
+          brand_name_kr,
+          brand_name_en,
+          chain_id,
+          hotel_chains!left(
+            chain_id,
+            chain_name_kr,
+            chain_name_en
+          )
+        )
       `)
       .or(`sabre_id.eq.${trimmedQuery},property_name_ko.ilike.%${trimmedQuery}%,property_name_en.ilike.%${trimmedQuery}%`)
   } else {
@@ -141,7 +205,21 @@ async function searchHotels(query: string) {
       .select(`
         sabre_id,
         property_name_ko,
-        property_name_en
+        property_name_en,
+        brand_id,
+        created_at,
+        updated_at,
+        hotel_brands!left(
+          brand_id,
+          brand_name_kr,
+          brand_name_en,
+          chain_id,
+          hotel_chains!left(
+            chain_id,
+            chain_name_kr,
+            chain_name_en
+          )
+        )
       `)
       .or(`property_name_ko.ilike.%${trimmedQuery}%,property_name_en.ilike.%${trimmedQuery}%`)
   }

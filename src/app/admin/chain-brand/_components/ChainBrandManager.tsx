@@ -725,6 +725,14 @@ export function ChainBrandManager({ chains, brands }: Props) {
                 hideHeader={true}
                 enableHotelEdit={true}
                 showInitialHotels={true}
+                enableChainBrandConnect={true}
+                connectChainId={selectedBrandForConnect?.chain_id || null}
+                connectBrandId={selectedBrandForConnect?.brand_id || null}
+                onConnectSuccess={(sabreId) => {
+                  console.log(`호텔 ${sabreId}가 체인 ${selectedBrandForConnect?.chain_id}, 브랜드 ${selectedBrandForConnect?.brand_id}에 연결되었습니다.`)
+                  // 연결 성공 시 모달 닫기 (선택사항)
+                  // setShowHotelConnectModal(false)
+                }}
               />
             </div>
           </div>

@@ -401,6 +401,14 @@ interface HotelSearchWidgetProps {
     property_name_ko: string | null
     property_name_en: string | null
   }) => void
+  /** 체인 브랜드 연결 모드 활성화 */
+  enableChainBrandConnect?: boolean
+  /** 연결할 체인 ID */
+  connectChainId?: number | null
+  /** 연결할 브랜드 ID */
+  connectBrandId?: number | null
+  /** 연결 성공 시 콜백 함수 */
+  onConnectSuccess?: (sabreId: string) => void
 }
 
 export default function HotelSearchWidget({ 
@@ -411,7 +419,11 @@ export default function HotelSearchWidget({
   enableHotelEdit = false,
   showInitialHotels = false,
   enableImageManagement = false,
-  onHotelSelect
+  onHotelSelect,
+  enableChainBrandConnect = false,
+  connectChainId = null,
+  connectBrandId = null,
+  onConnectSuccess
 }: HotelSearchWidgetProps) {
   // State 관리
   const [searchTerm, setSearchTerm] = useState('');
@@ -440,6 +452,11 @@ export default function HotelSearchWidget({
   const [expandedRowState, setExpandedRowState] = useState<ExpandedRowState | null>(null);
   const [allRatePlanCodes, setAllRatePlanCodes] = useState<string[]>([]);
   const [ratePlanCodesLoading, setRatePlanCodesLoading] = useState(false);
+
+  // 체인 브랜드 연결 관련 state
+  const [connectingHotelId, setConnectingHotelId] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [connectSuccess, setConnectSuccess] = useState<string | null>(null);
 
   // 이미지 관리 관련 state
   const [imageManagementState, setImageManagementState] = useState<{
@@ -845,6 +862,60 @@ export default function HotelSearchWidget({
   }
 
   // Storage 폴더 상태 확인 핸들러
+  // 호텔을 체인 브랜드에 연결하는 함수
+  const connectHotelToChainBrand = async (sabreId: string) => {
+    if (!connectChainId || !connectBrandId) {
+      setConnectError('체인과 브랜드 정보가 필요합니다.')
+      return
+    }
+
+    setConnectingHotelId(sabreId)
+    setConnectError(null)
+    setConnectSuccess(null)
+
+    try {
+      const response = await fetch('/api/hotel/connect-chain-brand', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sabre_id: sabreId,
+          chain_id: connectChainId,
+          brand_id: connectBrandId,
+        }),
+      })
+
+      const data = await response.json()
+
+          if (data.success) {
+            setConnectSuccess(`호텔이 성공적으로 연결되었습니다.`)
+            onConnectSuccess?.(sabreId)
+
+            // 연결 성공 후 데이터 새로고침
+            if (searchTerm.trim()) {
+              // 검색어가 있는 경우 검색 실행
+              await performSearch(searchTerm)
+            } else {
+              // 검색어가 없는 경우 초기 데이터 로드
+              loadInitialHotels()
+            }
+
+            // 3초 후 성공 메시지 자동 제거
+            setTimeout(() => {
+              setConnectSuccess(null)
+            }, 3000)
+          } else {
+            setConnectError(data.error || '연결 중 오류가 발생했습니다.')
+          }
+    } catch (error) {
+      console.error('[hotel-connect] error:', error)
+      setConnectError('네트워크 오류가 발생했습니다.')
+    } finally {
+      setConnectingHotelId(null)
+    }
+  }
+
   const checkStorageFolder = async (hotelId: string, sabreId: string) => {
     setImageManagementState(prev => {
       const currentState = prev[hotelId]
@@ -1973,6 +2044,38 @@ export default function HotelSearchWidget({
           </div>
         )}
 
+        {/* 체인 브랜드 연결 상태 메시지 */}
+        {enableChainBrandConnect && (
+          <>
+            {connectError && (
+              <div 
+                className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-start gap-3"
+                role="alert"
+                aria-live="polite"
+              >
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-medium">연결 실패</h3>
+                  <p className="text-sm mt-1">{connectError}</p>
+                </div>
+              </div>
+            )}
+            {connectSuccess && (
+              <div 
+                className="p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg flex items-start gap-3"
+                role="alert"
+                aria-live="polite"
+              >
+                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-medium">연결 성공</h3>
+                  <p className="text-sm mt-1">{connectSuccess}</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
         {/* 검색 결과 카운트 */}
         {count > 0 && (
           <div 
@@ -2028,19 +2131,19 @@ export default function HotelSearchWidget({
                         scope="col" 
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
+                        체인(영문)
+                      </th>
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        브랜드(영문)
+                      </th>
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
                         업데이트 날짜
-                      </th>
-                      <th 
-                        scope="col" 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        체인(한글)
-                      </th>
-                      <th 
-                        scope="col" 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        브랜드(한글)
                       </th>
                       <th 
                         scope="col" 
@@ -2111,22 +2214,46 @@ export default function HotelSearchWidget({
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {hotel.property_name_en || '영문명 없음'}
                         </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {hotel.hotel_brands?.hotel_chains?.chain_name_en || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {hotel.hotel_brands?.brand_name_en || '-'}
+                        </td>
                         <td className="px-6 py-4 text-sm text-gray-500">
                           {formatDate(hotel.created_at)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {hotel.chain_name_kr || '-'}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {hotel.brand_name_kr || '-'}
-                        </td>
                         <td className="px-6 py-4 text-sm">
-                          <Link
-                            href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                          >
-                            연결
-                          </Link>
+                          {enableChainBrandConnect ? (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              disabled={connectingHotelId === hotel.sabre_id || !connectChainId || !connectBrandId}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (hotel.sabre_id) {
+                                  connectHotelToChainBrand(hotel.sabre_id)
+                                }
+                              }}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                            >
+                              {connectingHotelId === hotel.sabre_id ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  연결 중...
+                                </>
+                              ) : (
+                                '체인브랜드연결'
+                              )}
+                            </Button>
+                          ) : (
+                            <Link
+                              href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                              연결
+                            </Link>
+                          )}
                         </td>
                       </>
                     ) : (

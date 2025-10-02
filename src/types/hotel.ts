@@ -18,8 +18,21 @@ export interface HotelSearchResult {
   property_name_en: string | null
   rate_plan_code: string[] | null
   created_at: string | null
+  updated_at: string | null
   chain_name_kr: string | null
   brand_name_kr: string | null
+  brand_id?: number | null
+  hotel_brands?: {
+    brand_id: number
+    brand_name_kr: string | null
+    brand_name_en: string | null
+    chain_id: number | null
+    hotel_chains?: {
+      chain_id: number
+      chain_name_kr: string | null
+      chain_name_en: string | null
+    }
+  }
 }
 
 // 호텔 업데이트 요청 타입
