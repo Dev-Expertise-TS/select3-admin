@@ -53,14 +53,7 @@ interface MigrationStatus {
 interface HotelImage {
   column: string;
   url: string;
-  name?: string;
-  size?: number;
-  lastModified?: string;
-  contentType?: string;
-  role?: string;
   seq: number;
-  isPublic?: boolean;
-  storagePath?: string;
   checked: boolean;
 }
 
@@ -129,25 +122,11 @@ export function ImageMigrationPanel() {
       const images = result.data.images.map((img: {
         column: string;
         url: string;
-        name?: string;
-        size?: number;
-        lastModified?: string;
-        contentType?: string;
-        role?: string;
         seq: number;
-        isPublic?: boolean;
-        storagePath?: string;
       }) => ({
         column: img.column,
         url: img.url,
-        name: img.name,
-        size: img.size,
-        lastModified: img.lastModified,
-        contentType: img.contentType,
-        role: img.role,
         seq: img.seq,
-        isPublic: img.isPublic,
-        storagePath: img.storagePath,
         checked: true, // 기본적으로 모두 선택
       }));
 
@@ -500,17 +479,8 @@ export function ImageMigrationPanel() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex gap-1">
-                      {image.role && (
-                        <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
-                          {image.role}
-                        </span>
-                      )}
-                      {image.isPublic && (
-                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-                          Public
-                        </span>
-                      )}
+                    <div className="text-xs text-gray-500">
+                      {image.column}
                     </div>
                   </div>
                 </div>
@@ -519,7 +489,7 @@ export function ImageMigrationPanel() {
                 <div className="aspect-video bg-gray-100">
                   <img
                     src={image.url}
-                    alt={`${image.name || `이미지 ${image.seq}`} 미리보기`}
+                    alt={`이미지 ${image.seq} 미리보기`}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
@@ -534,40 +504,16 @@ export function ImageMigrationPanel() {
                 <div className="p-3">
                   <div className="mb-2">
                     <div className="font-medium text-gray-900 text-sm truncate">
-                      {image.name || `이미지 ${image.seq}`}
+                      이미지 {image.seq}
                     </div>
                   </div>
                   
-                  <div className="space-y-1 text-xs text-gray-600">
-                    <div className="flex justify-between">
-                      <span>크기:</span>
-                      <span className="font-mono">
-                        {image.size ? `${(image.size / 1024).toFixed(1)} KB` : 'N/A'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>타입:</span>
-                      <span className="font-mono">
-                        {image.contentType?.split('/')[1]?.toUpperCase() || 'N/A'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>수정일:</span>
-                      <span>
-                        {image.lastModified ? new Date(image.lastModified).toLocaleDateString('ko-KR') : 'N/A'}
-                      </span>
+                  <div className="text-xs text-gray-600 break-all">
+                    <div className="text-gray-500 mb-1">URL:</div>
+                    <div className="font-mono text-gray-700">
+                      {image.url}
                     </div>
                   </div>
-                  
-                  {/* Storage 경로 */}
-                  {image.storagePath && (
-                    <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                      <div className="text-gray-500 mb-1">Storage 경로:</div>
-                      <div className="font-mono text-gray-700 break-all">
-                        {image.storagePath}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
