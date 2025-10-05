@@ -84,6 +84,11 @@ export function ImageMigrationPanel() {
     property_name_en: string | null;
     slug?: string;
   }) => {
+    // 이전 마이그레이션 결과 초기화
+    setMigrationStatus({ status: "idle" });
+    setHotelImages([]);
+    setPreviewPaths([]);
+
     if (!sabreId || !hotelInfo) return;
 
     // 임시로 기본 슬러그 설정 (API에서 실제 slug를 받아올 때까지)

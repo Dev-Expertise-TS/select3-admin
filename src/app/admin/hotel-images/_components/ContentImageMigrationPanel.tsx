@@ -57,6 +57,9 @@ export function ContentImageMigrationPanel() {
     property_name_en: string | null;
     slug?: string;
   }) => {
+    // 이전 마이그레이션 결과 초기화
+    setMigrationStatus({ status: "idle" });
+
     if (!sabreId || !hotelInfo) {
       setSelectedHotel(null);
       return;
