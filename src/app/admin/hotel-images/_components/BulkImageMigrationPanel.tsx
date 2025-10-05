@@ -1,131 +1,154 @@
-'use client'
+"use client";
 
-import React, { useState, useEffect } from 'react'
-import { Database, Users, AlertCircle, CheckCircle, Loader2, Play, Pause, RotateCcw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import React, { useState, useEffect } from "react";
+import {
+  Database,
+  Users,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
+  Play,
+  Pause,
+  RotateCcw,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface BulkMigrationStatus {
-  status: 'idle' | 'fetching' | 'migrating' | 'paused' | 'completed' | 'error'
-  message?: string
+  status: "idle" | "fetching" | "migrating" | "paused" | "completed" | "error";
+  message?: string;
   progress?: {
-    current: number
-    total: number
-    percentage: number
-  }
+    current: number;
+    total: number;
+    percentage: number;
+  };
   currentBatch?: {
-    startId: number
-    endId: number
-    hotels: any[]
-  }
+    startId: number;
+    endId: number;
+    hotels: any[];
+  };
   statistics?: {
-    totalHotels: number
-    processedHotels: number
-    successfulMigrations: number
-    failedMigrations: number
-    skippedHotels: number
-  }
-  errors?: string[]
+    totalHotels: number;
+    processedHotels: number;
+    successfulMigrations: number;
+    failedMigrations: number;
+    skippedHotels: number;
+  };
+  errors?: string[];
 }
 
 export function BulkImageMigrationPanel() {
-  const [batchSize, setBatchSize] = useState(50)
-  const [startId, setStartId] = useState(0)
-  const [maxId, setMaxId] = useState(0)
-  const [migrationStatus, setMigrationStatus] = useState<BulkMigrationStatus>({ status: 'idle' })
-  const [isRunning, setIsRunning] = useState(false)
+  const [batchSize, setBatchSize] = useState(50);
+  const [startId, setStartId] = useState(0);
+  const [maxId, setMaxId] = useState(0);
+  const [migrationStatus, setMigrationStatus] = useState<BulkMigrationStatus>({
+    status: "idle",
+  });
+  const [isRunning, setIsRunning] = useState(false);
 
   // 전체 호텔 수 및 최대 ID 조회
   const fetchHotelStats = async () => {
-    setMigrationStatus({ status: 'fetching', message: '호텔 통계 정보를 조회하는 중...' })
-    
+    setMigrationStatus({
+      status: "fetching",
+      message: "호텔 통계 정보를 조회하는 중...",
+    });
+
     try {
-      const response = await fetch('/api/hotel-images/bulk/stats')
-      const result = await response.json()
+      const response = await fetch("/api/hotel-images/bulk/stats");
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || '통계 조회 실패')
+        throw new Error(result.error || "통계 조회 실패");
       }
 
-      setMaxId(result.data.maxIdOld || 0)
-      setMigrationStatus({ status: 'idle' })
-      
+      setMaxId(result.data.maxIdOld || 0);
+      setMigrationStatus({ status: "idle" });
     } catch (error) {
-      setMigrationStatus({ 
-        status: 'error', 
-        message: error instanceof Error ? error.message : '통계 조회 중 오류가 발생했습니다.' 
-      })
+      setMigrationStatus({
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "통계 조회 중 오류가 발생했습니다.",
+      });
     }
-  }
+  };
 
   // 전체 마이그레이션 시작
   const handleBulkMigration = async () => {
     if (isRunning) {
-      setIsRunning(false)
-      setMigrationStatus(prev => ({ ...prev, status: 'paused' }))
-      return
+      setIsRunning(false);
+      setMigrationStatus((prev) => ({ ...prev, status: "paused" }));
+      return;
     }
 
-    setIsRunning(true)
-    setMigrationStatus({ 
-      status: 'migrating', 
-      message: '전체 호텔 이미지 마이그레이션을 시작합니다...',
-      progress: { current: 0, total: Math.ceil((maxId - startId + 1) / batchSize), percentage: 0 },
+    setIsRunning(true);
+    setMigrationStatus({
+      status: "migrating",
+      message: "전체 호텔 이미지 마이그레이션을 시작합니다...",
+      progress: {
+        current: 0,
+        total: Math.ceil((maxId - startId + 1) / batchSize),
+        percentage: 0,
+      },
       statistics: {
         totalHotels: 0,
         processedHotels: 0,
         successfulMigrations: 0,
         failedMigrations: 0,
-        skippedHotels: 0
-      }
-    })
+        skippedHotels: 0,
+      },
+    });
 
     try {
-      const response = await fetch('/api/hotel-images/bulk/migrate', {
-        method: 'POST',
+      const response = await fetch("/api/hotel-images/bulk/migrate", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           startId,
           batchSize,
-          maxId
-        })
-      })
+          maxId,
+        }),
+      });
 
-      const result = await response.json()
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || '전체 마이그레이션 실패')
+        throw new Error(result.error || "전체 마이그레이션 실패");
       }
 
-      setMigrationStatus({ 
-        status: 'completed', 
-        message: result.message || '전체 호텔 이미지 마이그레이션이 완료되었습니다.',
-        statistics: result.data.statistics
-      })
-      
+      setMigrationStatus({
+        status: "completed",
+        message:
+          result.message || "전체 호텔 이미지 마이그레이션이 완료되었습니다.",
+        statistics: result.data.statistics,
+      });
     } catch (error) {
-      setMigrationStatus({ 
-        status: 'error', 
-        message: error instanceof Error ? error.message : '전체 마이그레이션 중 오류가 발생했습니다.' 
-      })
+      setMigrationStatus({
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "전체 마이그레이션 중 오류가 발생했습니다.",
+      });
     } finally {
-      setIsRunning(false)
+      setIsRunning(false);
     }
-  }
+  };
 
   // 마이그레이션 리셋
   const handleReset = () => {
-    setIsRunning(false)
-    setMigrationStatus({ status: 'idle' })
-    setStartId(0)
-  }
+    setIsRunning(false);
+    setMigrationStatus({ status: "idle" });
+    setStartId(0);
+  };
 
   // 컴포넌트 마운트 시 통계 조회
   useEffect(() => {
-    fetchHotelStats()
-  }, [])
+    fetchHotelStats();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -174,20 +197,30 @@ export function BulkImageMigrationPanel() {
             />
           </div>
         </div>
-        
+
         <div className="mt-4 text-sm text-gray-600">
-          <p>• 총 {Math.ceil((maxId - startId + 1) / batchSize)}개 배치로 처리됩니다</p>
+          <p>
+            • 총 {Math.ceil((maxId - startId + 1) / batchSize)}개 배치로
+            처리됩니다
+          </p>
           <p>• 각 배치는 {batchSize}개 호텔씩 처리됩니다</p>
-          <p>• id_old 기준으로 {startId}부터 {maxId}까지 처리됩니다</p>
+          <p>
+            • id_old 기준으로 {startId}부터 {maxId}까지 처리됩니다
+          </p>
         </div>
       </div>
 
       {/* 현재 배치 정보 */}
       {migrationStatus.currentBatch && (
         <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-          <h4 className="font-medium text-blue-900 mb-2">현재 처리 중인 배치</h4>
+          <h4 className="font-medium text-blue-900 mb-2">
+            현재 처리 중인 배치
+          </h4>
           <div className="text-sm text-blue-800">
-            <p>ID 범위: {migrationStatus.currentBatch.startId} ~ {migrationStatus.currentBatch.endId}</p>
+            <p>
+              ID 범위: {migrationStatus.currentBatch.startId} ~{" "}
+              {migrationStatus.currentBatch.endId}
+            </p>
             <p>호텔 수: {migrationStatus.currentBatch.hotels.length}개</p>
           </div>
         </div>
@@ -204,14 +237,15 @@ export function BulkImageMigrationPanel() {
                 <span>{migrationStatus.progress.percentage.toFixed(1)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
+                <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${migrationStatus.progress.percentage}%` }}
                 />
               </div>
             </div>
             <div className="text-sm text-gray-600">
-              배치 {migrationStatus.progress.current} / {migrationStatus.progress.total}
+              배치 {migrationStatus.progress.current} /{" "}
+              {migrationStatus.progress.total}
             </div>
           </div>
         </div>
@@ -263,17 +297,19 @@ export function BulkImageMigrationPanel() {
             onClick={handleBulkMigration}
             disabled={maxId === 0}
             className={`flex items-center gap-2 ${
-              isRunning ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+              isRunning
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
-            {migrationStatus.status === 'migrating' ? (
+            {migrationStatus.status === "migrating" ? (
               <Pause className="h-4 w-4" />
             ) : (
               <Play className="h-4 w-4" />
             )}
-            {isRunning ? '마이그레이션 일시정지' : '전체 마이그레이션 시작'}
+            {isRunning ? "마이그레이션 일시정지" : "전체 마이그레이션 시작"}
           </Button>
-          
+
           <Button
             onClick={handleReset}
             disabled={isRunning}
@@ -302,7 +338,10 @@ export function BulkImageMigrationPanel() {
           <h3 className="text-lg font-semibold text-red-900 mb-4">오류 목록</h3>
           <div className="space-y-2 max-h-40 overflow-y-auto">
             {migrationStatus.errors.map((error, index) => (
-              <div key={index} className="text-sm text-red-700 bg-white p-2 rounded border">
+              <div
+                key={index}
+                className="text-sm text-red-700 bg-white p-2 rounded border"
+              >
                 {error}
               </div>
             ))}
@@ -312,18 +351,20 @@ export function BulkImageMigrationPanel() {
 
       {/* 상태 표시 */}
       {migrationStatus.message && (
-        <div className={`p-4 rounded-lg flex items-center gap-3 ${
-          migrationStatus.status === 'error' 
-            ? 'bg-red-50 text-red-700 border border-red-200' 
-            : migrationStatus.status === 'completed'
-            ? 'bg-green-50 text-green-700 border border-green-200'
-            : 'bg-blue-50 text-blue-700 border border-blue-200'
-        }`}>
-          {migrationStatus.status === 'error' ? (
+        <div
+          className={`p-4 rounded-lg flex items-center gap-3 ${
+            migrationStatus.status === "error"
+              ? "bg-red-50 text-red-700 border border-red-200"
+              : migrationStatus.status === "completed"
+                ? "bg-green-50 text-green-700 border border-green-200"
+                : "bg-blue-50 text-blue-700 border border-blue-200"
+          }`}
+        >
+          {migrationStatus.status === "error" ? (
             <AlertCircle className="h-5 w-5" />
-          ) : migrationStatus.status === 'completed' ? (
+          ) : migrationStatus.status === "completed" ? (
             <CheckCircle className="h-5 w-5" />
-          ) : migrationStatus.status === 'migrating' ? (
+          ) : migrationStatus.status === "migrating" ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
             <Users className="h-5 w-5" />
@@ -332,5 +373,5 @@ export function BulkImageMigrationPanel() {
         </div>
       )}
     </div>
-  )
+  );
 }

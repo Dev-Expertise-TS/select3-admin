@@ -1,13 +1,13 @@
 /* eslint-disable no-useless-escape */
 
-export type ImageFormat = 'jpg' | 'jpeg' | 'webp' | 'avif' | 'png';
+export type ImageFormat = "jpg" | "jpeg" | "webp" | "avif" | "png";
 
 /**
  * 전역 상수 (프로젝트 컨벤션)
  */
-export const MEDIA_BUCKET = 'hotel-media' as const;
-export const DIR_ORIGINALS = 'originals' as const;
-export const DIR_PUBLIC = 'public' as const;
+export const MEDIA_BUCKET = "hotel-media" as const;
+export const DIR_ORIGINALS = "originals" as const;
+export const DIR_PUBLIC = "public" as const;
 
 /**
  * 유틸: 정수 2자릿수 제로패딩 (01~99)
@@ -19,10 +19,11 @@ const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
  */
 const normalizeFormat = (format: string): ImageFormat => {
   const f = format.toLowerCase();
-  if (f === 'jpeg') return 'jpg';
-  if (f === 'jpg' || f === 'webp' || f === 'avif' || f === 'png') return f as ImageFormat;
+  if (f === "jpeg") return "jpg";
+  if (f === "jpg" || f === "webp" || f === "avif" || f === "png")
+    return f as ImageFormat;
   // 기본 jpg
-  return 'jpg';
+  return "jpg";
 };
 
 /**
@@ -42,7 +43,7 @@ const isValidToken = (s: string) => {
  */
 const clipHash = (hash?: string, len = 8) => {
   if (!hash) return undefined;
-  const h = hash.replace(/[^a-fA-F0-9]/g, '');
+  const h = hash.replace(/[^a-fA-F0-9]/g, "");
   return h.slice(0, len);
 };
 
@@ -52,21 +53,17 @@ const clipHash = (hash?: string, len = 8) => {
  * 예) capella-bangkok_987654_01.jpg
  */
 export type OriginalNameParams = {
-  hotelSlug: string;          // 예: 'capella-bangkok'
-  sabreId?: string;           // 예: '987654' (없으면 'na')
-  seq?: number;               // 예: 1 -> '01'
-  ext?: ImageFormat;          // 기본: 'jpg'
+  hotelSlug: string; // 예: 'capella-bangkok'
+  sabreId?: string; // 예: '987654' (없으면 'na')
+  seq?: number; // 예: 1 -> '01'
+  ext?: ImageFormat; // 기본: 'jpg'
 };
 
 export const buildOriginalFilename = (p: OriginalNameParams): string => {
-  const {
-    hotelSlug,
-    sabreId = 'na',
-    seq = 1,
-    ext = 'jpg',
-  } = p;
+  const { hotelSlug, sabreId = "na", seq = 1, ext = "jpg" } = p;
 
-  if (!isValidToken(hotelSlug)) throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
+  if (!isValidToken(hotelSlug))
+    throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
   if (!isValidToken(sabreId)) throw new Error(`Invalid sabreId: ${sabreId}`);
 
   const seqToken = pad2(seq);
@@ -84,20 +81,15 @@ export type PublicNameParams = {
   hotelSlug: string;
   sabreId?: string;
   seq?: number;
-  width: number;              // 파생 가로폭(px)
-  format?: ImageFormat;       // 'avif'|'webp'|'jpg' 등 (파일 확장자와 동일)
+  width: number; // 파생 가로폭(px)
+  format?: ImageFormat; // 'avif'|'webp'|'jpg' 등 (파일 확장자와 동일)
 };
 
 export const buildPublicFilename = (p: PublicNameParams): string => {
-  const {
-    hotelSlug,
-    sabreId = 'na',
-    seq = 1,
-    width,
-    format = 'avif',
-  } = p;
+  const { hotelSlug, sabreId = "na", seq = 1, width, format = "avif" } = p;
 
-  if (!isValidToken(hotelSlug)) throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
+  if (!isValidToken(hotelSlug))
+    throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
   if (!isValidToken(sabreId)) throw new Error(`Invalid sabreId: ${sabreId}`);
   if (!(width > 0)) throw new Error(`width must be > 0`);
   const ext = normalizeFormat(format);
@@ -113,12 +105,13 @@ export const buildPublicFilename = (p: PublicNameParams): string => {
  * public:     hotel-media/public/{hotel_slug}/{filename}
  */
 export const buildOriginalPath = (hotelSlug: string, filename: string) => {
-  if (!isValidToken(hotelSlug)) throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
+  if (!isValidToken(hotelSlug))
+    throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
   return `${DIR_ORIGINALS}/${hotelSlug}/${filename}`;
 };
 
 export const buildPublicPath = (hotelSlug: string, filename: string) => {
-  if (!isValidToken(hotelSlug)) throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
+  if (!isValidToken(hotelSlug))
+    throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
   return `${DIR_PUBLIC}/${hotelSlug}/${filename}`;
 };
-
