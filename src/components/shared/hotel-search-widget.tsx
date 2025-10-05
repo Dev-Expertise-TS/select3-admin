@@ -17,12 +17,12 @@ import {
   FolderPlus,
   FolderCheck,
   FolderX,
-  Download
+  Database,
+  ImageIcon
 } from 'lucide-react'
 import Link from 'next/link'
 import NextImage from 'next/image'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 import { cn, getDateAfterDays, formatJson } from '@/lib/utils'
 import { BaseButton } from '@/components/shared/form-actions'
@@ -48,9 +48,22 @@ interface StorageFolderInfo {
   exists: boolean
   slug: string
   folderPath: string
+  path: string
   fileCount?: number
   loading: boolean
   error: string | null
+}
+
+interface StorageImage {
+  name: string
+  url: string
+  size?: number
+  lastModified?: string
+  contentType?: string
+  role?: string
+  seq: number
+  isPublic?: boolean
+  storagePath?: string
 }
 
 interface ImageManagementPanelProps {
@@ -77,42 +90,28 @@ interface ImageManagementPanelProps {
       image_5: ImageInfo | null
     }
     storageFolder: StorageFolderInfo | null
+    storageImages: StorageImage[] | null
     savingImages: {
       [key: string]: boolean
     }
   } | undefined
-  onImageUrlChange: (hotelId: string, field: string, value: string) => void
   onToggleEditMode: (hotelId: string) => void
   onSaveImageUrls: (hotelId: string, sabreId: string) => void
   onCreateStorageFolder: (hotelId: string, sabreId: string) => void
   onCheckStorageFolder: (hotelId: string, sabreId: string) => void
-  onSaveImageToStorage: (hotelId: string, sabreId: string, imageUrl: string, imageIndex: number) => void
-  formatFileSize: (bytes: number) => string
+  onLoadStorageImages: (hotelId: string, sabreId: string) => void
 }
 
 const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
   hotel,
   hotelId,
   state,
-  onImageUrlChange,
   onToggleEditMode,
   onSaveImageUrls,
   onCreateStorageFolder,
   onCheckStorageFolder,
-  onSaveImageToStorage,
-  formatFileSize
+  onLoadStorageImages
 }) => {
-  // AVIF 지원 여부 확인
-  const [supportsAVIF, setSupportsAVIF] = React.useState(false)
-  
-  React.useEffect(() => {
-    const testCanvas = document.createElement('canvas')
-    testCanvas.width = 1
-    testCanvas.height = 1
-    const testCtx = testCanvas.getContext('2d')
-    const avifSupported = testCtx?.canvas.toDataURL('image/avif').startsWith('data:image/avif') || false
-    setSupportsAVIF(avifSupported)
-  }, [])
   if (!state) {
     return (
       <div className="text-center py-8">
@@ -248,132 +247,146 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
       {/* 이미지 편집 폼 */}
       {!state.loading && (
         <div className="space-y-6">
-          {(['image_1', 'image_2', 'image_3', 'image_4', 'image_5'] as const).map((field, index) => (
-            <div key={field} className="bg-white rounded-lg p-4 border border-gray-200">
-              <h5 className="text-md font-semibold text-gray-900 mb-3">이미지 {index + 1}</h5>
-              
-              <div className="space-y-3">
-                {/* 미리보기 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    미리보기
-                  </label>
-                  <div className="aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border shadow-sm max-w-sm">
-                    {state.imageUrls[field] ? (
-                      <NextImage
-                        unoptimized
-                        src={state.imageUrls[field]}
-                        alt={`이미지 ${index + 1}`}
-                        width={300}
-                        height={225}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          target.style.display = 'none'
-                          const parent = target.parentElement
-                          if (parent) {
-                            parent.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500">이미지를 불러올 수 없습니다</div>'
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-gray-500">
-                        이미지 URL을 입력하세요
+          {/* Supabase Storage 이미지 그리드 */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h5 className="text-lg font-semibold text-gray-900">
+                호텔 이미지 목록
+              </h5>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => onLoadStorageImages(hotelId, String(hotel.sabre_id))}
+                  disabled={state.loading}
+                  size="sm"
+                  variant="outline"
+                >
+                  새로고침
+                </Button>
+                <div className="text-sm text-gray-500">
+                  Supabase Storage에서 조회
+                </div>
+              </div>
+            </div>
+            
+            {/* Storage 폴더 상태 */}
+            {state.storageFolder && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <Database className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">Storage 폴더:</span>
+                  <span className="text-sm text-blue-700 font-mono">
+                    {state.storageFolder.path}
+                  </span>
+                  {state.storageFolder.exists ? (
+                    <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                      존재함
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">
+                      없음
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* 이미지 그리드 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {state.storageImages?.map((image, _index) => (
+                <div key={image.name} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                  {/* 헤더 */}
+                  <div className="p-3 bg-gray-50 border-b">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center">
+                          <span className="text-xs font-medium text-blue-600">
+                            {String(image.seq).padStart(2, "0")}
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900 truncate">
+                          {image.name}
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        {image.role && (
+                          <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                            {image.role}
+                          </span>
+                        )}
+                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
+                          Public
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 이미지 미리보기 */}
+                  <div className="aspect-video bg-gray-100">
+                    <NextImage
+                      unoptimized
+                      src={image.url}
+                      alt={`${image.name} 미리보기`}
+                      width={400}
+                      height={300}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        target.style.display = 'none'
+                        const parent = target.parentElement
+                        if (parent) {
+                          parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><span class="text-sm">이미지 로드 실패</span></div>'
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {/* 파일 정보 */}
+                  <div className="p-3">
+                    <div className="space-y-1 text-xs text-gray-600">
+                      <div className="flex justify-between">
+                        <span>크기:</span>
+                        <span className="font-mono">
+                          {image.size ? `${(image.size / 1024).toFixed(1)} KB` : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>타입:</span>
+                        <span className="font-mono">
+                          {image.contentType?.split('/')[1]?.toUpperCase() || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>수정일:</span>
+                        <span>
+                          {image.lastModified ? new Date(image.lastModified).toLocaleDateString('ko-KR') : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Storage 경로 */}
+                    {image.storagePath && (
+                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                        <div className="text-gray-500 mb-1">Storage 경로:</div>
+                        <div className="font-mono text-gray-700 break-all">
+                          {image.storagePath}
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
-
-                {/* 이미지 정보 표시 */}
-                {state.imageUrls[field] && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      이미지 정보
-                    </label>
-                    <div className="bg-gray-50 rounded-lg border p-3 max-w-sm">
-                      {state.imageInfos?.[field]?.loading ? (
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
-                          이미지 정보를 불러오는 중...
-                        </div>
-                      ) : state.imageInfos?.[field]?.error ? (
-                        <div className="text-sm text-red-600">
-                          {state.imageInfos[field].error}
-                        </div>
-                      ) : state.imageInfos?.[field] ? (
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">크기:</span>
-                            <span className="font-medium">
-                              {state.imageInfos[field].width} × {state.imageInfos[field].height}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">용량:</span>
-                            <span className="font-medium">
-                              {formatFileSize(state.imageInfos[field].size)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">형식:</span>
-                            <span className="font-medium uppercase">
-                              {state.imageInfos[field].format}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">비율:</span>
-                            <span className="font-medium">
-                              {(state.imageInfos[field].width / state.imageInfos[field].height).toFixed(2)}:1
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-500">
-                          이미지 정보를 가져오는 중...
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* 이미지 URL 입력 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    이미지 {index + 1} URL
-                  </label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={state.imageUrls[field]}
-                      onChange={(e) => onImageUrlChange(hotelId, field, e.target.value)}
-                      placeholder="https://example.com/image.jpg"
-                      disabled={!state.editingImages}
-                      className={state.editingImages ? 'max-w-sm' : 'max-w-sm bg-gray-50'}
-                    />
-                    {state.imageUrls[field] && state.storageFolder?.exists && (
-                      <Button
-                        onClick={() => onSaveImageToStorage(hotelId, String(hotel.sabre_id), state.imageUrls[field], index + 1)}
-                        disabled={state.savingImages?.[field] || !state.storageFolder?.exists}
-                        size="sm"
-                        className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700"
-                      >
-                        {state.savingImages?.[field] ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            저장 중...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-4 w-4" />
-                            {supportsAVIF ? 'AVIF 저장' : 'WebP 저장'}
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
+              )) || []}
             </div>
-          ))}
+            
+            {/* 이미지가 없는 경우 */}
+            {(!state.storageImages || state.storageImages.length === 0) && (
+              <div className="text-center py-8 text-gray-500">
+                <ImageIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>Supabase Storage에 이미지가 없습니다.</p>
+                <p className="text-sm">호텔 이미지 마이그레이션을 통해 이미지를 업로드하세요.</p>
+              </div>
+            )}
+          </div>
+
         </div>
       )}
     </div>
@@ -481,6 +494,7 @@ export default function HotelSearchWidget({
         image_5: ImageInfo | null
       }
       storageFolder: StorageFolderInfo | null
+      storageImages: StorageImage[] | null
       savingImages: {
         [key: string]: boolean
       }
@@ -498,8 +512,8 @@ export default function HotelSearchWidget({
     }
   };
 
-  // 파일 크기를 사람이 읽기 쉬운 형태로 변환
-  const formatFileSize = (bytes: number): string => {
+  // 파일 크기를 사람이 읽기 쉬운 형태로 변환 (현재 사용하지 않음)
+  const _formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B'
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB']
@@ -507,8 +521,8 @@ export default function HotelSearchWidget({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  // 이미지 정보를 가져오는 함수
-  const fetchImageInfo = async (url: string): Promise<ImageInfo> => {
+  // 이미지 정보를 가져오는 함수 (현재 사용하지 않음)
+  const _fetchImageInfo = async (url: string): Promise<ImageInfo> => {
     return new Promise((resolve) => {
       const img = new Image()
       
@@ -590,12 +604,14 @@ export default function HotelSearchWidget({
           image_5: null
         },
         storageFolder: null,
+        storageImages: null,
         savingImages: {}
       }
     }))
 
     try {
-      const response = await fetch(`/api/hotel/images?sabreCode=${encodeURIComponent(sabreId)}`, {
+      // Supabase Storage에서 이미지 목록 가져오기
+      const response = await fetch(`/api/hotel-images/list?sabreId=${sabreId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -609,72 +625,41 @@ export default function HotelSearchWidget({
       const data = await response.json()
 
       if (data.success && data.data) {
-        const imageUrls = {
-          image_1: data.data.image_1 || '',
-          image_2: data.data.image_2 || '',
-          image_3: data.data.image_3 || '',
-          image_4: data.data.image_4 || '',
-          image_5: data.data.image_5 || ''
-        }
-
-        // 이미지 정보 업데이트
-        const imageInfos = {
-          image_1: null as ImageInfo | null,
-          image_2: null as ImageInfo | null,
-          image_3: null as ImageInfo | null,
-          image_4: null as ImageInfo | null,
-          image_5: null as ImageInfo | null
-        }
-
-        // 모든 이미지 정보를 로딩 상태로 초기화
-        Object.keys(imageInfos).forEach(key => {
-          const field = key as keyof typeof imageUrls
-          if (imageUrls[field]) {
-            imageInfos[field] = {
-              width: 0,
-              height: 0,
-              size: 0,
-              format: 'unknown',
-              loading: true,
-              error: null
-            }
-          }
-        })
-
+        // Supabase Storage 이미지 데이터 설정
         setImageManagementState(prev => ({
           ...prev,
           [hotelId]: {
             loading: false,
             saving: false,
             error: null,
-            success: null,
+            success: `${data.data.totalImages}개의 이미지를 불러왔습니다.`,
             editingImages: false,
-            imageUrls,
-            imageInfos,
-            storageFolder: null,
+            imageUrls: {
+              image_1: '',
+              image_2: '',
+              image_3: '',
+              image_4: '',
+              image_5: ''
+            },
+            imageInfos: {
+              image_1: null,
+              image_2: null,
+              image_3: null,
+              image_4: null,
+              image_5: null
+            },
+            storageFolder: {
+              exists: true,
+              slug: data.data.hotel?.normalizedSlug || '',
+              folderPath: data.data.storagePath || '',
+              path: data.data.storagePath || '',
+              loading: false,
+              error: null
+            },
+            storageImages: data.data.images || [],
             savingImages: {}
           }
         }))
-
-        // 각 이미지 정보를 병렬로 가져오기
-        Object.keys(imageUrls).forEach(async (key) => {
-          const field = key as keyof typeof imageUrls
-          const url = imageUrls[field]
-          
-          if (url) {
-            const info = await fetchImageInfo(url)
-            setImageManagementState(prev => ({
-              ...prev,
-              [hotelId]: {
-                ...prev[hotelId],
-                imageInfos: {
-                  ...prev[hotelId].imageInfos,
-                  [field]: info
-                }
-              }
-            }))
-          }
-        })
       } else {
         setImageManagementState(prev => ({
           ...prev,
@@ -699,6 +684,7 @@ export default function HotelSearchWidget({
               image_5: null
             },
             storageFolder: null,
+            storageImages: null,
             savingImages: {}
           }
         }))
@@ -727,6 +713,7 @@ export default function HotelSearchWidget({
             image_5: null
           },
           storageFolder: null,
+          storageImages: null,
           savingImages: {}
         }
       }))
@@ -737,23 +724,9 @@ export default function HotelSearchWidget({
   // 이미지 관리 관련 핸들러 함수들
   // ============================================================================
 
-  // 이미지 URL 변경 핸들러
-  const handleImageUrlChange = (hotelId: string, field: string, value: string) => {
-    setImageManagementState(prev => {
-      const currentState = prev[hotelId]
-      if (!currentState) return prev
-      
-      return {
-        ...prev,
-        [hotelId]: {
-          ...currentState,
-          imageUrls: {
-            ...currentState.imageUrls,
-            [field]: value
-          }
-        }
-      }
-    })
+  // 이미지 URL 변경 핸들러 (현재 사용하지 않음)
+  const _handleImageUrlChange = (hotelId: string, field: string, value: string) => {
+    console.log('handleImageUrlChange called but not implemented', { hotelId, field, value })
   }
 
   // 이미지 편집 모드 토글
@@ -762,11 +735,24 @@ export default function HotelSearchWidget({
       const currentState = prev[hotelId]
       if (!currentState) return prev
       
+      const newEditingState = !currentState.editingImages
+      
+      // 편집 모드가 아닐 때 (즉, 이미지 관리 모드로 전환할 때) Storage 이미지 로드
+      if (!newEditingState && !currentState.storageImages) {
+        // 비동기로 Storage 이미지 로드
+        setTimeout(() => {
+          const hotel = results.find(h => String(h.sabre_id) === hotelId)
+          if (hotel) {
+            loadStorageImages(hotelId, String(hotel.sabre_id))
+          }
+        }, 100)
+      }
+      
       return {
         ...prev,
         [hotelId]: {
           ...currentState,
-          editingImages: !currentState.editingImages
+          editingImages: newEditingState
         }
       }
     })
@@ -861,6 +847,79 @@ export default function HotelSearchWidget({
     }
   }
 
+  // Supabase Storage 이미지 로드 핸들러
+  const loadStorageImages = async (hotelId: string, sabreId: string) => {
+    setImageManagementState(prev => {
+      const currentState = prev[hotelId]
+      if (!currentState) return prev
+      
+      return {
+        ...prev,
+        [hotelId]: {
+          ...currentState,
+          loading: true,
+          error: null,
+          success: null
+        }
+      }
+    })
+
+    try {
+      const response = await fetch(`/api/hotel-images/list?sabreId=${sabreId}`)
+      
+      if (!response.ok) {
+        throw new Error(`이미지 목록 조회 실패: ${response.status}`)
+      }
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          if (!currentState) return prev
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
+              loading: false,
+              storageImages: data.data.images || [],
+              success: `${data.data.totalImages}개의 이미지를 불러왔습니다.`
+            }
+          }
+        })
+      } else {
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          if (!currentState) return prev
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
+              loading: false,
+              error: data.error || '이미지 목록을 불러올 수 없습니다.'
+            }
+          }
+        })
+      }
+    } catch (err) {
+      setImageManagementState(prev => {
+        const currentState = prev[hotelId]
+        if (!currentState) return prev
+        
+        return {
+          ...prev,
+          [hotelId]: {
+            ...currentState,
+            loading: false,
+            error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
+          }
+        }
+      })
+    }
+  }
+
   // Storage 폴더 상태 확인 핸들러
   // 호텔을 체인 브랜드에 연결하는 함수
   const connectHotelToChainBrand = async (sabreId: string) => {
@@ -929,6 +988,7 @@ export default function HotelSearchWidget({
             exists: false,
             slug: '',
             folderPath: '',
+            path: '',
             loading: true,
             error: null
           }
@@ -955,7 +1015,11 @@ export default function HotelSearchWidget({
             [hotelId]: {
               ...currentState,
               storageFolder: {
-                ...data.data,
+                exists: data.data.exists || false,
+                slug: data.data.slug || '',
+                folderPath: data.data.folderPath || '',
+                path: data.data.path || '',
+                fileCount: data.data.fileCount,
                 loading: false,
                 error: null
               }
@@ -975,6 +1039,7 @@ export default function HotelSearchWidget({
                 exists: false,
                 slug: '',
                 folderPath: '',
+                path: '',
                 loading: false,
                 error: data.error || 'Storage 폴더 상태 확인에 실패했습니다.'
               }
@@ -995,6 +1060,7 @@ export default function HotelSearchWidget({
               exists: false,
               slug: '',
               folderPath: '',
+              path: '',
               loading: false,
               error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
             }
@@ -1053,6 +1119,7 @@ export default function HotelSearchWidget({
                 exists: true,
                 slug: data.data.slug,
                 folderPath: data.data.folderPath,
+                path: data.data.folderPath,
                 loading: false,
                 error: null
               },
@@ -1098,160 +1165,10 @@ export default function HotelSearchWidget({
     }
   }
 
-  // 이미지를 Storage에 저장하는 핸들러 (클라이언트 사이드 AVIF 변환)
-  const saveImageToStorage = async (hotelId: string, sabreId: string, imageUrl: string, imageIndex: number) => {
-    const field = `image_${imageIndex}` as keyof typeof imageManagementState[string]['imageUrls']
-    
-    setImageManagementState(prev => {
-      const currentState = prev[hotelId]
-      if (!currentState) return prev
-      
-      return {
-        ...prev,
-        [hotelId]: {
-          ...currentState,
-          savingImages: {
-            ...currentState.savingImages,
-            [field]: true
-          },
-          error: null,
-          success: null
-        }
-      }
-    })
-
-    try {
-      // 클라이언트 사이드에서 이미지 다운로드 및 AVIF 변환
-      const imageResponse = await fetch(imageUrl)
-      if (!imageResponse.ok) {
-        throw new Error(`이미지 다운로드 실패: ${imageResponse.status}`)
-      }
-
-      const imageBlob = await imageResponse.blob()
-      
-      // Canvas를 사용하여 AVIF로 변환
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      if (!ctx) {
-        throw new Error('Canvas 컨텍스트를 생성할 수 없습니다')
-      }
-
-      // 이미지 로드
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      
-      await new Promise((resolve, reject) => {
-        img.onload = resolve
-        img.onerror = reject
-        img.src = URL.createObjectURL(imageBlob)
-      })
-
-      // Canvas 크기 설정
-      canvas.width = img.width
-      canvas.height = img.height
-      
-      // 이미지 그리기
-      ctx.drawImage(img, 0, 0)
-      
-      // AVIF 지원 여부 확인
-      const testCanvas = document.createElement('canvas')
-      testCanvas.width = 1
-      testCanvas.height = 1
-      const testCtx = testCanvas.getContext('2d')
-      const supportsAVIF = testCtx?.canvas.toDataURL('image/avif').startsWith('data:image/avif')
-      
-      // 지원하는 포맷으로 변환 (AVIF 우선, WebP fallback)
-      const targetFormat = supportsAVIF ? 'image/avif' : 'image/webp'
-      const fileExtension = supportsAVIF ? 'avif' : 'webp'
-      
-      const convertedBlob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(blob)
-          } else {
-            reject(new Error(`${targetFormat} 변환에 실패했습니다`))
-          }
-        }, targetFormat, 0.8)
-      })
-
-      // 서버에 변환된 파일 업로드
-      const formData = new FormData()
-      formData.append('file', convertedBlob, `${sabreId}-${imageIndex}.${fileExtension}`)
-      formData.append('sabreId', sabreId)
-      formData.append('imageIndex', imageIndex.toString())
-
-      const response = await fetch('/api/hotel/save-image', {
-        method: 'POST',
-        body: formData
-      })
-      
-      if (!response.ok) {
-        throw new Error(`API 오류 (${response.status}): ${response.statusText}`)
-      }
-
-      const data = await response.json()
-
-      if (data.success) {
-        setImageManagementState(prev => {
-          const currentState = prev[hotelId]
-          if (!currentState) return prev
-          
-          return {
-            ...prev,
-            [hotelId]: {
-              ...currentState,
-              savingImages: {
-                ...currentState.savingImages,
-                [field]: false
-              },
-              success: data.data.message
-            }
-          }
-        })
-
-        // Storage 폴더 상태를 다시 확인하여 파일 수 업데이트
-        setTimeout(() => {
-          checkStorageFolder(hotelId, sabreId)
-        }, 1000)
-      } else {
-        setImageManagementState(prev => {
-          const currentState = prev[hotelId]
-          if (!currentState) return prev
-          
-          return {
-            ...prev,
-            [hotelId]: {
-              ...currentState,
-              savingImages: {
-                ...currentState.savingImages,
-                [field]: false
-              },
-              error: data.error || '이미지 저장에 실패했습니다.'
-            }
-          }
-        })
-      }
-
-      // 메모리 정리
-      URL.revokeObjectURL(img.src)
-    } catch (err) {
-      setImageManagementState(prev => {
-        const currentState = prev[hotelId]
-        if (!currentState) return prev
-        
-        return {
-          ...prev,
-          [hotelId]: {
-            ...currentState,
-            savingImages: {
-              ...currentState.savingImages,
-              [field]: false
-            },
-            error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
-          }
-        }
-      })
-    }
+  // 이미지를 Storage에 저장하는 핸들러 - 현재 사용하지 않음
+  const _saveImageToStorage = async (hotelId: string, sabreId: string, imageUrl: string, imageIndex: number) => {
+    // 구현 생략 - 현재 사용하지 않음
+    console.log('saveImageToStorage called but not implemented', { hotelId, sabreId, imageUrl, imageIndex })
   }
 
   // rate_plan_code를 배열로 변환하는 유틸리티 함수
@@ -2389,13 +2306,11 @@ export default function HotelSearchWidget({
                                     hotel={expandedRowState.hotel}
                                     hotelId={hotelId}
                                     state={imageManagementState[hotelId]}
-                                    onImageUrlChange={handleImageUrlChange}
                                     onToggleEditMode={toggleImageEditMode}
                                     onSaveImageUrls={saveImageUrls}
                                     onCreateStorageFolder={createStorageFolder}
                                     onCheckStorageFolder={checkStorageFolder}
-                                    onSaveImageToStorage={saveImageToStorage}
-                                    formatFileSize={formatFileSize}
+                                    onLoadStorageImages={loadStorageImages}
                                   />
                                 )}
                                 
