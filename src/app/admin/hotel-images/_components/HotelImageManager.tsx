@@ -1,13 +1,14 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Image as ImageIcon, Database, Upload, Settings, Users } from 'lucide-react'
+import { Image as ImageIcon, Database, Upload, Settings, Users, FileText } from 'lucide-react'
 import HotelSearchWidget from '@/components/shared/hotel-search-widget'
 import { ImageMigrationPanel } from './ImageMigrationPanel'
 import { BulkImageMigrationPanel } from './BulkImageMigrationPanel'
+import { ContentImageMigrationPanel } from './ContentImageMigrationPanel'
 
 export function HotelImageManager() {
-  const [activeTab, setActiveTab] = useState<'management' | 'individual-migration' | 'bulk-migration'>('management')
+  const [activeTab, setActiveTab] = useState<'management' | 'individual-migration' | 'gallery-migration' | 'content-migration'>('management')
 
   return (
     <div className="min-h-[60vh]">
@@ -52,16 +53,29 @@ export function HotelImageManager() {
             </div>
           </button>
           <button
-            onClick={() => setActiveTab('bulk-migration')}
+            onClick={() => setActiveTab('gallery-migration')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'bulk-migration'
+              activeTab === 'gallery-migration'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4" />
-              전체 호텔 이미지 마이그레이션
+              전체 호텔 갤러리 이미지 마이그레이션
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('content-migration')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'content-migration'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              전체 호텔 본문 이미지 마이그레이션
             </div>
           </button>
         </nav>
@@ -80,7 +94,8 @@ export function HotelImageManager() {
       )}
 
       {activeTab === 'individual-migration' && <ImageMigrationPanel />}
-      {activeTab === 'bulk-migration' && <BulkImageMigrationPanel />}
+      {activeTab === 'gallery-migration' && <BulkImageMigrationPanel />}
+      {activeTab === 'content-migration' && <ContentImageMigrationPanel />}
     </div>
   )
 }
