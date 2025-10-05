@@ -6,7 +6,26 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const createClient = (cookieStore: Awaited<ReturnType<typeof cookies>>) => {
+export const createClient = (cookieStore?: Awaited<ReturnType<typeof cookies>>) => {
+  // cookieStore가 제공되지 않은 경우 (API 라우트에서 사용)
+  if (!cookieStore) {
+    return createServerClient(
+      supabaseUrl!,
+      supabaseKey!,
+      {
+        cookies: {
+          getAll() {
+            return []
+          },
+          setAll() {
+            // API 라우트에서는 쿠키 설정하지 않음
+          },
+        },
+      },
+    );
+  }
+
+  // Server Component에서 사용할 때
   return createServerClient(
     supabaseUrl!,
     supabaseKey!,
