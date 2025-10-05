@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     const { data: files, error: storageError } = await supabase.storage
       .from('hotel-media')
       .list(storagePath, {
-        limit: 1000, // 더 많은 파일을 가져올 수 있도록 증가
+        limit: 5000, // 최대 5000개 파일까지 가져오기
         offset: 0,
         sortBy: { column: 'name', order: 'asc' }
       });
@@ -70,10 +70,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 이미지 파일만 필터링 (jpg, jpeg, png, webp, avif)
-    const imageFiles = (files || []).filter(file => 
-      file.name && /\.(jpg|jpeg|png|webp|avif)$/i.test(file.name)
-    );
+    // 이미지 파일만 필터링 (jpg, jpeg, png, webp, avif) - 더 관대한 필터링
+    const imageFiles = (files || []).filter(file => {
+      if (!file.name) return false;
+      const lowerName = file.name.toLowerCase();
+      return /\.(jpg|jpeg|png|webp|avif|gif|bmp|tiff)$/i.test(file.name) || 
+             lowerName.includes('image') || 
+             lowerName.includes('photo') ||
+             lowerName.includes('pic');
+    });
+    
+    console.log(`호텔 ${sabreId} 이미지 조회 결과:`, {
+      totalFiles: files?.length || 0,
+      imageFiles: imageFiles.length,
+      fileNames: imageFiles.map(f => f.name)
+    });
 
     // 파일 정보를 상세 조회하여 메타데이터 가져오기
     const imageDetails = await Promise.all(
@@ -131,6 +142,11 @@ export async function GET(request: NextRequest) {
         totalImages: validImages.length,
         storagePath,
       },
+    });
+    
+    console.log(`API 응답 - 호텔 ${sabreId}:`, {
+      totalImages: validImages.length,
+      imageNames: validImages.map(img => img.name)
     });
   } catch (error) {
     console.error("호텔 이미지 조회 오류:", error);

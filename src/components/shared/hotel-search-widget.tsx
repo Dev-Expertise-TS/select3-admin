@@ -625,6 +625,12 @@ export default function HotelSearchWidget({
       const data = await response.json()
 
       if (data.success && data.data) {
+        console.log(`클라이언트 - 호텔 ${sabreId} 이미지 데이터:`, {
+          totalImages: data.data.totalImages,
+          images: data.data.images?.length || 0,
+          imageNames: data.data.images?.map((img: { name: string }) => img.name) || []
+        });
+        
         // Supabase Storage 이미지 데이터 설정
         setImageManagementState(prev => ({
           ...prev,
