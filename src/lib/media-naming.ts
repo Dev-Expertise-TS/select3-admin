@@ -26,6 +26,21 @@ const normalizeFormat = (format: string): ImageFormat => {
 };
 
 /**
+ * 유틸: 슬러그 정규화 (특수문자 제거 및 변환)
+ */
+export const normalizeSlug = (s: string): string => {
+  return s
+    .toLowerCase()
+    .trim()
+    // 특수문자를 하이픈으로 변환
+    .replace(/['"`]/g, '') // 어포스트로피, 쌍따옴표, 백틱 제거
+    .replace(/[^a-z0-9\s-]/g, '-') // 영문자, 숫자, 공백, 하이픈 외의 모든 문자를 하이픈으로
+    .replace(/\s+/g, '-') // 공백을 하이픈으로
+    .replace(/-+/g, '-') // 연속된 하이픈을 하나로
+    .replace(/^-|-$/g, ''); // 앞뒤 하이픈 제거
+};
+
+/**
  * 유틸: 토큰 유효성 체크 (slug, id, role 등 ASCII/소문자/숫자/구분자만)
  */
 const TOKEN_RE = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/; // kebab/underscore 혼합 허용
@@ -61,14 +76,16 @@ export type OriginalNameParams = {
 export const buildOriginalFilename = (p: OriginalNameParams): string => {
   const { hotelSlug, sabreId = "na", seq = 1, ext = "jpg" } = p;
 
-  if (!isValidToken(hotelSlug))
-    throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
+  // 슬러그 정규화
+  const normalizedSlug = normalizeSlug(hotelSlug);
+  if (!isValidToken(normalizedSlug))
+    throw new Error(`Invalid hotelSlug after normalization: ${hotelSlug} -> ${normalizedSlug}`);
   if (!isValidToken(sabreId)) throw new Error(`Invalid sabreId: ${sabreId}`);
 
   const seqToken = pad2(seq);
   const extNorm = normalizeFormat(ext);
 
-  return `${hotelSlug}_${sabreId}_${seqToken}.${extNorm}`;
+  return `${normalizedSlug}_${sabreId}_${seqToken}.${extNorm}`;
 };
 
 /**
@@ -87,15 +104,17 @@ export type PublicNameParams = {
 export const buildPublicFilename = (p: PublicNameParams): string => {
   const { hotelSlug, sabreId = "na", seq = 1, width, format = "avif" } = p;
 
-  if (!isValidToken(hotelSlug))
-    throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
+  // 슬러그 정규화
+  const normalizedSlug = normalizeSlug(hotelSlug);
+  if (!isValidToken(normalizedSlug))
+    throw new Error(`Invalid hotelSlug after normalization: ${hotelSlug} -> ${normalizedSlug}`);
   if (!isValidToken(sabreId)) throw new Error(`Invalid sabreId: ${sabreId}`);
   if (!(width > 0)) throw new Error(`width must be > 0`);
   const ext = normalizeFormat(format);
 
   const seqToken = pad2(seq);
 
-  return `${hotelSlug}_${sabreId}_${seqToken}_${width}w.${ext}`;
+  return `${normalizedSlug}_${sabreId}_${seqToken}_${width}w.${ext}`;
 };
 
 /**
@@ -104,13 +123,15 @@ export const buildPublicFilename = (p: PublicNameParams): string => {
  * public:     hotel-media/public/{hotel_slug}/{filename}
  */
 export const buildOriginalPath = (hotelSlug: string, filename: string) => {
-  if (!isValidToken(hotelSlug))
-    throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
-  return `${DIR_ORIGINALS}/${hotelSlug}/${filename}`;
+  const normalizedSlug = normalizeSlug(hotelSlug);
+  if (!isValidToken(normalizedSlug))
+    throw new Error(`Invalid hotelSlug after normalization: ${hotelSlug} -> ${normalizedSlug}`);
+  return `${DIR_ORIGINALS}/${normalizedSlug}/${filename}`;
 };
 
 export const buildPublicPath = (hotelSlug: string, filename: string) => {
-  if (!isValidToken(hotelSlug))
-    throw new Error(`Invalid hotelSlug: ${hotelSlug}`);
-  return `${DIR_PUBLIC}/${hotelSlug}/${filename}`;
+  const normalizedSlug = normalizeSlug(hotelSlug);
+  if (!isValidToken(normalizedSlug))
+    throw new Error(`Invalid hotelSlug after normalization: ${hotelSlug} -> ${normalizedSlug}`);
+  return `${DIR_PUBLIC}/${normalizedSlug}/${filename}`;
 };
