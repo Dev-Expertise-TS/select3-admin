@@ -7,8 +7,6 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
-  Search,
-  Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +16,21 @@ import {
   buildPublicFilename,
   buildOriginalPath,
   buildPublicPath,
-  type ImageFormat,
 } from "@/lib/media-naming";
+
+interface MigrationFile {
+  column: string;
+  originalUrl: string;
+  originalPath: string;
+  publicPath: string;
+  seq: number;
+  filename: string;
+  fileSize: number;
+  uploaded: boolean;
+  skipReason: string | null;
+  publicUploaded: boolean;
+  publicSkipReason: string | null;
+}
 
 interface MigrationStatus {
   status: "idle" | "fetching" | "migrating" | "completed" | "error";
@@ -57,8 +68,8 @@ export function ImageMigrationPanel() {
   const [selectedHotel, setSelectedHotel] = useState<HotelInfo | null>(null);
   const [hotelImages, setHotelImages] = useState<HotelImage[]>([]);
   const [hotelSlug, setHotelSlug] = useState("");
-  const [shotDate, setShotDate] = useState("");
-  const [sourceId, setSourceId] = useState("hotel");
+  const [_shotDate, _setShotDate] = useState("");
+  const [_sourceId, _setSourceId] = useState("hotel");
   const [migrationStatus, setMigrationStatus] = useState<MigrationStatus>({
     status: "idle",
   });
@@ -67,7 +78,12 @@ export function ImageMigrationPanel() {
   >([]);
 
   // 호텔 선택 핸들러
-  const handleHotelSelect = (sabreId: string | null, hotelInfo?: any) => {
+  const handleHotelSelect = (sabreId: string | null, hotelInfo?: {
+    sabre_id: string;
+    property_name_ko: string | null;
+    property_name_en: string | null;
+    slug?: string;
+  }) => {
     if (!sabreId || !hotelInfo) return;
 
     // 임시로 기본 슬러그 설정 (API에서 실제 slug를 받아올 때까지)
@@ -75,8 +91,8 @@ export function ImageMigrationPanel() {
 
     setSelectedHotel({
       sabreId: hotelInfo.sabre_id,
-      nameKr: hotelInfo.property_name_ko,
-      nameEn: hotelInfo.property_name_en,
+      nameKr: hotelInfo.property_name_ko || '',
+      nameEn: hotelInfo.property_name_en || '',
       slug: tempSlug,
     });
     setHotelSlug(tempSlug);
@@ -98,7 +114,11 @@ export function ImageMigrationPanel() {
         throw new Error(result.error || "이미지 조회 실패");
       }
 
-      const images = result.data.images.map((img: any) => ({
+      const images = result.data.images.map((img: {
+        column: string;
+        url: string;
+        seq: number;
+      }) => ({
         column: img.column,
         url: img.url,
         seq: img.seq,
@@ -228,7 +248,7 @@ export function ImageMigrationPanel() {
         `마이그레이션 완료: 업로드 ${statistics?.uploadedCount || 0}개, 스킵 ${statistics?.skippedCount || 0}개`;
 
       // 마이그레이션된 이미지 URL 생성
-      const migratedImages = migratedFiles
+      const migratedImages = (migratedFiles as MigrationFile[])
         .filter((file) => file.uploaded)
         .map((file) => {
           const publicFilename = buildPublicFilename({

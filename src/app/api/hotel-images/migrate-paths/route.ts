@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 데이터베이스 업데이트
-    const { data: updateResult, error: updateError } = await supabase
+    const { data: _updateResult, error: updateError } = await supabase
       .from("select_hotels")
       .update(updateData)
       .eq("sabre_id", sabreId)

@@ -25,7 +25,18 @@ interface BulkMigrationStatus {
   currentBatch?: {
     startId: number;
     endId: number;
-    hotels: any[];
+    hotels: Array<{
+      id_old: number;
+      sabre_id: string;
+      slug: string;
+      property_name_ko: string;
+      property_name_en: string;
+      image_1?: string;
+      image_2?: string;
+      image_3?: string;
+      image_4?: string;
+      image_5?: string;
+    }>;
   };
   statistics?: {
     totalHotels: number;

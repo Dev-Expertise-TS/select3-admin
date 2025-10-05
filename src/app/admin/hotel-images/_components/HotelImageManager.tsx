@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import {
   Image as ImageIcon,
   Database,
-  Upload,
   Settings,
   Users,
   FileText,

@@ -2,13 +2,10 @@
 
 import React, { useState } from "react";
 import {
-  Database,
   FileText,
   AlertCircle,
   CheckCircle,
   Loader2,
-  Search,
-  Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import HotelSearchWidget from "@/components/shared/hotel-search-widget";
@@ -41,13 +38,25 @@ interface ContentMigrationStatus {
   };
 }
 
+interface HotelInfo {
+  sabreId: string
+  nameKr: string
+  nameEn: string
+  slug: string
+}
+
 export function ContentImageMigrationPanel() {
-  const [selectedHotel, setSelectedHotel] = useState<any>(null);
+  const [selectedHotel, setSelectedHotel] = useState<HotelInfo | null>(null);
   const [migrationStatus, setMigrationStatus] =
     useState<ContentMigrationStatus>({ status: "idle" });
 
   // 호텔 선택 핸들러
-  const handleHotelSelect = (sabreId: string | null, hotelInfo?: any) => {
+  const handleHotelSelect = (sabreId: string | null, hotelInfo?: {
+    sabre_id: string;
+    property_name_ko: string | null;
+    property_name_en: string | null;
+    slug?: string;
+  }) => {
     if (!sabreId || !hotelInfo) {
       setSelectedHotel(null);
       return;
@@ -55,9 +64,9 @@ export function ContentImageMigrationPanel() {
 
     setSelectedHotel({
       sabreId: hotelInfo.sabre_id,
-      nameKr: hotelInfo.property_name_ko,
-      nameEn: hotelInfo.property_name_en,
-      slug: hotelInfo.slug,
+      nameKr: hotelInfo.property_name_ko || '',
+      nameEn: hotelInfo.property_name_en || '',
+      slug: hotelInfo.slug || '',
     });
   };
 

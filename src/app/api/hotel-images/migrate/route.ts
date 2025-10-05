@@ -6,9 +6,7 @@ import {
   buildOriginalPath,
   buildPublicPath,
   MEDIA_BUCKET,
-  type ImageRole,
   type ImageFormat,
-  type AspectRatioToken,
 } from "@/lib/media-naming";
 
 export async function POST(request: NextRequest) {
@@ -16,7 +14,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // 기본 정보 추출
-    const { hotelSlug, sabreId, shotDate, sourceId, images } = body;
+    const { hotelSlug, sabreId, images } = body;
 
     console.log("마이그레이션 요청:", {
       hotelSlug,
@@ -148,7 +146,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        let uploadResult = null;
+          let _uploadResult = null;
         if (shouldUpload) {
           // 원본 파일 업로드
           const { data: uploadData, error: uploadError } =
@@ -165,7 +163,7 @@ export async function POST(request: NextRequest) {
             );
             continue;
           }
-          uploadResult = uploadData;
+          _uploadResult = uploadData;
         }
 
         // 공개 버전 처리
@@ -182,7 +180,7 @@ export async function POST(request: NextRequest) {
           skipReasonPublic = "원본과 동일한 크기로 스킵";
         }
 
-        let publicUploadResult = null;
+        let _publicUploadResult = null;
         if (shouldUploadPublic) {
           const { data: publicUploadData, error: publicUploadError } =
             await supabase.storage
@@ -197,7 +195,7 @@ export async function POST(request: NextRequest) {
               `공개 파일 생성 실패 (${column}): ${publicUploadError.message}`,
             );
           } else {
-            publicUploadResult = publicUploadData;
+            _publicUploadResult = publicUploadData;
           }
         }
 
@@ -274,7 +272,7 @@ export async function POST(request: NextRequest) {
 }
 
 // GET 요청으로 마이그레이션 상태 확인
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const supabase = createServiceRoleClient();
 

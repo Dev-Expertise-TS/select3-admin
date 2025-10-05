@@ -130,12 +130,17 @@ export async function POST(request: NextRequest) {
             }
 
             let hotelSuccess = true;
-            const migratedImages: any[] = [];
+            const migratedImages: Array<{
+              column: string;
+              originalUrl: string;
+              seq: number;
+              uploaded: boolean;
+            }> = [];
 
-            // 각 이미지 처리
-            for (let i = 0; i < hotelImages.length; i++) {
-              try {
-                const url = hotelImages[i];
+        // 각 이미지 처리
+        for (let i = 0; i < hotelImages.length; i++) {
+          try {
+            const url = hotelImages[i] as string;
                 const seq = i + 1;
                 const column = `image_${seq}`;
 

@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-escape */
 
 export type ImageFormat = "jpg" | "jpeg" | "webp" | "avif" | "png";
 
@@ -41,7 +40,7 @@ const isValidToken = (s: string) => {
 /**
  * 유틸: short hash 자르기 (7~12자 권장)
  */
-const clipHash = (hash?: string, len = 8) => {
+const _clipHash = (hash?: string, len = 8) => {
   if (!hash) return undefined;
   const h = hash.replace(/[^a-fA-F0-9]/g, "");
   return h.slice(0, len);
