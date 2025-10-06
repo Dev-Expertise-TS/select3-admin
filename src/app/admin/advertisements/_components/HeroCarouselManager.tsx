@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useTransition } from 'react'
 import { 
   Plus, 
   Trash2, 
@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import HotelQuickSearch from '@/components/shared/hotel-quick-search'
+import { saveFeatureSlot, deleteFeatureSlot } from '@/features/advertisements/actions'
 
 interface FeatureSlot {
   id: number
@@ -57,8 +58,6 @@ export default function HeroCarouselManager() {
     start_date: null,
     end_date: null
   })
-  const [formLoading, setFormLoading] = useState(false)
-  
   
   // 호텔 검색 팝업 상태
   const [showHotelSearch, setShowHotelSearch] = useState(false)
@@ -66,6 +65,9 @@ export default function HeroCarouselManager() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Hotel[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
+  
+  // Server Actions을 위한 transition
+  const [isPending, startTransition] = useTransition()
 
   // 데이터 로드
   const loadSlots = async () => {
@@ -234,46 +236,36 @@ export default function HeroCarouselManager() {
       return
     }
 
-    setFormLoading(true)
     setError(null)
 
-    try {
-      const url = editingId ? `/api/feature-slots/${editingId}` : '/api/feature-slots'
-      const method = editingId ? 'PUT' : 'POST'
+    startTransition(async () => {
+      try {
+        // FormData 생성
+        const form = new FormData()
+        if (editingId) {
+          form.append('id', String(editingId))
+        }
+        form.append('sabre_id', sabreIdStr)
+        form.append('slot_key', slotKeyStr)
+        form.append('start_date', formData.start_date || '')
+        form.append('end_date', formData.end_date || '')
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          sabre_id: sabreIdStr,
-          slot_key: slotKeyStr,
-        })
-      })
+        const result = await saveFeatureSlot(form)
 
-      const data = await response.json()
+        if (!result.success) {
+          throw new Error(result.error || '저장 중 오류가 발생했습니다.')
+        }
 
-      if (!response.ok) {
-        throw new Error(data.error || '저장 중 오류가 발생했습니다.')
-      }
-
-      if (data.success) {
-        setSuccess(data.message || '저장되었습니다.')
+        setSuccess('저장되었습니다.')
         resetForm()
         loadSlots()
         
         // 성공 메시지 3초 후 자동 숨김
         setTimeout(() => setSuccess(null), 3000)
-      } else {
-        throw new Error(data.error || '저장 중 오류가 발생했습니다.')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.')
-    } finally {
-      setFormLoading(false)
-    }
+    })
   }
 
   // 삭제
@@ -282,29 +274,23 @@ export default function HeroCarouselManager() {
       return
     }
 
-    try {
-      const response = await fetch(`/api/feature-slots/${id}`, {
-        method: 'DELETE'
-      })
+    startTransition(async () => {
+      try {
+        const result = await deleteFeatureSlot(id)
 
-      const data = await response.json()
+        if (!result.success) {
+          throw new Error(result.error || '삭제 중 오류가 발생했습니다.')
+        }
 
-      if (!response.ok) {
-        throw new Error(data.error || '삭제 중 오류가 발생했습니다.')
-      }
-
-      if (data.success) {
-        setSuccess(data.message || '삭제되었습니다.')
+        setSuccess('삭제되었습니다.')
         loadSlots()
         
         // 성공 메시지 3초 후 자동 숨김
         setTimeout(() => setSuccess(null), 3000)
-      } else {
-        throw new Error(data.error || '삭제 중 오류가 발생했습니다.')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '삭제 중 오류가 발생했습니다.')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '삭제 중 오류가 발생했습니다.')
-    }
+    })
   }
 
   return (
@@ -430,10 +416,10 @@ export default function HeroCarouselManager() {
             <div className="flex gap-3">
               <Button
                 type="submit"
-                disabled={formLoading}
+                disabled={isPending}
                 className="bg-purple-600 hover:bg-purple-700"
               >
-                {formLoading ? (
+                {isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     저장 중...
@@ -450,7 +436,7 @@ export default function HeroCarouselManager() {
                 type="button"
                 variant="outline"
                 onClick={resetForm}
-                disabled={formLoading}
+                disabled={isPending}
               >
                 <X className="h-4 w-4 mr-2" />
                 취소

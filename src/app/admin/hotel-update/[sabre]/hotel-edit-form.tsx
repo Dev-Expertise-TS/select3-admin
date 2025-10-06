@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useTransition } from 'react'
 import Link from 'next/link'
 import { BenefitsManager, type BenefitRow as BBRow } from '@/features/hotels/components/benefits-manager'
 import { BenefitsAddButton } from '@/features/hotels/components/benefits-add-button'
@@ -8,6 +8,7 @@ import { ChainBrandPicker, type Chain, type Brand } from '@/features/hotels/comp
 import { Button } from '@/components/ui/button'
 
 import { cn } from '@/lib/utils'
+import { updateHotel } from '@/features/hotels/actions'
 
 interface Props {
   initialData: Record<string, unknown>
@@ -16,8 +17,8 @@ interface Props {
 
 export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   const [isEditMode, setIsEditMode] = React.useState(false)
-  const [isLoading, setIsLoading] = React.useState(false)
   const formRef = React.useRef<HTMLFormElement>(null)
+  const [isPending, startTransition] = useTransition()
 
   // 폼 데이터 상태 관리
   const [formData, setFormData] = React.useState({
@@ -90,213 +91,167 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   }
 
   const handleSave = async (submitFormData: FormData) => {
-    setIsLoading(true)
-    
-    try {
-      // 편집 모드에서만 해당 필드들을 FormData에서 읽고, 아니면 현재 상태 값 사용
-      const sabreIdEditable = isEditMode 
-        ? (submitFormData.get('sabre_id_editable') as string | null)?.trim() || null
-        : formData.sabre_id
-      const property_name_ko = isEditMode
-        ? (submitFormData.get('property_name_ko') as string | null) ?? null
-        : formData.property_name_ko
-      const property_name_en = isEditMode
-        ? (submitFormData.get('property_name_en') as string | null) ?? null
-        : formData.property_name_en
-      const property_address = isEditMode
-        ? (submitFormData.get('property_address') as string | null) ?? null
-        : formData.property_address
-      const city_ko = isEditMode
-        ? (submitFormData.get('city_ko') as string | null) ?? null
-        : formData.city_ko
-      const city_en = isEditMode
-        ? (submitFormData.get('city_en') as string | null) ?? null
-        : formData.city_en
-      const country_ko = isEditMode
-        ? (submitFormData.get('country_ko') as string | null) ?? null
-        : formData.country_ko
-      const country_en = isEditMode
-        ? (submitFormData.get('country_en') as string | null) ?? null
-        : formData.country_en
-      const continent_ko = isEditMode
-        ? (submitFormData.get('continent_ko') as string | null) ?? null
-        : formData.continent_ko
-      const continent_en = isEditMode
-        ? (submitFormData.get('continent_en') as string | null) ?? null
-        : formData.continent_en
+    startTransition(async () => {
+      try {
+        // 편집 모드에서만 해당 필드들을 FormData에서 읽고, 아니면 현재 상태 값 사용
+        const sabreIdEditable = isEditMode 
+          ? (submitFormData.get('sabre_id_editable') as string | null)?.trim() || null
+          : formData.sabre_id
+        const property_name_ko = isEditMode
+          ? (submitFormData.get('property_name_ko') as string | null) ?? null
+          : formData.property_name_ko
+        const property_name_en = isEditMode
+          ? (submitFormData.get('property_name_en') as string | null) ?? null
+          : formData.property_name_en
+        const property_address = isEditMode
+          ? (submitFormData.get('property_address') as string | null) ?? null
+          : formData.property_address
+        const city_ko = isEditMode
+          ? (submitFormData.get('city_ko') as string | null) ?? null
+          : formData.city_ko
+        const city_en = isEditMode
+          ? (submitFormData.get('city_en') as string | null) ?? null
+          : formData.city_en
+        const country_ko = isEditMode
+          ? (submitFormData.get('country_ko') as string | null) ?? null
+          : formData.country_ko
+        const country_en = isEditMode
+          ? (submitFormData.get('country_en') as string | null) ?? null
+          : formData.country_en
+        const continent_ko = isEditMode
+          ? (submitFormData.get('continent_ko') as string | null) ?? null
+          : formData.continent_ko
+        const continent_en = isEditMode
+          ? (submitFormData.get('continent_en') as string | null) ?? null
+          : formData.continent_en
 
-      // FormData에 현재 상태 값들을 추가 (편집 모드가 아닐 때를 위해)
-      if (!isEditMode) {
-        submitFormData.set('sabre_id_editable', formData.sabre_id)
-        submitFormData.set('property_name_ko', formData.property_name_ko)
-        submitFormData.set('property_name_en', formData.property_name_en)
-        submitFormData.set('property_address', formData.property_address)
-        submitFormData.set('city_ko', formData.city_ko)
-        submitFormData.set('city_en', formData.city_en)
-        submitFormData.set('country_ko', formData.country_ko)
-        submitFormData.set('country_en', formData.country_en)
-        submitFormData.set('continent_ko', formData.continent_ko)
-        submitFormData.set('continent_en', formData.continent_en)
-      }
-      
-      // 체인/브랜드 정보를 FormData에 추가
-      // 현재 선택된 브랜드 ID 사용
-      if (currentBrandId) {
-        submitFormData.set('brand_id', String(currentBrandId))
-        // 브랜드가 선택된 경우, 브랜드의 chain_id도 함께 저장
-        if (selectedBrand?.chain_id) {
-          submitFormData.set('chain_id', String(selectedBrand.chain_id))
-        } else {
-          submitFormData.set('chain_id', '') // null 대신 빈 문자열
+        // FormData에 현재 상태 값들을 추가 (편집 모드가 아닐 때를 위해)
+        if (!isEditMode) {
+          submitFormData.set('sabre_id_editable', formData.sabre_id)
+          submitFormData.set('property_name_ko', formData.property_name_ko)
+          submitFormData.set('property_name_en', formData.property_name_en)
+          submitFormData.set('property_address', formData.property_address)
+          submitFormData.set('city_ko', formData.city_ko)
+          submitFormData.set('city_en', formData.city_en)
+          submitFormData.set('country_ko', formData.country_ko)
+          submitFormData.set('country_en', formData.country_en)
+          submitFormData.set('continent_ko', formData.continent_ko)
+          submitFormData.set('continent_en', formData.continent_en)
         }
-      } else if (selectedChain?.chain_id) {
-        // 체인만 선택된 경우 (브랜드 없음)
-        submitFormData.set('chain_id', String(selectedChain.chain_id))
-        submitFormData.set('brand_id', '') // null 대신 빈 문자열
-      } else {
-        // 둘 다 선택 해제된 경우
-        submitFormData.set('chain_id', '')
-        submitFormData.set('brand_id', '')
-      }
-
-      // API를 통해 서버에 데이터 전송
-      const response = await fetch('/api/hotel/update', {
-        method: 'POST',
-        body: submitFormData
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`서버 오류 (${response.status}): ${errorText}`)
-      }
-
-      const result = await response.json().catch(() => {
-        throw new Error('서버 응답을 파싱할 수 없습니다.')
-      })
-      
-      if (!result.success) {
-        throw new Error(result.error || '저장에 실패했습니다.')
-      }
-
-      // 상태 업데이트 - 현재 값들을 그대로 유지
-      setFormData({
-        sabre_id: sabreIdEditable || formData.sabre_id,
-        property_name_ko: property_name_ko || formData.property_name_ko,
-        property_name_en: property_name_en || formData.property_name_en,
-        property_address: property_address || formData.property_address,
-        city_ko: city_ko || formData.city_ko,
-        city_en: city_en || formData.city_en,
-        country_ko: country_ko || formData.country_ko,
-        country_en: country_en || formData.country_en,
-        continent_ko: continent_ko || formData.continent_ko,
-        continent_en: continent_en || formData.continent_en
-      })
-
-      // 체인/브랜드 상태도 업데이트 (저장된 값으로)
-      if (result.data) {
-        // 저장된 brand_id가 있다면 해당 브랜드 정보 조회
-        if (result.data.brand_id) {
-          try {
-            const brandResponse = await fetch(`/api/chain-brand/list`)
-            if (brandResponse.ok) {
-              const brandData = await brandResponse.json()
-              if (brandData.success && brandData.data.brands) {
-                const savedBrand = brandData.data.brands.find((b: Record<string, unknown>) => b.brand_id === result.data.brand_id)
-                if (savedBrand) {
-                  setSelectedBrand(savedBrand)
-                  setCurrentBrandId(savedBrand.brand_id)
-                  
-                  // 브랜드의 체인 정보도 조회
-                  if (savedBrand.chain_id) {
-                    const savedChain = brandData.data.chains.find((c: Record<string, unknown>) => c.chain_id === savedBrand.chain_id)
-                    if (savedChain) {
-                      setSelectedChain(savedChain)
-                    }
-                  }
-                }
-              }
-            }
-          } catch (error) {
-            console.error('저장 후 브랜드 정보 조회 오류:', error)
+        
+        // 체인/브랜드 정보를 FormData에 추가
+        // 현재 선택된 브랜드 ID 사용
+        if (currentBrandId) {
+          submitFormData.set('brand_id', String(currentBrandId))
+          // 브랜드가 선택된 경우, 브랜드의 chain_id도 함께 저장
+          if (selectedBrand?.chain_id) {
+            submitFormData.set('chain_id', String(selectedBrand.chain_id))
+          } else {
+            submitFormData.set('chain_id', '') // null 대신 빈 문자열
           }
+        } else if (selectedChain?.chain_id) {
+          // 체인만 선택된 경우 (브랜드 없음)
+          submitFormData.set('chain_id', String(selectedChain.chain_id))
+          submitFormData.set('brand_id', '') // null 대신 빈 문자열
         } else {
-          // brand_id가 없다면 체인/브랜드 선택 해제
-          setSelectedBrand(null)
-          setSelectedChain(null)
-          setCurrentBrandId(null)
+          // 둘 다 선택 해제된 경우
+          submitFormData.set('chain_id', '')
+          submitFormData.set('brand_id', '')
         }
-      }
 
-      // 편집 모드 상태를 저장 (모드 변경 전에)
-      const wasInEditMode = isEditMode
-      
-      // 편집 모드 종료
-      setIsEditMode(false)
+        // Server Action 호출
+        submitFormData.set('sabre_id', formData.sabre_id)
+        const result = await updateHotel(submitFormData)
+        
+        if (!result.success) {
+          throw new Error(result.error || '저장에 실패했습니다.')
+        }
 
-      // 편집 모드였을 때만 기본 정보 필드 변경 검사 (혜택만 변경한 경우 제외)
-      const fieldNames = new Set<string>()
-      
-      if (wasInEditMode) {
-        // 편집 모드에서 저장한 경우에만 변경 감지
-        if (String(initialData.sabre_id ?? '') !== String(sabreIdEditable ?? '')) {
-          fieldNames.add('sabre_id')
-        }
-        if (String(initialData.property_name_ko ?? '') !== String(property_name_ko ?? '')) {
-          fieldNames.add('property_name_ko')
-        }
-        if (String(initialData.property_name_en ?? '') !== String(property_name_en ?? '')) {
-          fieldNames.add('property_name_en')
-        }
-        if (String(initialData.property_address ?? '') !== String(property_address ?? '')) {
-          fieldNames.add('property_address')
-        }
-        if (String(initialData.city_ko ?? '') !== String(city_ko ?? '')) {
-          fieldNames.add('city_ko')
-        }
-        if (String(initialData.city_en ?? '') !== String(city_en ?? '')) {
-          fieldNames.add('city_en')
-        }
-        if (String(initialData.country_ko ?? '') !== String(country_ko ?? '')) {
-          fieldNames.add('country_ko')
-        }
-        if (String(initialData.country_en ?? '') !== String(country_en ?? '')) {
-          fieldNames.add('country_en')
-        }
-        if (String(initialData.continent_ko ?? '') !== String(continent_ko ?? '')) {
-          fieldNames.add('continent_ko')
-        }
-        if (String(initialData.continent_en ?? '') !== String(continent_en ?? '')) {
-          fieldNames.add('continent_en')
-        }
-      }
-      
-      // 체인/브랜드 변경 검사 (편집 모드와 관계없이)
-      const initialBrandId = initialData.brand_id ? Number(initialData.brand_id) : null
-      if (currentBrandId !== initialBrandId) {
-        fieldNames.add('chain_field')
-        fieldNames.add('brand_field')
-      }
-      
-      // 변경된 필드만 하이라이트 (변경되지 않은 필드는 자동으로 원래 색상)
-      setHighlightedFields(fieldNames)
-      
-      // 1.5초 후 모든 하이라이트 제거
-      if (fieldNames.size > 0) {
-        setTimeout(() => {
-          setHighlightedFields(new Set())
-        }, 1500)
-      }
+        // 상태 업데이트 - 현재 값들을 그대로 유지
+        setFormData({
+          sabre_id: sabreIdEditable || formData.sabre_id,
+          property_name_ko: property_name_ko || formData.property_name_ko,
+          property_name_en: property_name_en || formData.property_name_en,
+          property_address: property_address || formData.property_address,
+          city_ko: city_ko || formData.city_ko,
+          city_en: city_en || formData.city_en,
+          country_ko: country_ko || formData.country_ko,
+          country_en: country_en || formData.country_en,
+          continent_ko: continent_ko || formData.continent_ko,
+          continent_en: continent_en || formData.continent_en
+        })
 
-      // Benefits 변경 이벤트 트리거
-      window.dispatchEvent(new CustomEvent('benefits:commit'))
-      
-      alert('변경 사항을 저장하였습니다.')
-    } catch (error) {
-      console.error('저장 오류:', error)
-      alert(error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.')
-    } finally {
-      setIsLoading(false)
-    }
+        // 체인/브랜드 상태도 업데이트 (저장된 값으로)
+        // 저장 성공 후 추가 처리는 필요 없음
+        // 편집 모드 상태를 저장 (모드 변경 전에)
+        const wasInEditMode = isEditMode
+        
+        // 편집 모드 종료
+        setIsEditMode(false)
+
+        // 편집 모드였을 때만 기본 정보 필드 변경 검사 (혜택만 변경한 경우 제외)
+        const fieldNames = new Set<string>()
+        
+        if (wasInEditMode) {
+          // 편집 모드에서 저장한 경우에만 변경 감지
+          if (String(initialData.sabre_id ?? '') !== String(sabreIdEditable ?? '')) {
+            fieldNames.add('sabre_id')
+          }
+          if (String(initialData.property_name_ko ?? '') !== String(property_name_ko ?? '')) {
+            fieldNames.add('property_name_ko')
+          }
+          if (String(initialData.property_name_en ?? '') !== String(property_name_en ?? '')) {
+            fieldNames.add('property_name_en')
+          }
+          if (String(initialData.property_address ?? '') !== String(property_address ?? '')) {
+            fieldNames.add('property_address')
+          }
+          if (String(initialData.city_ko ?? '') !== String(city_ko ?? '')) {
+            fieldNames.add('city_ko')
+          }
+          if (String(initialData.city_en ?? '') !== String(city_en ?? '')) {
+            fieldNames.add('city_en')
+          }
+          if (String(initialData.country_ko ?? '') !== String(country_ko ?? '')) {
+            fieldNames.add('country_ko')
+          }
+          if (String(initialData.country_en ?? '') !== String(country_en ?? '')) {
+            fieldNames.add('country_en')
+          }
+          if (String(initialData.continent_ko ?? '') !== String(continent_ko ?? '')) {
+            fieldNames.add('continent_ko')
+          }
+          if (String(initialData.continent_en ?? '') !== String(continent_en ?? '')) {
+            fieldNames.add('continent_en')
+          }
+        }
+        
+        // 체인/브랜드 변경 검사 (편집 모드와 관계없이)
+        const initialBrandId = initialData.brand_id ? Number(initialData.brand_id) : null
+        if (currentBrandId !== initialBrandId) {
+          fieldNames.add('chain_field')
+          fieldNames.add('brand_field')
+        }
+        
+        // 변경된 필드만 하이라이트 (변경되지 않은 필드는 자동으로 원래 색상)
+        setHighlightedFields(fieldNames)
+        
+        // 1.5초 후 모든 하이라이트 제거
+        if (fieldNames.size > 0) {
+          setTimeout(() => {
+            setHighlightedFields(new Set())
+          }, 1500)
+        }
+
+        // Benefits 변경 이벤트 트리거
+        window.dispatchEvent(new CustomEvent('benefits:commit'))
+        
+        alert('변경 사항을 저장하였습니다.')
+      } catch (error) {
+        console.error('저장 오류:', error)
+        alert(error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.')
+      }
+    })
   }
 
   // 입력 필드 값 변경 핸들러
@@ -696,13 +651,13 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         <div className="flex items-center gap-2 pt-2">
           <Button 
             type="submit" 
-            disabled={isLoading}
+            disabled={isPending}
             className={cn(
               "bg-blue-600 text-white hover:bg-blue-700",
-              isLoading && "opacity-50 cursor-not-allowed"
+              isPending && "opacity-50 cursor-not-allowed"
             )}
           >
-            {isLoading ? '저장 중...' : '저장'}
+            {isPending ? '저장 중...' : '저장'}
           </Button>
           <Link href="/admin/hotel-update" className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">취소</Link>
         </div>

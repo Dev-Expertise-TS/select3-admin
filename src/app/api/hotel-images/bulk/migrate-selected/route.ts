@@ -376,7 +376,7 @@ export async function POST(request: NextRequest) {
               }
             }
           }
-        } catch (contentError) {
+        } catch {
           console.warn(
             `호텔 ${hotel.sabre_id} 본문 이미지 마이그레이션 실패`
           );
@@ -409,7 +409,7 @@ export async function POST(request: NextRequest) {
               image_5: newUrls[4] || null,
             })
             .eq("sabre_id", hotel.sabre_id);
-        } catch (pathError) {
+        } catch {
           console.warn(
             `호텔 ${hotel.sabre_id} 경로 마이그레이션 실패`
           );

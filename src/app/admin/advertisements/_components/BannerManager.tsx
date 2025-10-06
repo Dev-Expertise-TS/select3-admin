@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useTransition } from 'react'
 import { 
   Loader2, 
   AlertCircle, 
@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DataTable } from '@/components/shared/data-table'
+import { saveFeatureSlot, deleteFeatureSlot } from '@/features/advertisements/actions'
 
 interface FeatureSlot {
   id: number
@@ -64,13 +65,13 @@ export default function BannerManager() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [rowEdits, setRowEdits] = useState<Record<number, Partial<FeatureSlot>>>({})
   
-  // 폼 상태 (로딩만 재활용)
-  const [formLoading, setFormLoading] = useState(false)
-  
   // 호텔 검색 상태
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Hotel[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
+  
+  // Server Actions을 위한 transition
+  const [isPending, startTransition] = useTransition()
   
   
 
@@ -129,6 +130,7 @@ export default function BannerManager() {
   // 초기 로드
   useEffect(() => {
     loadSlots()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
 
@@ -163,52 +165,40 @@ export default function BannerManager() {
       }
     }
     
-    setFormLoading(true)
     setError(null)
     setSuccess(null)
 
-    try {
-      const url = '/api/feature-slots/banner'
-      const method = slot.id === -1 ? 'POST' : 'PUT'
-      
-      // 날짜 값 처리 (빈 문자열을 null로 변환)
-      const startDate = edits.start_date && edits.start_date.trim() ? edits.start_date : null
-      const endDate = edits.end_date && edits.end_date.trim() ? edits.end_date : null
-      
-      // sabre_id는 편집된 값이 있으면 사용하고, 없으면 기존 값 사용
-      const sabreId = edits.sabre_id ? String(edits.sabre_id).trim() : slot.sabre_id
-      
-      const payload = {
-        id: slot.id, // PUT 요청 시 ID 필요
-        sabre_id: sabreId,
-        slot_key: 'top-banner',
-        start_date: startDate,
-        end_date: endDate
-      }
-      
-      console.log('저장할 데이터:', payload) // 디버깅용
+    startTransition(async () => {
+      try {
+        // FormData 생성
+        const formData = new FormData()
+        if (slot.id !== -1) {
+          formData.append('id', String(slot.id))
+        }
+        
+        const sabreId = edits.sabre_id ? String(edits.sabre_id).trim() : slot.sabre_id
+        const startDate = edits.start_date && edits.start_date.trim() ? edits.start_date : null
+        const endDate = edits.end_date && edits.end_date.trim() ? edits.end_date : null
+        
+        formData.append('sabre_id', sabreId)
+        formData.append('slot_key', 'top-banner')
+        formData.append('start_date', startDate || '')
+        formData.append('end_date', endDate || '')
 
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      const data = await response.json()
-
-      console.log('API 응답:', data) // 디버깅용
-      
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || '저장에 실패했습니다.')
+        const result = await saveFeatureSlot(formData)
+        
+        if (!result.success) {
+          throw new Error(result.error || '저장에 실패했습니다.')
+        }
+        
+        setSuccess('저장되었습니다.')
+        setEditingId(null)
+        setRowEdits({})
+        loadSlots()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.')
       }
-      setSuccess('저장되었습니다.')
-      setEditingId(null)
-      setRowEdits({})
-      loadSlots()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.')
-    } finally {
-      setFormLoading(false)
-    }
+    })
   }
 
   // 인라인 취소
@@ -294,26 +284,20 @@ export default function BannerManager() {
       return
     }
 
-    try {
-      const response = await fetch(`/api/feature-slots/banner?id=${target.id}`, {
-        method: 'DELETE',
-      })
+    startTransition(async () => {
+      try {
+        const result = await deleteFeatureSlot(target.id)
 
-      const data = await response.json()
+        if (!result.success) {
+          throw new Error(result.error || '삭제에 실패했습니다.')
+        }
 
-      if (!response.ok) {
-        throw new Error(data.error || '삭제에 실패했습니다.')
-      }
-
-      if (data.success) {
         setSuccess('상단 베너가 삭제되었습니다.')
         loadSlots()
-      } else {
-        throw new Error(data.error || '삭제에 실패했습니다.')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '삭제 중 오류가 발생했습니다.')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '삭제 중 오류가 발생했습니다.')
-    }
+    })
   }
 
 
@@ -395,6 +379,7 @@ export default function BannerManager() {
               return (
                 <div className="w-16 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
                   {slot.hotel_image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={slot.hotel_image}
                       alt={`${slot.select_hotels?.property_name_ko || '호텔'} 이미지`}
@@ -506,10 +491,10 @@ export default function BannerManager() {
               }
               return (
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => saveInline(slot)} disabled={formLoading}>
-                    {formLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />} 저장
+                  <Button size="sm" onClick={() => saveInline(slot)} disabled={isPending}>
+                    {isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />} 저장
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => cancelInline(slot)} disabled={formLoading}>
+                  <Button variant="outline" size="sm" onClick={() => cancelInline(slot)} disabled={isPending}>
                     취소
             </Button>
           </div>
@@ -621,7 +606,7 @@ export default function BannerManager() {
               <Button
                 variant="outline"
               onClick={() => cancelInline({ id: -1 } as FeatureSlot)}
-                disabled={formLoading}
+                disabled={isPending}
               >
                 취소
               </Button>
@@ -644,9 +629,9 @@ export default function BannerManager() {
                 }
                 saveInline(draftSlot)
               }}
-                disabled={formLoading}
+                disabled={isPending}
               >
-              {formLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               저장
               </Button>
             </div>

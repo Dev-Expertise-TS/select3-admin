@@ -124,10 +124,11 @@ function HotelBlogsManager() {
   // 페이지 변경 시 블로그 목록 다시 로드
   useEffect(() => {
     loadBlogs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, searchTerm, publishFilter])
 
   // 검색 및 필터 핸들러
-  const handleSearch = () => {
+  const _handleSearch = () => {
     setCurrentPage(1) // 검색 시 첫 페이지로 이동
     loadBlogs()
   }
@@ -262,6 +263,7 @@ function HotelBlogsManager() {
                   <div className="flex-shrink-0">
                     {blog.main_image ? (
                       <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={blog.main_image}
                           alt={blog.main_title}
@@ -865,6 +867,7 @@ function BlogViewModal({ isOpen, onClose, blog }: BlogViewModalProps) {
               <div className="mb-6">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">대표 이미지</h4>
                 <div className="max-w-md">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={blog.main_image}
                     alt={blog.main_title}

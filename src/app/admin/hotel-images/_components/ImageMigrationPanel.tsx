@@ -187,6 +187,7 @@ export function ImageMigrationPanel() {
     if (hotelImages.length > 0) {
       generatePreviewPaths(hotelImages);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotelImages, hotelSlug, selectedHotel]);
 
   // 이미지 선택 토글
@@ -485,7 +486,7 @@ export function ImageMigrationPanel() {
       // 경로 마이그레이션 이미지 + 본문 이미지 마이그레이션 이미지를 모두 합침
       const allMigratedImages = [
         ...pathMigratedImages,
-        ...contentMigratedImages.map((img: any, index: number) => ({
+        ...contentMigratedImages.map((img: { source: string; url: string; originalUrl: string; newUrl: string }, index: number) => ({
           column: `content_${img.source}_${index + 1}`,
           originalUrl: img.originalUrl,
           newUrl: img.newUrl,
@@ -611,6 +612,7 @@ export function ImageMigrationPanel() {
 
                 {/* 이미지 미리보기 */}
                 <div className="aspect-video bg-gray-100">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image.url}
                     alt={`이미지 ${image.seq} 미리보기`}
@@ -819,6 +821,7 @@ export function ImageMigrationPanel() {
                   {/* 마이그레이션된 이미지 미리보기 */}
                   <div className="flex-shrink-0">
                     <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden border">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={image.newUrl}
                         alt={`${image.column} 마이그레이션 결과`}

@@ -3,18 +3,18 @@
 import React, { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import DateInput from '@/components/shared/date-input'
-import { CreateSubmitButton } from '@/components/shared/form-actions'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { highlightRowFields } from '@/components/shared/field-highlight'
 import { Button } from '@/components/ui/button'
+import { saveBenefit, deleteBenefit } from '@/features/benefits/actions'
 
 type Row = Record<string, unknown>
 
 export interface BenefitsTableProps {
-  createAction: (formData: FormData) => Promise<void>
+  createAction?: (formData: FormData) => Promise<void>
 }
 
-export function BenefitsTable({ createAction }: BenefitsTableProps) {
+export function BenefitsTable({ createAction: _createAction }: BenefitsTableProps) {
   const [adding, setAdding] = useState(false)
   const [savingRecords, setSavingRecords] = useState<Set<string>>(new Set())
   const queryClient = useQueryClient()
@@ -32,7 +32,11 @@ export function BenefitsTable({ createAction }: BenefitsTableProps) {
 
   // 데이터 처리 로직
   const rows: Row[] = benefitsData || []
-  const originalColumns = rows[0] ? Object.keys(rows[0]) : ['benefit', 'name', 'description']
+  
+  const originalColumns = useMemo(() => {
+    return rows[0] ? Object.keys(rows[0]) : ['benefit', 'name', 'description']
+  }, [rows])
+  
   const pkCandidates = ['id', 'benefit_id', 'uuid', 'code', 'key', 'pk', 'benefit']
   const pkField = pkCandidates.find((k) => originalColumns.includes(k)) || originalColumns[0]
   
@@ -41,23 +45,21 @@ export function BenefitsTable({ createAction }: BenefitsTableProps) {
   const otherColumns = originalColumns.filter((c) => !excludeSet.has(c))
   
   // benefit_id가 있으면 맨 앞에, 없으면 기존 순서 유지
-  const columns = originalColumns.includes('benefit_id') 
-    ? ['benefit_id', ...otherColumns.filter(c => c !== 'benefit_id')]
-    : otherColumns
+  const columns = useMemo(() => {
+    return originalColumns.includes('benefit_id') 
+      ? ['benefit_id', ...otherColumns.filter(c => c !== 'benefit_id')]
+      : otherColumns
+  }, [originalColumns, otherColumns])
 
   const deleteMutation = useMutation({
     mutationFn: async (params: { pkField: string; pkValue: string }) => {
       console.log('Delete mutation called with:', params)
-      const res = await fetch('/api/benefits/manage/delete', { 
-        method: 'DELETE', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(params) 
-      })
+      const benefitId = Number(params.pkValue)
       
-      const result = await res.json()
+      const result = await deleteBenefit(benefitId)
       console.log('Delete response:', result)
       
-      if (!res.ok || !result.success) {
+      if (!result.success) {
         throw new Error(result.error || 'Delete failed')
       }
       
@@ -78,9 +80,8 @@ export function BenefitsTable({ createAction }: BenefitsTableProps) {
       const pkField = formData.get('pkField')
       console.log(`API 호출 - ${pkField}: ${pkValue}`)
       
-      const res = await fetch('/api/benefits/manage/save', { method: 'POST', body: formData })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok || json.success === false) throw new Error(json.error || 'save failed')
+      const result = await saveBenefit(formData)
+      if (!result.success) throw new Error(result.error || 'save failed')
       return { formData, pkValue: String(pkValue) }
     },
     onSuccess: async ({ formData, pkValue }) => {
@@ -150,10 +151,9 @@ export function BenefitsTable({ createAction }: BenefitsTableProps) {
   // 새 행 추가를 위한 mutation
   const createMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      const res = await fetch('/api/benefits/manage/save', { method: 'POST', body: formData })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok || json.success === false) throw new Error(json.error || 'create failed')
-      return json
+      const result = await saveBenefit(formData)
+      if (!result.success) throw new Error(result.error || 'create failed')
+      return result
     },
     onSuccess: async () => {
       console.log('새 혜택 생성 성공')
@@ -369,7 +369,7 @@ export function BenefitsTable({ createAction }: BenefitsTableProps) {
                           variant="teal"
                           disabled={savingRecords.has(String(r[pkField]))}
                           data-pk={String(r[pkField])}
-                          onClick={(e) => {
+                          onClick={() => {
                             console.log(`저장 버튼 클릭 - PK: ${r[pkField]}`)
                             // 이벤트가 폼 제출을 막지 않도록 함
                           }}
@@ -390,10 +390,8 @@ export function BenefitsTable({ createAction }: BenefitsTableProps) {
                             }
                             
                             try {
-                              const result = await deleteMutation.mutateAsync({ pkField, pkValue })
-                              if (result.message) {
-                                alert(result.message)
-                              }
+                              await deleteMutation.mutateAsync({ pkField, pkValue })
+                              alert('삭제되었습니다.')
                             } catch (error) {
                               console.error('Delete failed:', error)
                               alert(`삭제 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)

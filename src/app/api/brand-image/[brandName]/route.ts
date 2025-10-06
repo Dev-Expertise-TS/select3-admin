@@ -29,7 +29,7 @@ export async function GET(
           'Cache-Control': 'public, max-age=86400', // 24시간 캐시
         },
       })
-    } catch (_fileError) {
+    } catch {
       // 파일이 없으면 기본 브랜드 이미지 생성
       const defaultSvg = `<svg width="100" height="60" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg">
         <rect width="100" height="60" fill="#6b7280" rx="8"/>

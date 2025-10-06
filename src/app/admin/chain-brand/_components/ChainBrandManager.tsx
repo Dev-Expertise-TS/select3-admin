@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { highlightRowFields } from '@/components/shared/field-highlight'
 import HotelSearchWidget from '@/components/shared/hotel-search-widget'
+import { saveChain, createChain, saveBrand, createBrand } from '@/features/chain-brand/actions'
 
 export type Chain = { chain_id: number; name_kr: string | null; name_en: string | null; slug: string | null }
 export type Brand = { brand_id: number; name_kr: string | null; name_en: string | null; chain_id: number | null }
@@ -29,6 +30,9 @@ export function ChainBrandManager({ chains, brands }: Props) {
   const [showSchemaInfo, setShowSchemaInfo] = React.useState(false)
   const createFormId = React.useId()
   const createChainFormId = React.useId()
+  
+  // Server Actions을 위한 transition
+  const [_isPending, startTransition] = React.useTransition()
   
   // 실제 존재하는 컬럼 확인
   const hasNameEn = React.useMemo(() => {
@@ -265,25 +269,34 @@ export function ChainBrandManager({ chains, brands }: Props) {
                                 return
                               }
                               
-                              const fd = new FormData()
-                              fd.append('chain_id', String(c.chain_id))
-                              fd.append('name_kr', nkr)
-                              fd.append('name_en', nen)
-                              fd.append('slug', slug)
-                              const res = await fetch('/api/chain-brand/chain/save', { method: 'POST', body: fd })
-                              const json = await res.json().catch(() => null)
-                              if (json?.success) {
-                                // 로컬 상태 업데이트
-                                setChainsState((prev) => prev.map((x) => (x.chain_id === c.chain_id ? { ...x, name_kr: nkr, name_en: nen, slug: slug } : x)))
-                                // 공통 하이라이트 적용
-                                const row = nameKrInput?.closest('tr') ?? null
-                                highlightRowFields(row, 'input[name="name_kr"], input[name="name_en"], input[name="slug"]')
-                              } else {
-                                const errMsg = (json && json.error) ? String(json.error) : '저장 중 오류가 발생했습니다.'
-                                setDialogMessage(errMsg)
-                                setOnConfirmFn(() => () => {})
-                                setDialogOpen(true)
-                              }
+                              startTransition(async () => {
+                                try {
+                                  const fd = new FormData()
+                                  fd.append('chain_id', String(c.chain_id))
+                                  fd.append('name_kr', nkr)
+                                  fd.append('name_en', nen)
+                                  fd.append('slug', slug)
+                                  
+                                  const result = await saveChain(fd)
+                                  
+                                  if (result.success) {
+                                    // 로컬 상태 업데이트
+                                    setChainsState((prev) => prev.map((x) => (x.chain_id === c.chain_id ? { ...x, name_kr: nkr, name_en: nen, slug: slug } : x)))
+                                    // 공통 하이라이트 적용
+                                    const row = nameKrInput?.closest('tr') ?? null
+                                    highlightRowFields(row, 'input[name="name_kr"], input[name="name_en"], input[name="slug"]')
+                                  } else {
+                                    const errMsg = result.error || '저장 중 오류가 발생했습니다.'
+                                    setDialogMessage(errMsg)
+                                    setOnConfirmFn(() => () => {})
+                                    setDialogOpen(true)
+                                  }
+                                } catch {
+                                  setDialogMessage('저장 중 오류가 발생했습니다.')
+                                  setOnConfirmFn(() => () => {})
+                                  setDialogOpen(true)
+                                }
+                              })
                             } catch {
                               setDialogMessage('저장 중 오류가 발생했습니다.')
                               setOnConfirmFn(() => () => {})
@@ -354,30 +367,33 @@ export function ChainBrandManager({ chains, brands }: Props) {
                             return
                           }
                           
-                          const fd = new FormData()
-                          fd.append('name_kr', nkr)
-                          fd.append('name_en', nen)
-                          fd.append('slug', slug)
-                          try {
-                            const res = await fetch('/api/chain-brand/chain/create', { method: 'POST', body: fd })
-                            const json = await res.json().catch(() => null)
-                            if (json?.success) {
-                              // 즉시 신규 입력 행 숨김
-                              setAddingChain(false)
-                              // 페이지 새로고침으로 최신 데이터 가져오기
-                              window.location.reload()
-                            } else {
+                          startTransition(async () => {
+                            try {
+                              const fd = new FormData()
+                              fd.append('name_kr', nkr)
+                              fd.append('name_en', nen)
+                              fd.append('slug', slug)
+                              
+                              const result = await createChain(fd)
+                              
+                              if (result.success) {
+                                // 즉시 신규 입력 행 숨김
+                                setAddingChain(false)
+                                // 페이지 새로고침으로 최신 데이터 가져오기
+                                window.location.reload()
+                              } else {
+                                setDialogMessage('저장 중 오류가 발생했습니다.')
+                                setOnConfirmFn(() => () => {})
+                                setDialogOpen(true)
+                                setAddingChain(false)
+                              }
+                            } catch {
                               setDialogMessage('저장 중 오류가 발생했습니다.')
                               setOnConfirmFn(() => () => {})
                               setDialogOpen(true)
                               setAddingChain(false)
                             }
-                          } catch {
-                            setDialogMessage('저장 중 오류가 발생했습니다.')
-                            setOnConfirmFn(() => () => {})
-                            setDialogOpen(true)
-                            setAddingChain(false)
-                          }
+                          })
                         }}
                       >
                         저장
@@ -498,25 +514,34 @@ export function ChainBrandManager({ chains, brands }: Props) {
                                 return
                               }
                               
-                              const fd = new FormData()
-                              fd.append('brand_id', String(b.brand_id))
-                              fd.append('chain_id', String(selectedChainId ?? ''))
-                              fd.append('name_kr', nkr)
-                              fd.append('name_en', nen)
-                              const res = await fetch('/api/chain-brand/brand/save', { method: 'POST', body: fd })
-                              const json = await res.json().catch(() => null)
-                              if (json?.success && json.data) {
-                                // 로컬 상태 업데이트
-                                setBrandsState((prev) => prev.map((x) => (x.brand_id === json.data.brand_id ? (json.data as Brand) : x)))
-                                // 공통 하이라이트 적용
-                                const row = nameKrInput?.closest('tr') ?? null
-                                highlightRowFields(row, 'input[name="name_kr"], input[name="name_en"]')
-                              } else {
-                                const errMsg = (json && json.error) ? String(json.error) : '저장 중 오류가 발생했습니다.'
-                                setDialogMessage(errMsg)
-                                setOnConfirmFn(() => () => {})
-                                setDialogOpen(true)
-                              }
+                              startTransition(async () => {
+                                try {
+                                  const fd = new FormData()
+                                  fd.append('brand_id', String(b.brand_id))
+                                  fd.append('chain_id', String(selectedChainId ?? ''))
+                                  fd.append('name_kr', nkr)
+                                  fd.append('name_en', nen)
+                                  
+                                  const result = await saveBrand(fd)
+                                  
+                                  if (result.success && result.data) {
+                                    // 로컬 상태 업데이트
+                                    setBrandsState((prev) => prev.map((x) => (x.brand_id === result.data?.brand_id ? (result.data as Brand) : x)))
+                                    // 공통 하이라이트 적용
+                                    const row = nameKrInput?.closest('tr') ?? null
+                                    highlightRowFields(row, 'input[name="name_kr"], input[name="name_en"]')
+                                  } else {
+                                    const errMsg = result.error || '저장 중 오류가 발생했습니다.'
+                                    setDialogMessage(errMsg)
+                                    setOnConfirmFn(() => () => {})
+                                    setDialogOpen(true)
+                                  }
+                                } catch {
+                                  setDialogMessage('저장 중 오류가 발생했습니다.')
+                                  setOnConfirmFn(() => () => {})
+                                  setDialogOpen(true)
+                                }
+                              })
                             } catch {
                               setDialogMessage('저장 중 오류가 발생했습니다.')
                               setOnConfirmFn(() => () => {})
@@ -619,59 +644,57 @@ export function ChainBrandManager({ chains, brands }: Props) {
                             return
                           }
                           
-                          try {
-                            const res = await fetch('/api/chain-brand/brand/save', { 
-                              method: 'POST', 
-                              body: fd 
-                            })
-                            
-                            console.log('[brand][client] response status:', res.status)
-                            
-                            const json = await res.json().catch(() => null)
-                            console.log('[brand][client] response json:', json)
-                            
-                            if (json?.success && json.data) {
-                              // 즉시 신규 입력 행 숨김 (깜빡임 방지)
-                              setAddingBrand(false)
+                          startTransition(async () => {
+                            try {
+                              const result = await createBrand(fd)
                               
-                              // 새 브랜드를 로컬 상태에 추가
-                              const newBrand: Brand = {
-                                brand_id: json.data.brand_id,
-                                chain_id: selectedChainId,
-                                name_kr: nkr,
-                                name_en: hasNameEn ? nen : null
+                              console.log('[brand][client] response:', result)
+                              
+                              if (result.success && result.data) {
+                                // 즉시 신규 입력 행 숨김 (깜빡임 방지)
+                                setAddingBrand(false)
+                                
+                                // 새 브랜드를 로컬 상태에 추가
+                                const newBrand: Brand = {
+                                  brand_id: result.data.brand_id!,
+                                  chain_id: selectedChainId,
+                                  name_kr: nkr,
+                                  name_en: hasNameEn ? nen : null
+                                }
+                                
+                                setBrandsState((prev) => [...prev, newBrand])
+                                
+                                setDialogMessage('브랜드가 성공적으로 생성되었습니다.')
+                                setOnConfirmFn(() => () => {
+                                  // 확인 팝업 OK 클릭 시 하이라이트 적용
+                                  setTimeout(() => {
+                                    const brandId = result.data?.brand_id
+                                    if (brandId) {
+                                      const newBrandRow = document.querySelector(`tr[data-brand-id="${brandId}"]`)
+                                      if (newBrandRow) {
+                                        highlightRowFields(newBrandRow, 'input[name="name_kr"], input[name="name_en"]')
+                                      }
+                                    }
+                                  }, 50)
+                                })
+                                setDialogOpen(true)
+                              } else {
+                                const errMsg = result.error || '저장 중 오류가 발생했습니다.'
+                                setDialogMessage(errMsg)
+                                setOnConfirmFn(() => () => {})
+                                setDialogOpen(true)
+                                // 오류 시에도 신규 입력 행 숨김
+                                setAddingBrand(false)
                               }
-                              
-                              setBrandsState((prev) => [...prev, newBrand])
-                              
-                              setDialogMessage('브랜드가 성공적으로 생성되었습니다.')
-                              setOnConfirmFn(() => () => {
-                                // 확인 팝업 OK 클릭 시 하이라이트 적용
-                                setTimeout(() => {
-                                  const newBrandRow = document.querySelector(`tr[data-brand-id="${json.data.brand_id}"]`)
-                                  if (newBrandRow) {
-                                    highlightRowFields(newBrandRow, 'input[name="name_kr"], input[name="name_en"]')
-                                  }
-                                }, 50)
-                              })
-                              setDialogOpen(true)
-                            } else {
-                              const errMsg = json?.error || '저장 중 오류가 발생했습니다.'
-                              const details = json?.details ? `\n\n상세 오류: ${json.details}` : ''
-                              setDialogMessage(`${errMsg}${details}`)
+                            } catch (error) {
+                              console.error('[brand][client] error:', error)
+                              setDialogMessage(`네트워크 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
                               setOnConfirmFn(() => () => {})
                               setDialogOpen(true)
                               // 오류 시에도 신규 입력 행 숨김
                               setAddingBrand(false)
                             }
-                          } catch (error) {
-                            console.error('[brand][client] fetch error:', error)
-                            setDialogMessage(`네트워크 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
-                            setOnConfirmFn(() => () => {})
-                            setDialogOpen(true)
-                            // 오류 시에도 신규 입력 행 숨김
-                            setAddingBrand(false)
-                          }
+                          })
                         }}
                       >
                         저장

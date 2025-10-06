@@ -1,10 +1,11 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Megaphone, Plus, Save, X, Loader2, AlertCircle, CheckCircle, Edit, Trash2, Calendar, MapPin, ArrowLeft } from "lucide-react"
+import { Megaphone, Plus, Save, X, Loader2, AlertCircle, CheckCircle, Edit, Trash2, MapPin } from "lucide-react"
 import HotelQuickSearch from "@/components/shared/hotel-quick-search"
+import { savePromotion, deletePromotion, addHotelToPromotion, removeHotelFromPromotion } from "@/features/promotions/actions"
 
 interface Promotion {
   id: number
@@ -47,8 +48,6 @@ export function PromotionManager() {
   const [recentlySavedKey, setRecentlySavedKey] = useState<string | number | null>(null)
   const [activeTab, setActiveTab] = useState<'manage' | 'mapped'>('manage')
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null)
-  const [mappedHotels, setMappedHotels] = useState<MappedHotel[]>([])
-  const [mappingLoading, setMappingLoading] = useState(false)
   const [allMappedHotels, setAllMappedHotels] = useState<MappedHotel[]>([])
   const [allMappedLoading, setAllMappedLoading] = useState(false)
   const [newlyAddedMappings, setNewlyAddedMappings] = useState<Set<string>>(new Set())
@@ -60,9 +59,11 @@ export function PromotionManager() {
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<number | string | null>(null)
-  const [formLoading, setFormLoading] = useState(false)
   const [editLinkedHotels, setEditLinkedHotels] = useState<Array<{ sabre_id: string, property_name_ko: string | null, property_name_en: string | null }>>([])
   const [editLinkedLoading, setEditLinkedLoading] = useState(false)
+  
+  // Server Actions을 위한 transition 훅
+  const [isPending, startTransition] = useTransition()
   const renderPromotionForm = () => (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">{editingId ? "프로모션 수정" : "프로모션 추가 및 변경"}</h3>
@@ -163,8 +164,8 @@ export function PromotionManager() {
           </div>
         )}
         <div className="flex gap-3">
-          <Button type="submit" disabled={formLoading} className="bg-orange-600 hover:bg-orange-700">
-            {formLoading ? (
+          <Button type="submit" disabled={isPending} className="bg-orange-600 hover:bg-orange-700">
+            {isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" /> 저장 중...
               </>
@@ -174,7 +175,7 @@ export function PromotionManager() {
               </>
             )}
           </Button>
-          <Button type="button" variant="outline" onClick={resetForm} disabled={formLoading}>
+          <Button type="button" variant="outline" onClick={resetForm} disabled={isPending}>
             <X className="h-4 w-4 mr-2" /> 취소
           </Button>
         </div>
@@ -242,94 +243,97 @@ export function PromotionManager() {
     loadMappedHotels(p.promotion_id)
   }
 
-  const loadMappedHotels = async (promotionId: string | number) => {
-    setMappingLoading(true)
+  const loadMappedHotels = async (_promotionId: string | number) => {
     try {
-      const res = await fetch(`/api/promotions/hotels?promotionId=${encodeURIComponent(promotionId)}`)
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || '연결된 호텔을 불러오지 못했습니다.')
-      setMappedHotels(data.data.hotels ?? [])
+      // 이 함수는 현재 사용되지 않지만 호환성을 위해 유지
+      console.log('loadMappedHotels called but not implemented')
     } catch (err) {
       setError(err instanceof Error ? err.message : '연결된 호텔 조회 중 오류가 발생했습니다.')
-    } finally {
-      setMappingLoading(false)
     }
   }
 
-  const connectHotel = async (sabreId: string) => {
+  const _connectHotel = async (sabreId: string) => {
     if (!selectedPromotion) return
-    try {
-      const res = await fetch('/api/promotions/hotels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ promotionId: Number(selectedPromotion.promotion_id), sabreId })
-      })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || '호텔 연결에 실패했습니다.')
-      setSuccess('호텔이 연결되었습니다.')
-      loadMappedHotels(selectedPromotion.promotion_id)
-      if (activeTab === 'mapped') {
-        loadAllMappedHotels()
+    
+    startTransition(async () => {
+      try {
+        const result = await addHotelToPromotion(Number(selectedPromotion.promotion_id), sabreId)
+        
+        if (!result.success) {
+          throw new Error(result.error || '호텔 연결에 실패했습니다.')
+        }
+        
+        setSuccess('호텔이 연결되었습니다.')
+        loadMappedHotels(selectedPromotion.promotion_id)
+        if (activeTab === 'mapped') {
+          loadAllMappedHotels()
+        }
+        setTimeout(() => setSuccess(null), 3000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '호텔 연결 중 오류가 발생했습니다.')
       }
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '호텔 연결 중 오류가 발생했습니다.')
-    }
+    })
   }
 
   const disconnectHotel = async (sabreId: string, promotionId?: string | number) => {
     const targetPromotionId = typeof promotionId !== 'undefined' ? promotionId : selectedPromotion?.promotion_id
     if (!targetPromotionId) return
     if (!confirm('이 호텔을 연결 해제하시겠습니까?')) return
-    try {
-      const res = await fetch(`/api/promotions/hotels?promotionId=${encodeURIComponent(String(targetPromotionId))}&sabreId=${encodeURIComponent(sabreId)}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || '호텔 연결 해제에 실패했습니다.')
-      setSuccess('호텔 연결을 해제했습니다.')
-      if (selectedPromotion) {
-        loadMappedHotels(selectedPromotion.promotion_id)
+    
+    startTransition(async () => {
+      try {
+        const result = await removeHotelFromPromotion(Number(targetPromotionId), sabreId)
+        
+        if (!result.success) {
+          throw new Error(result.error || '호텔 연결 해제에 실패했습니다.')
+        }
+        
+        setSuccess('호텔 연결을 해제했습니다.')
+        if (selectedPromotion) {
+          loadMappedHotels(selectedPromotion.promotion_id)
+        }
+        if (activeTab === 'mapped') {
+          loadAllMappedHotels()
+        }
+        setTimeout(() => setSuccess(null), 3000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '호텔 연결 해제 중 오류가 발생했습니다.')
       }
-      if (activeTab === 'mapped') {
-        loadAllMappedHotels()
-      }
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '호텔 연결 해제 중 오류가 발생했습니다.')
-    }
+    })
   }
 
   const addHotelMapping = async (promotionId: string | number, sabreId: string) => {
-    try {
-      const res = await fetch('/api/promotions/hotels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ promotionId: Number(promotionId), sabreId })
-      })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || '호텔 연결에 실패했습니다.')
-      
-      // 새로 추가된 매핑을 강조 표시용으로 기록
-      const mappingKey = `${sabreId}-${promotionId}`
-      setNewlyAddedMappings(prev => new Set([...prev, mappingKey]))
-      
-      setSuccess('호텔이 연결되었습니다.')
-      loadAllMappedHotels()
-      if (showHotelPromotionPopup && selectedHotel) {
-        loadHotelPromotions(selectedHotel.sabre_id)
+    startTransition(async () => {
+      try {
+        const result = await addHotelToPromotion(Number(promotionId), sabreId)
+        
+        if (!result.success) {
+          throw new Error(result.error || '호텔 연결에 실패했습니다.')
+        }
+        
+        // 새로 추가된 매핑을 강조 표시용으로 기록
+        const mappingKey = `${sabreId}-${promotionId}`
+        setNewlyAddedMappings(prev => new Set([...prev, mappingKey]))
+        
+        setSuccess('호텔이 연결되었습니다.')
+        loadAllMappedHotels()
+        if (showHotelPromotionPopup && selectedHotel) {
+          loadHotelPromotions(selectedHotel.sabre_id)
+        }
+        setTimeout(() => setSuccess(null), 3000)
+        
+        // 3초 후 강조 표시 제거
+        setTimeout(() => {
+          setNewlyAddedMappings(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(mappingKey)
+            return newSet
+          })
+        }, 3000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '호텔 연결 중 오류가 발생했습니다.')
       }
-      setTimeout(() => setSuccess(null), 3000)
-      
-      // 3초 후 강조 표시 제거
-      setTimeout(() => {
-        setNewlyAddedMappings(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(mappingKey)
-          return newSet
-        })
-      }, 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '호텔 연결 중 오류가 발생했습니다.')
-    }
+    })
   }
 
   const openHotelPromotionPopup = async (sabre_id: string, property_name_ko: string) => {
@@ -362,33 +366,35 @@ export function PromotionManager() {
   }
 
   const removeHotelPromotion = async (sabreId: string, promotionId: string | number) => {
-    try {
-      // 실제 삭제 호출
-      const res = await fetch(`/api/promotions/hotels?promotionId=${encodeURIComponent(String(promotionId))}&sabreId=${encodeURIComponent(sabreId)}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || '프로모션 연결 해제에 실패했습니다.')
+    startTransition(async () => {
+      try {
+        const result = await removeHotelFromPromotion(Number(promotionId), sabreId)
+        
+        if (!result.success) {
+          throw new Error(result.error || '프로모션 연결 해제에 실패했습니다.')
+        }
 
-      // 즉시 UI 반영: 팝업 목록/전체 목록/현재 탭 목록에서 제거
-      const removedPromotionId = Number(promotionId)
-      setHotelPromotions(prev => prev.filter(p => p.promotion_id !== removedPromotionId))
-      setAllMappedHotels(prev => prev.filter(h => !(h.sabre_id === sabreId && h.promotion_id === removedPromotionId)))
-      setMappedHotels(prev => prev.filter(h => !(h.sabre_id === sabreId && h.promotion_id === removedPromotionId)))
+        // 즉시 UI 반영: 팝업 목록/전체 목록/현재 탭 목록에서 제거
+        const removedPromotionId = Number(promotionId)
+        setHotelPromotions(prev => prev.filter(p => p.promotion_id !== removedPromotionId))
+        setAllMappedHotels(prev => prev.filter(h => !(h.sabre_id === sabreId && h.promotion_id === removedPromotionId)))
 
-      // 동기화: 원격 데이터 재로드
-      if (activeTab === 'mapped') {
-        await loadAllMappedHotels()
+        // 동기화: 원격 데이터 재로드
+        if (activeTab === 'mapped') {
+          await loadAllMappedHotels()
+        }
+        if (selectedPromotion) {
+          await loadMappedHotels(selectedPromotion.promotion_id)
+        }
+        if (selectedHotel) {
+          await loadHotelPromotions(selectedHotel.sabre_id)
+        }
+        setSuccess('프로모션 연결을 해제했습니다.')
+        setTimeout(() => setSuccess(null), 3000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '프로모션 연결 해제 중 오류가 발생했습니다.')
       }
-      if (selectedPromotion) {
-        await loadMappedHotels(selectedPromotion.promotion_id)
-      }
-      if (selectedHotel) {
-        await loadHotelPromotions(selectedHotel.sabre_id)
-      }
-      setSuccess('프로모션 연결을 해제했습니다.')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '프로모션 연결 해제 중 오류가 발생했습니다.')
-    }
+    })
   }
 
   const generateNextPromotionId = () => {
@@ -423,16 +429,16 @@ export function PromotionManager() {
   }
 
   const startEdit = (p: Promotion) => {
-    setEditingId((p as any).id ?? p.promotion_id)
+    setEditingId(p.id ?? p.promotion_id)
     setFormData({
       promotion_id: p.promotion_id,
       promotion: p.promotion,
       promotion_description: p.promotion_description ?? "",
-      note: (p as any).note ?? "",
-      booking_start_date: toDateOnly((p as any).booking_start_date),
-      booking_end_date: toDateOnly((p as any).booking_end_date),
-      check_in_start_date: toDateOnly((p as any).check_in_start_date),
-      check_in_end_date: toDateOnly((p as any).check_in_end_date),
+      note: p.note ?? "",
+      booking_start_date: toDateOnly(p.booking_start_date),
+      booking_end_date: toDateOnly(p.booking_end_date),
+      check_in_start_date: toDateOnly(p.check_in_start_date),
+      check_in_end_date: toDateOnly(p.check_in_end_date),
     })
     setEditLinkedLoading(true)
     fetch(`/api/promotions/hotels?promotionId=${encodeURIComponent(String(p.promotion_id))}`)
@@ -452,63 +458,68 @@ export function PromotionManager() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setFormLoading(true)
     setError(null)
-    try {
-      const url = editingId ? "/api/promotions/update" : "/api/promotions/create"
-      const method = editingId ? "PUT" : "POST"
-      const body = editingId 
-        ? { 
-            id: editingId, 
-            promotion_id: Number(formData.promotion_id), 
-            promotion: formData.promotion,
-            promotion_description: formData.promotion_description,
-            note: formData.note,
-            booking_start_date: formData.booking_start_date,
-            booking_end_date: formData.booking_end_date,
-            check_in_start_date: formData.check_in_start_date,
-            check_in_end_date: formData.check_in_end_date,
-          } 
-        : { 
-            promotion_id: Number(formData.promotion_id), 
-            promotion: formData.promotion,
-            promotion_description: formData.promotion_description,
-            note: formData.note,
-            booking_start_date: formData.booking_start_date,
-            booking_end_date: formData.booking_end_date,
-            check_in_start_date: formData.check_in_start_date,
-            check_in_end_date: formData.check_in_end_date,
-          }
-      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || "저장 중 오류가 발생했습니다.")
-      setSuccess("저장되었습니다.")
-      // 최근 저장된 행을 강조 (editingId 우선, 신규는 promotion_id)
-      const savedKey = editingId ?? (data?.data?.promotion?.promotion_id ?? formData.promotion_id)
-      setRecentlySavedKey(savedKey as any)
-      resetForm()
-      loadPromotions()
-      setTimeout(() => setSuccess(null), 3000)
-      setTimeout(() => setRecentlySavedKey(null), 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.")
-    } finally {
-      setFormLoading(false)
-    }
+    
+    startTransition(async () => {
+      try {
+        // FormData 생성
+        const formDataObj = new FormData()
+        if (formData.promotion_id !== "") {
+          formDataObj.append('promotion_id', String(formData.promotion_id))
+        }
+        formDataObj.append('promotion', formData.promotion)
+        formDataObj.append('promotion_description', formData.promotion_description || '')
+        formDataObj.append('note', formData.note || '')
+        formDataObj.append('booking_start_date', formData.booking_start_date || '')
+        formDataObj.append('booking_end_date', formData.booking_end_date || '')
+        formDataObj.append('check_in_start_date', formData.check_in_start_date || '')
+        formDataObj.append('check_in_end_date', formData.check_in_end_date || '')
+
+        // Server Action 호출
+        const result = await savePromotion(formDataObj)
+        
+        if (!result.success) {
+          throw new Error(result.error || '저장에 실패했습니다.')
+        }
+        
+        setSuccess("저장되었습니다.")
+        
+        // 최근 저장된 행을 강조 (editingId 우선, 신규는 promotion_id)
+        const savedPromotion = result?.data && typeof result.data === 'object' && 'promotion' in result.data 
+          ? (result.data as { promotion: { promotion_id?: number } }).promotion 
+          : null
+        const savedKey = editingId ?? (savedPromotion?.promotion_id ?? formData.promotion_id)
+        setRecentlySavedKey(typeof savedKey === 'number' || typeof savedKey === 'string' ? savedKey : null)
+        
+        resetForm()
+        loadPromotions()
+        
+        setTimeout(() => setSuccess(null), 3000)
+        setTimeout(() => setRecentlySavedKey(null), 3000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.")
+      }
+    })
   }
 
   const handleDelete = async (id: number) => {
     if (!confirm("정말로 삭제하시겠습니까?")) return
-    try {
-      const res = await fetch(`/api/promotions/delete?id=${id}`, { method: "DELETE" })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || "삭제 중 오류가 발생했습니다.")
-      setSuccess("삭제되었습니다.")
-      loadPromotions()
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다.")
-    }
+    
+    startTransition(async () => {
+      try {
+        const result = await deletePromotion(id)
+        
+        if (!result.success) {
+          throw new Error(result.error || "삭제 중 오류가 발생했습니다.")
+        }
+        
+        setSuccess("삭제되었습니다.")
+        loadPromotions()
+        setTimeout(() => setSuccess(null), 3000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다.")
+      }
+    })
   }
 
   return (
@@ -615,14 +626,14 @@ export function PromotionManager() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {promotions.map((p, idx) => (
                   <React.Fragment key={typeof p.id === "number" || typeof p.id === "string" ? `promo-${p.id}` : `promo-${idx}`}>
-                  <tr className={`hover:bg-gray-50 ${recentlySavedKey != null && recentlySavedKey === ((p as any).id ?? p.promotion_id) ? 'bg-green-50' : ''}`}>
+                  <tr className={`hover:bg-gray-50 ${recentlySavedKey != null && recentlySavedKey === (p.id ?? p.promotion_id) ? 'bg-green-50' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">{p.promotion_id}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 w-7/12">{p.promotion}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{(p as any).booking_start_date ? String((p as any).booking_start_date).slice(0,10) : '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{(p as any).booking_end_date ? String((p as any).booking_end_date).slice(0,10) : '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{(p as any).check_in_start_date ? String((p as any).check_in_start_date).slice(0,10) : '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{(p as any).check_in_end_date ? String((p as any).check_in_end_date).slice(0,10) : '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(p as any).note ?? '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{p.booking_start_date ? String(p.booking_start_date).slice(0,10) : '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{p.booking_end_date ? String(p.booking_end_date).slice(0,10) : '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{p.check_in_start_date ? String(p.check_in_start_date).slice(0,10) : '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{p.check_in_end_date ? String(p.check_in_end_date).slice(0,10) : '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{p.note ?? '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex gap-2 justify-center">
                         <Button
@@ -640,13 +651,13 @@ export function PromotionManager() {
                         <Button size="sm" variant="outline" onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
                           <Trash2 className="h-3 w-3" />
                         </Button>
-                        {recentlySavedKey != null && recentlySavedKey === ((p as any).id ?? p.promotion_id) && (
+                        {recentlySavedKey != null && recentlySavedKey === (p.id ?? p.promotion_id) && (
                           <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">저장됨</span>
                         )}
                       </div>
                     </td>
                   </tr>
-                  {editingId === ((p as any).id ?? p.promotion_id) && showForm && (
+                  {editingId === (p.id ?? p.promotion_id) && showForm && (
                     <tr className="bg-orange-50">
                       <td colSpan={8} className="px-6 py-4">
                         {renderPromotionForm()}

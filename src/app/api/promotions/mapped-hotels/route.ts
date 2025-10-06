@@ -1,5 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+
+type MappingRecord = {
+  sabre_id: string
+  promotion_id: number
+  select_hotel_promotions: {
+    promotion: string
+    promotion_id: number
+  }
+  select_hotels: {
+    sabre_id: string
+    property_name_ko: string | null
+    property_name_en: string | null
+  }
+}
 
 export async function GET() {
   try {
@@ -31,7 +45,7 @@ export async function GET() {
     }
 
     // 데이터 변환
-    const mappedHotels = mappings?.map(mapping => ({
+    const mappedHotels = (mappings as unknown as MappingRecord[])?.map(mapping => ({
       sabre_id: mapping.sabre_id,
       promotion_id: Number(mapping.promotion_id),
       promotion_name: mapping.select_hotel_promotions.promotion,

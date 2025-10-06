@@ -233,6 +233,7 @@ export function ContentImageMigrationPanel() {
                   {/* 이미지 미리보기 */}
                   <div className="flex-shrink-0">
                     <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden border">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={image.url}
                         alt={`본문 이미지 ${index + 1}`}
@@ -287,6 +288,7 @@ export function ContentImageMigrationPanel() {
                   {/* 마이그레이션된 이미지 미리보기 */}
                   <div className="flex-shrink-0">
                     <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden border">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={image.newUrl}
                         alt={`마이그레이션된 이미지 ${index + 1}`}

@@ -319,7 +319,7 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                       } else {
                         alert(`업로드 실패: ${data.error}`);
                       }
-                    } catch (err) {
+                    } catch {
                       alert('업로드 중 오류가 발생했습니다.');
                     }
                     e.target.value = '';
@@ -425,7 +425,7 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                         onClick={async () => {
                           if (!confirm(`정말로 ${image.name}을(를) 삭제하시겠습니까?`)) return;
                           
-                          const pathToDelete = (image as any).path || image.storagePath;
+                          const pathToDelete = (image as { path?: string; storagePath?: string }).path || (image as { path?: string; storagePath?: string }).storagePath;
                           if (!pathToDelete) {
                             alert('파일 경로를 찾을 수 없습니다.');
                             return;
@@ -442,7 +442,7 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                             } else {
                               alert(`삭제 실패: ${data.error}`);
                             }
-                          } catch (err) {
+                          } catch {
                             alert('삭제 중 오류가 발생했습니다.');
                           }
                         }}

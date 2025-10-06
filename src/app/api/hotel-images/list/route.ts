@@ -80,8 +80,8 @@ export async function GET(request: NextRequest) {
               url: publicUrlData.publicUrl,
               seq: seq,
               role: role,
-              size: (file as any).metadata?.size,
-              createdAt: (file as any).created_at,
+              size: (file as { metadata?: { size?: number } }).metadata?.size,
+              createdAt: (file as { created_at?: string }).created_at,
               path: `${storagePath}/${file.name}`,
             });
           }

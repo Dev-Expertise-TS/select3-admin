@@ -1,12 +1,13 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useTransition } from 'react'
 import { Users, Plus, Edit, Trash2, Shield, User, History, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { User as UserType } from '@/types/auth'
 import { cn } from '@/lib/utils'
 import { AuthGuard } from '@/components/shared/auth-guard'
+import { updateUser, deleteUser as deleteUserAction } from '@/features/users/actions'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserType[]>([])
@@ -19,6 +20,8 @@ export default function AdminUsersPage() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState('')
   const [historyItems, setHistoryItems] = useState<Array<{ id: string; action: string; created_at: string }>>([])
+  const [_isPending, startTransition] = useTransition()
+  
   const handleViewHistory = async (user: UserType) => {
     setHistoryUser(user)
     setHistoryError('')
@@ -89,49 +92,49 @@ export default function AdminUsersPage() {
   }
 
   // 사용자 수정
-  const updateUser = async (userData: { id: string; email?: string; role?: 'admin' | 'user'; password?: string }) => {
-    try {
-      const response = await fetch('/api/users/update', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData)
+  const updateUserLocal = async (userData: { id: string; email?: string; role?: 'admin' | 'user'; password?: string }) => {
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      startTransition(async () => {
+        try {
+          const formData = new FormData()
+          formData.append('id', userData.id)
+          if (userData.email) formData.append('email', userData.email)
+          if (userData.role) formData.append('role', userData.role)
+          if (userData.password) formData.append('password', userData.password)
+
+          const result = await updateUser(formData)
+
+          if (result.success) {
+            await fetchUsers()
+            setEditingUser(null)
+            resolve({ success: true })
+          } else {
+            resolve({ success: false, error: result.error })
+          }
+        } catch {
+          resolve({ success: false, error: '사용자 수정 중 오류가 발생했습니다.' })
+        }
       })
-
-      const result = await response.json()
-
-      if (result.success) {
-        await fetchUsers()
-        setEditingUser(null)
-        return { success: true }
-      } else {
-        return { success: false, error: result.error }
-      }
-    } catch {
-      return { success: false, error: '사용자 수정 중 오류가 발생했습니다.' }
-    }
+    })
   }
 
   // 사용자 삭제
-  const deleteUser = async (userId: string) => {
+  const deleteUserLocal = async (userId: string) => {
     if (!confirm('정말로 이 사용자를 삭제하시겠습니까?')) return
 
-    try {
-      const response = await fetch('/api/users/delete', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: userId })
-      })
+    startTransition(async () => {
+      try {
+        const result = await deleteUserAction(userId)
 
-      const result = await response.json()
-
-      if (result.success) {
-        await fetchUsers()
-      } else {
-        alert(result.error || '사용자 삭제에 실패했습니다.')
+        if (result.success) {
+          await fetchUsers()
+        } else {
+          alert(result.error || '사용자 삭제에 실패했습니다.')
+        }
+      } catch {
+        alert('사용자 삭제 중 오류가 발생했습니다.')
       }
-    } catch {
-      alert('사용자 삭제 중 오류가 발생했습니다.')
-    }
+    })
   }
 
   useEffect(() => {
@@ -264,7 +267,7 @@ export default function AdminUsersPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => deleteUser(user.id)}
+                        onClick={() => deleteUserLocal(user.id)}
                         className="text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -290,7 +293,7 @@ export default function AdminUsersPage() {
           user={editingUser}
           onSubmit={async (data: { id?: string; email: string; password: string; role: 'admin' | 'user' } | { id: string; email?: string; role?: 'admin' | 'user'; password?: string }) => {
             if (editingUser) {
-              return await updateUser(data as { id: string; email?: string; role?: 'admin' | 'user'; password?: string })
+              return await updateUserLocal(data as { id: string; email?: string; role?: 'admin' | 'user'; password?: string })
             } else {
               return await createUser(data as { email: string; password: string; role: 'admin' | 'user' })
             }

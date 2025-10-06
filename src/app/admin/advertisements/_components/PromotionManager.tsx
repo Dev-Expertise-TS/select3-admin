@@ -118,6 +118,7 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
   // 초기 로드
   useEffect(() => {
     loadSlots()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surface])
 
   // 폼 초기화

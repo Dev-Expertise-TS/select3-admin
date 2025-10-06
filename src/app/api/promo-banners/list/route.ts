@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+// import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function GET(_request: NextRequest) {
   try {
-    const supabase = createServiceRoleClient();
+    // const supabase = createServiceRoleClient();
 
     // 임시로 빈 배열 반환 (실제 테이블이 없을 수 있으므로)
     // const { data: banners, error } = await supabase
