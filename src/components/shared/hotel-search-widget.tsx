@@ -18,7 +18,9 @@ import {
   FolderCheck,
   FolderX,
   Database,
-  ImageIcon
+  ImageIcon,
+  Plus,
+  Trash2
 } from 'lucide-react'
 import Link from 'next/link'
 import NextImage from 'next/image'
@@ -290,6 +292,46 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
               </div>
             )}
             
+            {/* 업로드 버튼 */}
+            <div className="flex justify-end mb-4">
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !hotel.sabre_id) return;
+
+                    const formData = new FormData();
+                    formData.append('sabreId', String(hotel.sabre_id));
+                    formData.append('file', file);
+
+                    try {
+                      const res = await fetch('/api/hotel-images/upload', {
+                        method: 'POST',
+                        body: formData,
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        alert('이미지가 업로드되었습니다.');
+                        onLoadStorageImages(hotelId, String(hotel.sabre_id));
+                      } else {
+                        alert(`업로드 실패: ${data.error}`);
+                      }
+                    } catch (err) {
+                      alert('업로드 중 오류가 발생했습니다.');
+                    }
+                    e.target.value = '';
+                  }}
+                />
+                <Button type="button" className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="h-4 w-4 mr-2" />
+                  이미지 업로드
+                </Button>
+              </label>
+            </div>
+
             {/* 이미지 그리드 */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {state.storageImages?.map((image, _index) => (
@@ -372,6 +414,43 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                         </div>
                       </div>
                     )}
+
+                    {/* 삭제 버튼 */}
+                    <div className="mt-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={async () => {
+                          if (!confirm(`정말로 ${image.name}을(를) 삭제하시겠습니까?`)) return;
+                          
+                          const pathToDelete = (image as any).path || image.storagePath;
+                          if (!pathToDelete) {
+                            alert('파일 경로를 찾을 수 없습니다.');
+                            return;
+                          }
+
+                          try {
+                            const res = await fetch(`/api/hotel-images/delete?filePath=${encodeURIComponent(pathToDelete)}`, {
+                              method: 'DELETE',
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              alert('이미지가 삭제되었습니다.');
+                              onLoadStorageImages(hotelId, String(hotel.sabre_id));
+                            } else {
+                              alert(`삭제 실패: ${data.error}`);
+                            }
+                          } catch (err) {
+                            alert('삭제 중 오류가 발생했습니다.');
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        삭제
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )) || []}

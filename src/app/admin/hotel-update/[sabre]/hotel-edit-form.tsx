@@ -23,7 +23,14 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   const [formData, setFormData] = React.useState({
     sabre_id: String(initialData.sabre_id ?? ''),
     property_name_ko: String(initialData.property_name_ko ?? ''),
-    property_name_en: String(initialData.property_name_en ?? '')
+    property_name_en: String(initialData.property_name_en ?? ''),
+    property_address: String(initialData.property_address ?? ''),
+    city_ko: String(initialData.city_ko ?? ''),
+    city_en: String(initialData.city_en ?? ''),
+    country_ko: String(initialData.country_ko ?? ''),
+    country_en: String(initialData.country_en ?? ''),
+    continent_ko: String(initialData.continent_ko ?? ''),
+    continent_en: String(initialData.continent_en ?? '')
   })
 
   // 하이라이트된 필드 추적
@@ -37,23 +44,8 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   // 체인/브랜드 선택 팝업 상태
   const [isChainBrandPickerOpen, setIsChainBrandPickerOpen] = React.useState(false)
   const [selectedChain, setSelectedChain] = React.useState<Chain | null>(() => {
-    // 초기 데이터에서 체인 정보 설정 (hotel_chains 테이블에서 조회된 실제 데이터)
     if (initialData.hotel_chains) {
       const chains = initialData.hotel_chains as Record<string, unknown> | null
-      
-      // 디버깅: selectedChain 초기화 과정
-      const sabreId = String(initialData.sabre_id ?? '')
-      if (sabreId === '313016') {
-        console.log('=== selectedChain 초기화 디버깅 ===')
-        console.log('initialData.hotel_chains:', chains)
-        console.log('chains가 존재하는가?', !!chains)
-        if (chains) {
-          console.log('chains.chain_id:', chains.chain_id)
-          console.log('chains.name_kr:', chains.name_kr)
-          console.log('chains.name_en:', chains.name_en)
-        }
-        console.log('===============================')
-      }
       
       return chains ? {
         chain_id: Number(chains.chain_id ?? 0),
@@ -65,23 +57,7 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
     return null
   })
   const [selectedBrand, setSelectedBrand] = React.useState<Brand | null>(() => {
-    // 초기 데이터에서 브랜드 정보 설정
     const brands = initialData.hotel_brands as Record<string, unknown> | null
-    
-    // 디버깅: selectedBrand 초기화 과정
-    const sabreId = String(initialData.sabre_id ?? '')
-    if (sabreId === '313016') {
-      console.log('=== selectedBrand 초기화 디버깅 ===')
-      console.log('initialData.hotel_brands:', brands)
-      console.log('brands가 존재하는가?', !!brands)
-      if (brands) {
-        console.log('brands.brand_id:', brands.brand_id)
-        console.log('brands.chain_id:', brands.chain_id)
-        console.log('brands.name_kr:', brands.name_kr)
-        console.log('brands.name_en:', brands.name_en)
-      }
-      console.log('===============================')
-    }
     
     return brands ? {
       brand_id: Number(brands.brand_id ?? 0),
@@ -90,23 +66,6 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       name_en: String(brands.name_en ?? '')
     } : null
   })
-
-  // 디버깅: Sabre ID 313016인 경우 brand_id 값 콘솔에 출력
-  React.useEffect(() => {
-    const sabreId = String(initialData.sabre_id ?? '')
-    if (sabreId === '313016') {
-      console.log('=== Sabre ID 313016 호텔 정보 ===')
-      console.log('전체 initialData:', initialData)
-      console.log('초기 brand_id 값:', initialData.brand_id)
-      console.log('현재 currentBrandId:', currentBrandId)
-      console.log('destination_sort 값:', initialData.destination_sort)
-      console.log('hotel_brands 데이터:', initialData.hotel_brands)
-      console.log('hotel_chains 데이터:', initialData.hotel_chains)
-      console.log('selectedChain:', selectedChain)
-      console.log('selectedBrand:', selectedBrand)
-      console.log('==================================')
-    }
-  }, [initialData, currentBrandId, selectedChain, selectedBrand])
   
   const toggleEditMode = () => {
     setIsEditMode(prev => {
@@ -115,7 +74,14 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         setFormData({
           sabre_id: String(initialData.sabre_id ?? ''),
           property_name_ko: String(initialData.property_name_ko ?? ''),
-          property_name_en: String(initialData.property_name_en ?? '')
+          property_name_en: String(initialData.property_name_en ?? ''),
+          property_address: String(initialData.property_address ?? ''),
+          city_ko: String(initialData.city_ko ?? ''),
+          city_en: String(initialData.city_en ?? ''),
+          country_ko: String(initialData.country_ko ?? ''),
+          country_en: String(initialData.country_en ?? ''),
+          continent_ko: String(initialData.continent_ko ?? ''),
+          continent_en: String(initialData.continent_en ?? '')
         })
         setHighlightedFields(new Set())
       }
@@ -131,18 +97,46 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       const sabreIdEditable = isEditMode 
         ? (submitFormData.get('sabre_id_editable') as string | null)?.trim() || null
         : formData.sabre_id
-          const property_name_ko = isEditMode
-      ? (submitFormData.get('property_name_ko') as string | null) ?? null
-      : formData.property_name_ko
-          const property_name_en = isEditMode
-      ? (submitFormData.get('property_name_en') as string | null) ?? null
-      : formData.property_name_en
+      const property_name_ko = isEditMode
+        ? (submitFormData.get('property_name_ko') as string | null) ?? null
+        : formData.property_name_ko
+      const property_name_en = isEditMode
+        ? (submitFormData.get('property_name_en') as string | null) ?? null
+        : formData.property_name_en
+      const property_address = isEditMode
+        ? (submitFormData.get('property_address') as string | null) ?? null
+        : formData.property_address
+      const city_ko = isEditMode
+        ? (submitFormData.get('city_ko') as string | null) ?? null
+        : formData.city_ko
+      const city_en = isEditMode
+        ? (submitFormData.get('city_en') as string | null) ?? null
+        : formData.city_en
+      const country_ko = isEditMode
+        ? (submitFormData.get('country_ko') as string | null) ?? null
+        : formData.country_ko
+      const country_en = isEditMode
+        ? (submitFormData.get('country_en') as string | null) ?? null
+        : formData.country_en
+      const continent_ko = isEditMode
+        ? (submitFormData.get('continent_ko') as string | null) ?? null
+        : formData.continent_ko
+      const continent_en = isEditMode
+        ? (submitFormData.get('continent_en') as string | null) ?? null
+        : formData.continent_en
 
       // FormData에 현재 상태 값들을 추가 (편집 모드가 아닐 때를 위해)
       if (!isEditMode) {
         submitFormData.set('sabre_id_editable', formData.sabre_id)
         submitFormData.set('property_name_ko', formData.property_name_ko)
         submitFormData.set('property_name_en', formData.property_name_en)
+        submitFormData.set('property_address', formData.property_address)
+        submitFormData.set('city_ko', formData.city_ko)
+        submitFormData.set('city_en', formData.city_en)
+        submitFormData.set('country_ko', formData.country_ko)
+        submitFormData.set('country_en', formData.country_en)
+        submitFormData.set('continent_ko', formData.continent_ko)
+        submitFormData.set('continent_en', formData.continent_en)
       }
       
       // 체인/브랜드 정보를 FormData에 추가
@@ -164,33 +158,6 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         submitFormData.set('chain_id', '')
         submitFormData.set('brand_id', '')
       }
-
-      // 디버깅: Sabre ID 313016인 경우 FormData 전송 내용 확인
-      const sabreId = String(initialData.sabre_id ?? '')
-      if (sabreId === '313016') {
-        console.log('=== 클라이언트 FormData 전송 내용 ===')
-        console.log('currentBrandId:', currentBrandId)
-        console.log('selectedBrand:', selectedBrand)
-        console.log('selectedChain:', selectedChain)
-        console.log('FormData에 설정된 brand_id:', submitFormData.get('brand_id'))
-        console.log('FormData에 설정된 chain_id:', submitFormData.get('chain_id'))
-        console.log('==============================')
-      }
-
-      // 변경된 필드 추적 (초기값과 비교)
-      const changedFields: string[] = []
-      
-      if (sabreIdEditable !== String(initialData.sabre_id ?? '')) {
-        changedFields.push('input[name="sabre_id_editable"]')
-      }
-      if (property_name_ko !== String(initialData.property_name_ko ?? '')) {
-        changedFields.push('input[name="property_name_ko"]')
-      }
-      if (property_name_en !== String(initialData.property_name_en ?? '')) {
-        changedFields.push('input[name="property_name_en"]')
-      }
-      
-      // 체인/브랜드 변경 감지는 아래에서 처리
 
       // API를 통해 서버에 데이터 전송
       const response = await fetch('/api/hotel/update', {
@@ -215,19 +182,18 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       setFormData({
         sabre_id: sabreIdEditable || formData.sabre_id,
         property_name_ko: property_name_ko || formData.property_name_ko,
-        property_name_en: property_name_en || formData.property_name_en
+        property_name_en: property_name_en || formData.property_name_en,
+        property_address: property_address || formData.property_address,
+        city_ko: city_ko || formData.city_ko,
+        city_en: city_en || formData.city_en,
+        country_ko: country_ko || formData.country_ko,
+        country_en: country_en || formData.country_en,
+        continent_ko: continent_ko || formData.continent_ko,
+        continent_en: continent_en || formData.continent_en
       })
 
       // 체인/브랜드 상태도 업데이트 (저장된 값으로)
       if (result.data) {
-        // API 응답에서 체인/브랜드 정보 확인
-        if (sabreId === '313016') {
-          console.log('=== API 응답 데이터 ===')
-          console.log('result.data:', result.data)
-          console.log('저장된 chain_id:', result.data.chain_id)
-          console.log('저장된 brand_id:', result.data.brand_id)
-        }
-        
         // 저장된 brand_id가 있다면 해당 브랜드 정보 조회
         if (result.data.brand_id) {
           try {
@@ -247,10 +213,6 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                       setSelectedChain(savedChain)
                     }
                   }
-                  
-                  if (sabreId === '313016') {
-                    console.log('저장 후 브랜드 상태 업데이트:', savedBrand)
-                  }
                 }
               }
             }
@@ -262,10 +224,6 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
           setSelectedBrand(null)
           setSelectedChain(null)
           setCurrentBrandId(null)
-          
-          if (sabreId === '313016') {
-            console.log('체인/브랜드 선택 해제됨')
-          }
         }
       }
 
@@ -280,22 +238,35 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
       
       if (wasInEditMode) {
         // 편집 모드에서 저장한 경우에만 변경 감지
-        const initialSabreId = String(initialData.sabre_id ?? '')
-        const initialPropertyNameKo = String(initialData.property_name_ko ?? '')
-        const initialPropertyNameEn = String(initialData.property_name_en ?? '')
-        
-        const currentSabreId = String(sabreIdEditable ?? '')
-        const currentPropertyNameKo = String(property_name_ko ?? '')
-        const currentPropertyNameEn = String(property_name_en ?? '')
-        
-        if (initialSabreId !== currentSabreId) {
+        if (String(initialData.sabre_id ?? '') !== String(sabreIdEditable ?? '')) {
           fieldNames.add('sabre_id')
         }
-        if (initialPropertyNameKo !== currentPropertyNameKo) {
+        if (String(initialData.property_name_ko ?? '') !== String(property_name_ko ?? '')) {
           fieldNames.add('property_name_ko')
         }
-        if (initialPropertyNameEn !== currentPropertyNameEn) {
+        if (String(initialData.property_name_en ?? '') !== String(property_name_en ?? '')) {
           fieldNames.add('property_name_en')
+        }
+        if (String(initialData.property_address ?? '') !== String(property_address ?? '')) {
+          fieldNames.add('property_address')
+        }
+        if (String(initialData.city_ko ?? '') !== String(city_ko ?? '')) {
+          fieldNames.add('city_ko')
+        }
+        if (String(initialData.city_en ?? '') !== String(city_en ?? '')) {
+          fieldNames.add('city_en')
+        }
+        if (String(initialData.country_ko ?? '') !== String(country_ko ?? '')) {
+          fieldNames.add('country_ko')
+        }
+        if (String(initialData.country_en ?? '') !== String(country_en ?? '')) {
+          fieldNames.add('country_en')
+        }
+        if (String(initialData.continent_ko ?? '') !== String(continent_ko ?? '')) {
+          fieldNames.add('continent_ko')
+        }
+        if (String(initialData.continent_en ?? '') !== String(continent_en ?? '')) {
+          fieldNames.add('continent_en')
         }
       }
       
@@ -510,14 +481,6 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                   {selectedChain?.name_en || '-'}
                 </div>
               </div>
-              {/* 디버깅 정보 */}
-              {String(initialData.sabre_id ?? '') === '313016' && (
-                <div className="text-xs text-gray-400 mt-1">
-                  선택된 체인: {selectedChain ? `${selectedChain.chain_id} (${selectedChain.name_kr})` : '없음'}
-                  <br />
-                  hotel_chains 데이터: {initialData.hotel_chains ? '있음' : '없음'}
-                </div>
-              )}
             </div>
             
             {/* 브랜드 */}
@@ -559,14 +522,6 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                   {selectedBrand?.name_en || '-'}
                 </div>
               </div>
-              {/* 디버깅 정보 */}
-              {String(initialData.sabre_id ?? '') === '313016' && (
-                <div className="text-xs text-gray-400 mt-1">
-                  선택된 브랜드: {selectedBrand ? `${selectedBrand.brand_id} (${selectedBrand.name_kr})` : '없음'}
-                  <br />
-                  currentBrandId: {currentBrandId || 'null'}
-                </div>
-              )}
             </div>
             
             {/* Rate Plan Codes */}
@@ -579,12 +534,152 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                 }
               </div>
               <input type="hidden" name="rate_plan_code" value={Array.isArray(initialData.rate_plan_code) ? (initialData.rate_plan_code as string[]).join(', ') : ''} />
-              {/* 디버깅 정보 */}
-              {String(initialData.sabre_id ?? '') === '313016' && (
-                <div className="text-xs text-gray-400 mt-1">
-                  rate_plan_code: {Array.isArray(initialData.rate_plan_code) ? initialData.rate_plan_code.join(', ') : '없음'}
-                </div>
-              )}
+            </div>
+          </div>
+
+          {/* 주소 및 위치 정보 */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <h3 className="text-md font-semibold text-gray-900 mb-4">주소 및 위치 정보</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 호텔 주소 */}
+              <div className="space-y-1 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700">호텔 주소</label>
+                {isEditMode ? (
+                  <input 
+                    name="property_address" 
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
+                    value={formData.property_address}
+                    onChange={(e) => handleInputChange('property_address', e.target.value)}
+                  />
+                ) : (
+                  <div className={cn(
+                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                    highlightedFields.has('property_address') ? "bg-yellow-100" : "bg-gray-50"
+                  )}>
+                    {formData.property_address || '-'}
+                  </div>
+                )}
+              </div>
+
+              {/* 도시 (한글) */}
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">도시 (한글)</label>
+                {isEditMode ? (
+                  <input 
+                    name="city_ko" 
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
+                    value={formData.city_ko}
+                    onChange={(e) => handleInputChange('city_ko', e.target.value)}
+                  />
+                ) : (
+                  <div className={cn(
+                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                    highlightedFields.has('city_ko') ? "bg-yellow-100" : "bg-gray-50"
+                  )}>
+                    {formData.city_ko || '-'}
+                  </div>
+                )}
+              </div>
+
+              {/* 도시 (영문) */}
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">도시 (영문)</label>
+                {isEditMode ? (
+                  <input 
+                    name="city_en" 
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
+                    value={formData.city_en}
+                    onChange={(e) => handleInputChange('city_en', e.target.value)}
+                  />
+                ) : (
+                  <div className={cn(
+                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                    highlightedFields.has('city_en') ? "bg-yellow-100" : "bg-gray-50"
+                  )}>
+                    {formData.city_en || '-'}
+                  </div>
+                )}
+              </div>
+
+              {/* 국가 (한글) */}
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">국가 (한글)</label>
+                {isEditMode ? (
+                  <input 
+                    name="country_ko" 
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
+                    value={formData.country_ko}
+                    onChange={(e) => handleInputChange('country_ko', e.target.value)}
+                  />
+                ) : (
+                  <div className={cn(
+                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                    highlightedFields.has('country_ko') ? "bg-yellow-100" : "bg-gray-50"
+                  )}>
+                    {formData.country_ko || '-'}
+                  </div>
+                )}
+              </div>
+
+              {/* 국가 (영문) */}
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">국가 (영문)</label>
+                {isEditMode ? (
+                  <input 
+                    name="country_en" 
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
+                    value={formData.country_en}
+                    onChange={(e) => handleInputChange('country_en', e.target.value)}
+                  />
+                ) : (
+                  <div className={cn(
+                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                    highlightedFields.has('country_en') ? "bg-yellow-100" : "bg-gray-50"
+                  )}>
+                    {formData.country_en || '-'}
+                  </div>
+                )}
+              </div>
+
+              {/* 대륙 (한글) */}
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">대륙 (한글)</label>
+                {isEditMode ? (
+                  <input 
+                    name="continent_ko" 
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
+                    value={formData.continent_ko}
+                    onChange={(e) => handleInputChange('continent_ko', e.target.value)}
+                  />
+                ) : (
+                  <div className={cn(
+                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                    highlightedFields.has('continent_ko') ? "bg-yellow-100" : "bg-gray-50"
+                  )}>
+                    {formData.continent_ko || '-'}
+                  </div>
+                )}
+              </div>
+
+              {/* 대륙 (영문) */}
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">대륙 (영문)</label>
+                {isEditMode ? (
+                  <input 
+                    name="continent_en" 
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
+                    value={formData.continent_en}
+                    onChange={(e) => handleInputChange('continent_en', e.target.value)}
+                  />
+                ) : (
+                  <div className={cn(
+                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                    highlightedFields.has('continent_en') ? "bg-yellow-100" : "bg-gray-50"
+                  )}>
+                    {formData.continent_en || '-'}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

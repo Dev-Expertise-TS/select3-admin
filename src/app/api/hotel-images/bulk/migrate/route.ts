@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
         statistics.totalHotels += hotels.length;
 
-        // 각 호텔의 이미지 마이그레이션
+        // 각 호텔의 이미지 마이그레이션 (3단계 프로세스)
         for (const hotel of hotels) {
           try {
             statistics.processedHotels++;
@@ -136,6 +136,8 @@ export async function POST(request: NextRequest) {
               seq: number;
               uploaded: boolean;
             }> = [];
+            
+            // 1단계: 경로 마이그레이션 (image_1 ~ image_5)
 
         // 각 이미지 처리
         for (let i = 0; i < hotelImages.length; i++) {
@@ -254,10 +256,232 @@ export async function POST(request: NextRequest) {
               }
             }
 
+            // 2단계: 본문 이미지 추출 및 마이그레이션
+            try {
+              // 호텔의 property_details와 property_location에서 이미지 URL 추출
+              const { data: hotelContent, error: contentError } = await supabase
+                .from("select_hotels")
+                .select("property_details, property_location")
+                .eq("sabre_id", hotel.sabre_id)
+                .single();
+
+              if (!contentError && hotelContent) {
+                const extractImageUrls = (content: string | null) => {
+                  if (!content) return [];
+                  const urls: string[] = [];
+                  
+                  // HTML img 태그에서 src 추출
+                  const imgRegex = /<img[^>]+src\s*=\s*["']([^"']+)["'][^>]*>/gi;
+                  let match;
+                  while ((match = imgRegex.exec(content)) !== null) {
+                    const url = match[1].trim();
+                    if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+                      urls.push(url);
+                    }
+                  }
+                  
+                  // 일반 URL 패턴 추출
+                  const urlRegex = /https?:\/\/[^\s<>"']+\.(jpg|jpeg|png|gif|webp|avif)(?:\?[^\s<>"']*)?/gi;
+                  while ((match = urlRegex.exec(content)) !== null) {
+                    const url = match[0].trim();
+                    if (!urls.includes(url)) {
+                      urls.push(url);
+                    }
+                  }
+                  
+                  return urls;
+                };
+
+                const detailsUrls = extractImageUrls(hotelContent.property_details);
+                const locationUrls = extractImageUrls(hotelContent.property_location);
+                const allContentUrls = [...new Set([...detailsUrls, ...locationUrls])];
+
+                if (allContentUrls.length > 0) {
+                  console.log(
+                    `호텔 ${hotel.sabre_id} 본문 이미지 ${allContentUrls.length}개 발견`
+                  );
+
+                  // 본문 이미지 마이그레이션 (올바른 파일명 생성)
+                  let updatedDetails = hotelContent.property_details;
+                  let updatedLocation = hotelContent.property_location;
+                  let migratedCount = 0;
+
+                  // 기존 이미지 수 확인 (다음 순번 결정용)
+                  const existingImages = [
+                    hotel.image_1,
+                    hotel.image_2,
+                    hotel.image_3,
+                    hotel.image_4,
+                    hotel.image_5,
+                  ].filter((url): url is string => Boolean(url && url.trim()));
+
+                  let nextSeq = existingImages.length + 1;
+
+                  for (const oldUrl of allContentUrls) {
+                    try {
+                      // Storage에 이미지 업로드 및 새 URL 생성
+                      const imageResponse = await fetch(oldUrl);
+                      if (imageResponse.ok) {
+                        const imageBuffer = await imageResponse.arrayBuffer();
+                        const imageBlob = new Blob([imageBuffer], {
+                          type: imageResponse.headers.get("content-type") || "image/jpeg",
+                        });
+
+                        // URL에서 파일 확장자 추출
+                        const urlPath = new URL(oldUrl).pathname;
+                        const ext = (urlPath.split(".").pop()?.toLowerCase() as ImageFormat) || "jpg";
+
+                        // 원본 파일명 생성
+                        const originalFilename = buildOriginalFilename({
+                          hotelSlug,
+                          sabreId: hotel.sabre_id || "na",
+                          seq: nextSeq,
+                          ext,
+                        });
+
+                        // 공개 파일명 생성
+                        const publicFilename = buildPublicFilename({
+                          hotelSlug,
+                          sabreId: hotel.sabre_id || "na",
+                          seq: nextSeq,
+                          width: 1600,
+                          format: "avif",
+                        });
+
+                        // 원본 파일 경로
+                        const originalPath = buildOriginalPath(hotelSlug, originalFilename);
+                        const publicPath = buildPublicPath(hotelSlug, publicFilename);
+
+                        // 원본 파일 업로드
+                        const { error: uploadError } = await supabase.storage
+                          .from(MEDIA_BUCKET)
+                          .upload(originalPath, imageBlob, {
+                            contentType: imageBlob.type,
+                            upsert: true,
+                          });
+
+                        if (!uploadError) {
+                          // 공개 버전 생성
+                          await supabase.storage
+                            .from(MEDIA_BUCKET)
+                            .upload(publicPath, imageBlob, {
+                              contentType: "image/avif",
+                              upsert: true,
+                            });
+
+                          // Supabase Storage 공개 URL 생성
+                          const { data: publicUrlData } = supabase.storage
+                            .from(MEDIA_BUCKET)
+                            .getPublicUrl(publicPath);
+
+                          const newUrl = publicUrlData.publicUrl;
+                          
+                          // URL 교체
+                          if (updatedDetails) {
+                            updatedDetails = updatedDetails.replace(
+                              new RegExp(oldUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                              newUrl
+                            );
+                          }
+                          if (updatedLocation) {
+                            updatedLocation = updatedLocation.replace(
+                              new RegExp(oldUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                              newUrl
+                            );
+                          }
+                          migratedCount++;
+                          nextSeq++;
+
+                          console.log(
+                            `호텔 ${hotel.sabre_id} 본문 이미지 마이그레이션: ${oldUrl} → ${newUrl}`
+                          );
+                        }
+                      }
+                    } catch (imgError) {
+                      console.warn(
+                        `호텔 ${hotel.sabre_id} 본문 이미지 업로드 실패: ${oldUrl}`,
+                        imgError instanceof Error ? imgError.message : "알 수 없는 오류"
+                      );
+                    }
+                  }
+
+                  // DB 업데이트
+                  if (migratedCount > 0) {
+                    const { error: updateContentError } = await supabase
+                      .from("select_hotels")
+                      .update({
+                        property_details: updatedDetails,
+                        property_location: updatedLocation,
+                      })
+                      .eq("sabre_id", hotel.sabre_id);
+
+                    if (!updateContentError) {
+                      console.log(
+                        `호텔 ${hotel.sabre_id} 본문 이미지 마이그레이션 완료: ${migratedCount}개`
+                      );
+                    } else {
+                      console.warn(
+                        `호텔 ${hotel.sabre_id} 본문 이미지 DB 업데이트 실패:`,
+                        updateContentError.message
+                      );
+                    }
+                  }
+                }
+              }
+            } catch (contentError) {
+              console.warn(
+                `호텔 ${hotel.sabre_id} 본문 이미지 마이그레이션 실패:`,
+                contentError instanceof Error ? contentError.message : "알 수 없는 오류"
+              );
+              // 본문 이미지 실패는 전체 실패로 간주하지 않음
+            }
+
+            // 3단계: 경로 마이그레이션 (DB 업데이트)
+            try {
+              const newUrls: string[] = [];
+              for (let i = 0; i < 5; i++) {
+                const seq = i + 1;
+                const publicFilename = buildPublicFilename({
+                  hotelSlug,
+                  sabreId: hotel.sabre_id || "na",
+                  seq,
+                  width: 1600,
+                  format: "avif",
+                });
+                const publicPath = buildPublicPath(hotelSlug, publicFilename);
+                const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${MEDIA_BUCKET}/${publicPath}`;
+                newUrls.push(publicUrl);
+              }
+
+              // DB 업데이트
+              const { error: updateError } = await supabase
+                .from("select_hotels")
+                .update({
+                  image_1: newUrls[0] || null,
+                  image_2: newUrls[1] || null,
+                  image_3: newUrls[2] || null,
+                  image_4: newUrls[3] || null,
+                  image_5: newUrls[4] || null,
+                })
+                .eq("sabre_id", hotel.sabre_id);
+
+              if (updateError) {
+                console.warn(
+                  `호텔 ${hotel.sabre_id} DB 업데이트 실패:`,
+                  updateError.message
+                );
+              }
+            } catch (pathError) {
+              console.warn(
+                `호텔 ${hotel.sabre_id} 경로 마이그레이션 실패:`,
+                pathError instanceof Error ? pathError.message : "알 수 없는 오류"
+              );
+            }
+
             if (hotelSuccess && migratedImages.length > 0) {
               statistics.successfulMigrations++;
               console.log(
-                `호텔 ${hotel.sabre_id} 마이그레이션 성공: ${migratedImages.length}개 이미지`,
+                `호텔 ${hotel.sabre_id} 전체 마이그레이션 성공: ${migratedImages.length}개 이미지`,
               );
             } else {
               statistics.failedMigrations++;
@@ -293,7 +517,7 @@ export async function POST(request: NextRequest) {
         processedBatches: currentBatch - 1,
         errors: errors.slice(0, 100), // 최대 100개 에러만 반환
       },
-      message: `전체 마이그레이션 완료: 성공 ${statistics.successfulMigrations}개, 실패 ${statistics.failedMigrations}개, 스킵 ${statistics.skippedHotels}개`,
+      message: `전체 마이그레이션 완료!\n경로 마이그레이션: 성공 ${statistics.successfulMigrations}개\n본문 이미지 마이그레이션: 각 호텔별 처리 완료\n실패 ${statistics.failedMigrations}개, 스킵 ${statistics.skippedHotels}개`,
     });
   } catch (error) {
     console.error("전체 마이그레이션 오류:", error);

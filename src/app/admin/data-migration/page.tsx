@@ -64,6 +64,30 @@ export default function DataMigrationPage() {
   const [isBatchUpserting, setIsBatchUpserting] = useState(false)
   const [csvError, setCsvError] = useState('')
   
+  // 위치 정보 마이그레이션 상태
+  const [locationMigrationStatus, setLocationMigrationStatus] = useState<{
+    isRunning: boolean
+    progress: number
+    total: number
+    processed: number
+    success: number
+    failed: number
+    currentHotel: string
+    errors: Array<{ sabreId: string; error: string }>
+  }>({
+    isRunning: false,
+    progress: 0,
+    total: 0,
+    processed: 0,
+    success: 0,
+    failed: 0,
+    currentHotel: '',
+    errors: []
+  })
+  const [testSabreId, setTestSabreId] = useState('')
+  const [testLocationResult, setTestLocationResult] = useState<Record<string, unknown> | null>(null)
+  const [isTestingLocation, setIsTestingLocation] = useState(false)
+  
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(20)
@@ -587,6 +611,129 @@ export default function DataMigrationPage() {
       }
     } catch (error) {
       console.error('데이터 내보내기 오류:', error)
+    }
+  }
+
+  // 단일 호텔 위치 정보 테스트
+  const handleTestLocationExtraction = async () => {
+    if (!testSabreId.trim()) {
+      alert('Sabre ID를 입력해주세요')
+      return
+    }
+
+    setIsTestingLocation(true)
+    setTestLocationResult(null)
+
+    try {
+      const response = await fetch('/api/data-migration/extract-location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sabreId: testSabreId.trim() })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setTestLocationResult(result.data)
+      } else {
+        alert(result.error || '위치 정보 추출 실패')
+      }
+    } catch (error) {
+      console.error('위치 정보 추출 오류:', error)
+      alert('위치 정보 추출 중 오류가 발생했습니다')
+    } finally {
+      setIsTestingLocation(false)
+    }
+  }
+
+  // 전체 호텔 위치 정보 마이그레이션
+  const handleBulkLocationMigration = async () => {
+    if (!confirm('전체 호텔의 위치 정보를 마이그레이션하시겠습니까? 이 작업은 시간이 오래 걸릴 수 있습니다.')) {
+      return
+    }
+
+    setLocationMigrationStatus({
+      isRunning: true,
+      progress: 0,
+      total: 0,
+      processed: 0,
+      success: 0,
+      failed: 0,
+      currentHotel: '',
+      errors: []
+    })
+
+    try {
+      const response = await fetch('/api/data-migration/bulk-location-migration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        throw new Error('일괄 마이그레이션 API 호출 실패')
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) {
+        throw new Error('응답 스트림을 읽을 수 없습니다')
+      }
+
+      let buffer = ''
+      
+      while (true) {
+        const { done, value } = await reader.read()
+        
+        if (done) break
+        
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        
+        // 마지막 불완전한 라인은 버퍼에 보관
+        buffer = lines.pop() || ''
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              
+              if (data.type === 'progress') {
+                setLocationMigrationStatus(prev => ({
+                  ...prev,
+                  total: data.total,
+                  processed: data.processed,
+                  success: data.success,
+                  failed: data.failed,
+                  currentHotel: data.currentHotel,
+                  progress: Math.round((data.processed / data.total) * 100)
+                }))
+              } else if (data.type === 'error') {
+                setLocationMigrationStatus(prev => ({
+                  ...prev,
+                  errors: [...prev.errors, { sabreId: data.sabreId, error: data.error }]
+                }))
+              } else if (data.type === 'complete') {
+                setLocationMigrationStatus(prev => ({
+                  ...prev,
+                  isRunning: false,
+                  progress: 100
+                }))
+                alert(`마이그레이션 완료!\n성공: ${data.success}개\n실패: ${data.failed}개`)
+              }
+            } catch (parseError) {
+              console.error('SSE 데이터 파싱 오류:', parseError)
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('일괄 마이그레이션 오류:', error)
+      alert('일괄 마이그레이션 중 오류가 발생했습니다')
+      setLocationMigrationStatus(prev => ({
+        ...prev,
+        isRunning: false
+      }))
     }
   }
 
@@ -1307,6 +1454,160 @@ export default function DataMigrationPage() {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* 도시, 국가, 대륙 마이그레이션 섹션 */}
+          <div className="bg-white rounded-lg border p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Network className="h-5 w-5" />
+              도시, 국가, 대륙 마이그레이션
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              호텔 주소(property_address)를 분석하여 도시, 국가, 대륙 정보를 추출하고 업데이트합니다.
+              OpenAI API를 사용하여 일관성 있는 데이터를 생성합니다.
+            </p>
+
+            {/* 테스트 섹션 */}
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h3 className="font-medium mb-3 text-blue-900">단일 호텔 테스트</h3>
+              <div className="flex gap-4 items-end mb-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sabre ID
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="테스트할 호텔의 Sabre ID 입력"
+                    value={testSabreId}
+                    onChange={(e) => setTestSabreId(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleTestLocationExtraction()}
+                  />
+                </div>
+                <Button 
+                  onClick={handleTestLocationExtraction}
+                  disabled={isTestingLocation || !testSabreId.trim()}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isTestingLocation ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      추출 중...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      테스트 실행
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {testLocationResult && (
+                <div className="bg-white rounded-lg border p-4">
+                  <h4 className="font-medium mb-2 text-sm text-gray-700">추출 결과</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-gray-600">도시 (한글):</span>
+                      <span className="ml-2 font-medium">{testLocationResult.city_ko as string || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">도시 (영문):</span>
+                      <span className="ml-2 font-medium">{testLocationResult.city_en as string || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">국가 (한글):</span>
+                      <span className="ml-2 font-medium">{testLocationResult.country_ko as string || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">국가 (영문):</span>
+                      <span className="ml-2 font-medium">{testLocationResult.country_en as string || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">대륙 (한글):</span>
+                      <span className="ml-2 font-medium">{testLocationResult.continent_ko as string || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">대륙 (영문):</span>
+                      <span className="ml-2 font-medium">{testLocationResult.continent_en as string || '-'}</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t text-xs text-gray-500">
+                    <div><strong>원본 주소:</strong> {testLocationResult.property_address as string}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 일괄 마이그레이션 섹션 */}
+            <div className="p-4 bg-gray-50 rounded-lg border">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-medium">전체 호텔 일괄 마이그레이션</h3>
+                <Button 
+                  onClick={handleBulkLocationMigration}
+                  disabled={locationMigrationStatus.isRunning}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {locationMigrationStatus.isRunning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      마이그레이션 중...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      전체 마이그레이션 시작
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {locationMigrationStatus.isRunning && (
+                <div className="space-y-3">
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div 
+                      className="bg-green-500 h-3 rounded-full transition-all duration-300"
+                      style={{ width: `${locationMigrationStatus.progress}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">진행률:</span>
+                      <span className="ml-2 font-medium">{locationMigrationStatus.progress}%</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">처리:</span>
+                      <span className="ml-2 font-medium">{locationMigrationStatus.processed}/{locationMigrationStatus.total}</span>
+                    </div>
+                    <div>
+                      <span className="text-green-600">성공:</span>
+                      <span className="ml-2 font-medium">{locationMigrationStatus.success}</span>
+                    </div>
+                    <div>
+                      <span className="text-red-600">실패:</span>
+                      <span className="ml-2 font-medium">{locationMigrationStatus.failed}</span>
+                    </div>
+                  </div>
+                  {locationMigrationStatus.currentHotel && (
+                    <div className="text-sm text-gray-600">
+                      현재 처리 중: <span className="font-medium">{locationMigrationStatus.currentHotel}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {locationMigrationStatus.errors.length > 0 && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg max-h-60 overflow-y-auto">
+                  <h4 className="font-medium text-red-800 mb-2 text-sm">오류 목록 ({locationMigrationStatus.errors.length}개)</h4>
+                  <div className="space-y-1">
+                    {locationMigrationStatus.errors.map((err, idx) => (
+                      <div key={idx} className="text-xs text-red-700">
+                        <span className="font-medium">{err.sabreId}:</span> {err.error}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

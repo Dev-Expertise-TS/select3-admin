@@ -9,6 +9,13 @@ export async function POST(request: NextRequest) {
     const sabreIdEditable = (formData.get('sabre_id_editable') as string | null)?.trim() || null
     const property_name_ko = (formData.get('property_name_ko') as string | null) ?? null
     const property_name_en = (formData.get('property_name_en') as string | null) ?? null
+    const property_address = (formData.get('property_address') as string | null) ?? null
+    const city_ko = (formData.get('city_ko') as string | null) ?? null
+    const city_en = (formData.get('city_en') as string | null) ?? null
+    const country_ko = (formData.get('country_ko') as string | null) ?? null
+    const country_en = (formData.get('country_en') as string | null) ?? null
+    const continent_ko = (formData.get('continent_ko') as string | null) ?? null
+    const continent_en = (formData.get('continent_en') as string | null) ?? null
     const ratePlanCodesRaw = (formData.get('rate_plan_codes') as string | null) ?? ''
     const ratePlanCodesParsed = ratePlanCodesRaw ? ratePlanCodesRaw.split(',').map((s) => s.trim()).filter(Boolean) : []
     const rate_code = ratePlanCodesParsed.length > 0 ? ratePlanCodesParsed.join(', ') : null
@@ -17,24 +24,17 @@ export async function POST(request: NextRequest) {
     const brand_id_raw = formData.get('brand_id') as string | null
     const brand_id = (brand_id_raw && brand_id_raw.trim() !== '') ? Number(brand_id_raw) || null : null
 
-    // 디버깅: 브랜드 정보 로그
-    if (sabreId === '313016') {
-      console.log('=== 호텔 업데이트 API 브랜드 정보 ===')
-      console.log('전체 FormData 내용:')
-      for (const [key, value] of formData.entries()) {
-        console.log(`  ${key}: ${value}`)
-      }
-      console.log('brand_id_raw:', brand_id_raw)
-      console.log('최종 brand_id:', brand_id)
-      console.log('ratePlanCodesRaw:', ratePlanCodesRaw)
-      console.log('ratePlanCodesParsed:', ratePlanCodesParsed)
-      console.log('최종 rate_code:', rate_code)
-    }
-
     // 호텔 기본 정보 업데이트 데이터 준비
     const hotelUpdateData: Record<string, unknown> = { 
       property_name_ko, 
-      property_name_en, 
+      property_name_en,
+      property_address,
+      city_ko,
+      city_en,
+      country_ko,
+      country_en,
+      continent_ko,
+      continent_en,
       rate_code, 
       sabre_id: sabreIdEditable
     }
@@ -42,13 +42,6 @@ export async function POST(request: NextRequest) {
     // brand_id가 있는 경우에만 추가
     if (brand_id !== null) {
       hotelUpdateData.brand_id = brand_id
-    }
-
-    // 디버깅: 최종 업데이트 데이터
-    if (sabreId === '313016') {
-      console.log('=== 최종 업데이트 데이터 ===')
-      console.log('hotelUpdateData:', hotelUpdateData)
-      console.log('=============================')
     }
 
     // 호텔 정보 업데이트

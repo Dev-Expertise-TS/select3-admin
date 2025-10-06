@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { normalizeSlug } from "@/lib/media-naming";
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,30 +40,61 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // select_hotels 테이블의 image_1~image_5 컬럼에서 이미지 URL 추출
+    // slug 정규화
+    const normalizedSlug = hotel.slug ? normalizeSlug(hotel.slug) : null;
+    const storagePath = normalizedSlug ? `public/${normalizedSlug}` : null;
+
+    // Supabase Storage에서 실제 파일 목록 가져오기
     const images: Array<{
-      column: string;
+      name: string;
       url: string;
       seq: number;
-      checked: boolean;
+      role?: string;
+      size?: number;
+      createdAt?: string;
+      path: string;
     }> = [];
-    const imageColumns = ['image_1', 'image_2', 'image_3', 'image_4', 'image_5'];
-    
-    imageColumns.forEach((column, index) => {
-      const url = hotel[column as keyof typeof hotel] as string | null;
-      if (url && url.trim()) {
-        images.push({
-          column,
-          url: url.trim(),
-          seq: index + 1,
-          checked: true,
+
+    if (storagePath) {
+      const { data: files, error: storageError } = await supabase.storage
+        .from("hotel-media")
+        .list(storagePath, {
+          limit: 1000,
+          sortBy: { column: "name", order: "asc" },
+        });
+
+      if (storageError) {
+        console.error("Storage 조회 오류:", storageError);
+      } else if (files && files.length > 0) {
+        files.forEach((file, index) => {
+          if (file.name && !file.name.includes('.emptyFolderPlaceholder')) {
+            const { data: publicUrlData } = supabase.storage
+              .from("hotel-media")
+              .getPublicUrl(`${storagePath}/${file.name}`);
+
+            const seq = parseInt(file.name.match(/(\d+)/)?.[1] || String(index + 1));
+            const role = file.name.toLowerCase().includes('main') || file.name.toLowerCase().includes('primary') ? 'main' : undefined;
+
+            images.push({
+              name: file.name,
+              url: publicUrlData.publicUrl,
+              seq: seq,
+              role: role,
+              size: (file as any).metadata?.size,
+              createdAt: (file as any).created_at,
+              path: `${storagePath}/${file.name}`,
+            });
+          }
         });
       }
-    });
+    }
 
-    console.log(`호텔 ${sabreId} 이미지 조회 결과:`, {
+    console.log(`호텔 ${sabreId} Storage 이미지 조회 결과:`, {
+      slug: hotel.slug,
+      normalizedSlug,
+      storagePath,
       totalImages: images.length,
-      images: images.map(img => ({ column: img.column, url: img.url }))
+      imageNames: images.map(img => img.name)
     });
 
     return NextResponse.json({
@@ -73,9 +105,11 @@ export async function GET(request: NextRequest) {
           nameKr: hotel.property_name_ko,
           nameEn: hotel.property_name_en,
           slug: hotel.slug,
+          normalizedSlug: normalizedSlug,
         },
         images,
         totalImages: images.length,
+        storagePath: storagePath,
       },
     });
   } catch (error) {

@@ -385,6 +385,130 @@ export function ImageMigrationPanel() {
     }
   };
 
+  // 전체 이미지 마이그레이션 (경로 마이그레이션 + 본문 이미지 마이그레이션)
+  const handleFullMigration = async () => {
+    if (!selectedHotel || !hotelSlug) {
+      setMigrationStatus({
+        status: "error",
+        message: "호텔을 선택하고 슬러그를 입력해주세요.",
+      });
+      return;
+    }
+
+    setMigrationStatus({
+      status: "migrating",
+      message: "전체 이미지 마이그레이션 시작 중...",
+    });
+
+    try {
+      // 1단계: 이미지 경로 마이그레이션
+      setMigrationStatus({
+        status: "migrating",
+        message: "1단계: 이미지 경로 마이그레이션 중...",
+      });
+
+      const pathResponse = await fetch("/api/hotel-images/migrate-paths", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sabreId: selectedHotel.sabreId,
+          hotelSlug,
+        }),
+      });
+
+      const pathResult = await pathResponse.json();
+
+      if (!pathResponse.ok) {
+        throw new Error(pathResult.error || "경로 마이그레이션 실패");
+      }
+
+      // 2단계: 본문 이미지 추출
+      setMigrationStatus({
+        status: "migrating",
+        message: "2단계: 본문 이미지 추출 중...",
+      });
+
+      const extractResponse = await fetch("/api/hotel-images/content/extract", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sabreId: selectedHotel.sabreId,
+        }),
+      });
+
+      const extractResult = await extractResponse.json();
+
+      if (!extractResponse.ok) {
+        throw new Error(extractResult.error || "본문 이미지 추출 실패");
+      }
+
+      // 3단계: 본문 이미지 마이그레이션
+      setMigrationStatus({
+        status: "migrating",
+        message: "3단계: 본문 이미지 마이그레이션 중...",
+      });
+
+      const contentResponse = await fetch("/api/hotel-images/content/migrate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sabreId: selectedHotel.sabreId,
+          images: extractResult.data.extractedImages,
+        }),
+      });
+
+      const contentResult = await contentResponse.json();
+
+      if (!contentResponse.ok) {
+        throw new Error(contentResult.error || "본문 이미지 마이그레이션 실패");
+      }
+
+      // 경로 마이그레이션된 이미지 URL 생성
+      const newUrls = pathResult.data.newUrls || [];
+      const pathMigratedImages = newUrls.map((url: string, index: number) => ({
+        column: `image_${index + 1}`,
+        originalUrl: hotelImages[index]?.url || "",
+        newUrl: url,
+        seq: index + 1,
+      }));
+
+      // 본문 이미지 마이그레이션 결과
+      const contentMigratedImages = contentResult.data.migratedImages || [];
+      const contentStats = contentResult.data.statistics || {};
+      
+      // 경로 마이그레이션 이미지 + 본문 이미지 마이그레이션 이미지를 모두 합침
+      const allMigratedImages = [
+        ...pathMigratedImages,
+        ...contentMigratedImages.map((img: any, index: number) => ({
+          column: `content_${img.source}_${index + 1}`,
+          originalUrl: img.originalUrl,
+          newUrl: img.newUrl,
+          seq: pathMigratedImages.length + index + 1,
+        }))
+      ];
+      
+      setMigrationStatus({
+        status: "completed",
+        message: `전체 마이그레이션 완료!\n경로 마이그레이션: ${pathResult.message || "완료"} (${pathMigratedImages.length}개)\n본문 이미지 마이그레이션: 성공 ${contentStats.successfulMigrations || 0}개, 실패 ${contentStats.failedMigrations || 0}개, 스킵 ${contentStats.skippedImages || 0}개`,
+        migratedImages: allMigratedImages,
+      });
+    } catch (error) {
+      setMigrationStatus({
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "전체 마이그레이션 중 오류가 발생했습니다.",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* 호텔 검색 */}
@@ -458,9 +582,9 @@ export function ImageMigrationPanel() {
             호텔 이미지 목록 ({hotelImages.length}개)
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {hotelImages.map((image) => (
+            {hotelImages.map((image, idx) => (
               <div
-                key={image.column}
+                key={`${image.column}-${image.seq}-${idx}`}
                 className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow"
               >
                 {/* 체크박스와 헤더 */}
@@ -549,7 +673,7 @@ export function ImageMigrationPanel() {
       {/* 액션 버튼 */}
       {selectedHotel && (
         <div className="bg-white rounded-lg border p-6">
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
             <Button
               onClick={handleMigration}
               disabled={
@@ -589,6 +713,19 @@ export function ImageMigrationPanel() {
                 <Database className="h-4 w-4" />
               )}
               이미지 경로 마이그레이션
+            </Button>
+
+            <Button
+              onClick={handleFullMigration}
+              disabled={!hotelSlug || migrationStatus.status === "migrating"}
+              className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700"
+            >
+              {migrationStatus.status === "migrating" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Database className="h-4 w-4" />
+              )}
+              전체 이미지 마이그레이션 실행
             </Button>
           </div>
         </div>
@@ -674,9 +811,9 @@ export function ImageMigrationPanel() {
               마이그레이션 결과 이미지
             </h3>
             <div className="space-y-4">
-              {migrationStatus.migratedImages.map((image) => (
+              {migrationStatus.migratedImages.map((image, idx) => (
                 <div
-                  key={image.column}
+                  key={`migrated-${image.column}-${image.seq}-${idx}`}
                   className="flex items-start gap-4 p-4 border rounded-lg bg-green-50"
                 >
                   {/* 마이그레이션된 이미지 미리보기 */}
