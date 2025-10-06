@@ -11,8 +11,11 @@ interface Promotion {
   promotion_id: number
   promotion: string
   promotion_description: string | null
-  booking_date: string | null
-  check_in_date: string | null
+  note: string | null
+  booking_start_date: string | null
+  booking_end_date: string | null
+  check_in_start_date: string | null
+  check_in_end_date: string | null
   created_at: string
   updated_at: string
 }
@@ -21,8 +24,11 @@ interface PromotionForm {
   promotion_id: number | ""
   promotion: string
   promotion_description: string
-  booking_date: string | null
-  check_in_date: string | null
+  note: string
+  booking_start_date: string | null
+  booking_end_date: string | null
+  check_in_start_date: string | null
+  check_in_end_date: string | null
 }
 
 interface MappedHotel {
@@ -38,6 +44,7 @@ export function PromotionManager() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [recentlySavedKey, setRecentlySavedKey] = useState<string | number | null>(null)
   const [activeTab, setActiveTab] = useState<'manage' | 'mapped'>('manage')
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null)
   const [mappedHotels, setMappedHotels] = useState<MappedHotel[]>([])
@@ -52,14 +59,144 @@ export function PromotionManager() {
   const [hotelPopupLoading, setHotelPopupLoading] = useState(false)
 
   const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<number | string | null>(null)
   const [formLoading, setFormLoading] = useState(false)
+  const [editLinkedHotels, setEditLinkedHotels] = useState<Array<{ sabre_id: string, property_name_ko: string | null, property_name_en: string | null }>>([])
+  const [editLinkedLoading, setEditLinkedLoading] = useState(false)
+  const renderPromotionForm = () => (
+    <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">{editingId ? "프로모션 수정" : "프로모션 추가 및 변경"}</h3>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">프로모션 ID*</label>
+            <Input
+              type="number"
+              value={formData.promotion_id === "" ? "" : String(formData.promotion_id)}
+              onChange={(e) => setFormData({ ...formData, promotion_id: e.target.value === "" ? "" : Number(e.target.value) })}
+              placeholder="예: 101"
+              required
+              disabled={!!editingId}
+              className={editingId ? "bg-gray-100" : ""}
+            />
+            {!editingId && (
+              <p className="text-xs text-gray-500 mt-1">자동으로 생성된 숫자 ID입니다. 필요시 수정 가능합니다.</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">프로모션명*</label>
+            <Input
+              value={formData.promotion}
+              onChange={(e) => setFormData({ ...formData, promotion: e.target.value })}
+              placeholder="예: 신년 특가 프로모션"
+              required
+            />
+          </div>
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">프로모션 설명</label>
+              <textarea
+                value={formData.promotion_description}
+                onChange={(e) => setFormData({ ...formData, promotion_description: e.target.value })}
+                placeholder="프로모션 상세 설명을 입력하세요"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Note</label>
+              <textarea
+                value={formData.note}
+                onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                placeholder="관리용 메모를 입력하세요"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">예약 시작일</label>
+            <Input type="date" value={formData.booking_start_date ?? ""} onChange={(e) => setFormData({ ...formData, booking_start_date: e.target.value || null })} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">예약 종료일</label>
+            <Input type="date" value={formData.booking_end_date ?? ""} onChange={(e) => setFormData({ ...formData, booking_end_date: e.target.value || null })} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">체크인 시작일</label>
+            <Input type="date" value={formData.check_in_start_date ?? ""} onChange={(e) => setFormData({ ...formData, check_in_start_date: e.target.value || null })} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">체크인 종료일</label>
+            <Input type="date" value={formData.check_in_end_date ?? ""} onChange={(e) => setFormData({ ...formData, check_in_end_date: e.target.value || null })} />
+          </div>
+        </div>
+        {editingId && (
+          <div className="mt-2 border-t border-gray-200 pt-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-3">연결된 호텔</h4>
+            {editLinkedLoading ? (
+              <div className="flex items-center gap-2 text-gray-600"><Loader2 className="h-4 w-4 animate-spin" /> 불러오는 중...</div>
+            ) : editLinkedHotels.length === 0 ? (
+              <div className="text-sm text-gray-500">연결된 호텔이 없습니다.</div>
+            ) : (
+              <div className="rounded-md border border-gray-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-gray-600">호텔명(한글)</th>
+                      <th className="px-4 py-2 text-left text-gray-600">호텔명(영문)</th>
+                      <th className="px-4 py-2 text-left text-gray-600">Sabre ID</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {editLinkedHotels.map((h) => (
+                      <tr key={`${h.sabre_id}`} className="odd:bg-white even:bg-gray-50">
+                        <td className="px-4 py-2 text-gray-900">{h.property_name_ko || '-'}</td>
+                        <td className="px-4 py-2 text-gray-700">{h.property_name_en || '-'}</td>
+                        <td className="px-4 py-2 font-mono text-blue-600">{h.sabre_id}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="flex gap-3">
+          <Button type="submit" disabled={formLoading} className="bg-orange-600 hover:bg-orange-700">
+            {formLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> 저장 중...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" /> 저장
+              </>
+            )}
+          </Button>
+          <Button type="button" variant="outline" onClick={resetForm} disabled={formLoading}>
+            <X className="h-4 w-4 mr-2" /> 취소
+          </Button>
+        </div>
+      </form>
+    </div>
+  )
+
+  const toDateOnly = (value: string | null | undefined): string | null => {
+    if (!value) return null
+    const s = String(value)
+    // 기대 포맷: YYYY-MM-DD 또는 ISO 문자열 → 앞 10글자 사용
+    return s.length >= 10 ? s.slice(0, 10) : s
+  }
   const [formData, setFormData] = useState<PromotionForm>({
     promotion_id: "",
     promotion: "",
     promotion_description: "",
-    booking_date: null,
-    check_in_date: null,
+    note: "",
+    booking_start_date: null,
+    booking_end_date: null,
+    check_in_start_date: null,
+    check_in_end_date: null,
   })
 
   const loadPromotions = async () => {
@@ -264,7 +401,7 @@ export function PromotionManager() {
   }
 
   const resetForm = () => {
-    setFormData({ promotion_id: "", promotion: "", promotion_description: "", booking_date: null, check_in_date: null })
+    setFormData({ promotion_id: "", promotion: "", promotion_description: "", note: "", booking_start_date: null, booking_end_date: null, check_in_start_date: null, check_in_end_date: null })
     setEditingId(null)
     setShowForm(false)
   }
@@ -275,22 +412,41 @@ export function PromotionManager() {
       promotion_id: nextId, 
       promotion: "", 
       promotion_description: "", 
-      booking_date: null, 
-      check_in_date: null 
+      note: "",
+      booking_start_date: null, 
+      booking_end_date: null,
+      check_in_start_date: null, 
+      check_in_end_date: null 
     })
     setEditingId(null)
     setShowForm(true)
   }
 
   const startEdit = (p: Promotion) => {
-    setEditingId(p.id)
+    setEditingId((p as any).id ?? p.promotion_id)
     setFormData({
       promotion_id: p.promotion_id,
       promotion: p.promotion,
       promotion_description: p.promotion_description ?? "",
-      booking_date: p.booking_date ?? null,
-      check_in_date: p.check_in_date ?? null,
+      note: (p as any).note ?? "",
+      booking_start_date: toDateOnly((p as any).booking_start_date),
+      booking_end_date: toDateOnly((p as any).booking_end_date),
+      check_in_start_date: toDateOnly((p as any).check_in_start_date),
+      check_in_end_date: toDateOnly((p as any).check_in_end_date),
     })
+    setEditLinkedLoading(true)
+    fetch(`/api/promotions/hotels?promotionId=${encodeURIComponent(String(p.promotion_id))}`)
+      .then(async (res) => {
+        const data = await res.json()
+        if (res.ok && data?.success) {
+          const hotels = (data.data?.hotels ?? []) as Array<{ sabre_id: string, property_name_ko: string | null, property_name_en: string | null }>
+          setEditLinkedHotels(hotels)
+        } else {
+          setEditLinkedHotels([])
+        }
+      })
+      .catch(() => setEditLinkedHotels([]))
+      .finally(() => setEditLinkedLoading(false))
     setShowForm(true)
   }
 
@@ -301,14 +457,39 @@ export function PromotionManager() {
     try {
       const url = editingId ? "/api/promotions/update" : "/api/promotions/create"
       const method = editingId ? "PUT" : "POST"
-      const body = editingId ? { id: editingId, ...formData, promotion_id: Number(formData.promotion_id) } : { ...formData, promotion_id: Number(formData.promotion_id) }
+      const body = editingId 
+        ? { 
+            id: editingId, 
+            promotion_id: Number(formData.promotion_id), 
+            promotion: formData.promotion,
+            promotion_description: formData.promotion_description,
+            note: formData.note,
+            booking_start_date: formData.booking_start_date,
+            booking_end_date: formData.booking_end_date,
+            check_in_start_date: formData.check_in_start_date,
+            check_in_end_date: formData.check_in_end_date,
+          } 
+        : { 
+            promotion_id: Number(formData.promotion_id), 
+            promotion: formData.promotion,
+            promotion_description: formData.promotion_description,
+            note: formData.note,
+            booking_start_date: formData.booking_start_date,
+            booking_end_date: formData.booking_end_date,
+            check_in_start_date: formData.check_in_start_date,
+            check_in_end_date: formData.check_in_end_date,
+          }
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || "저장 중 오류가 발생했습니다.")
-      setSuccess(editingId ? "수정되었습니다." : "추가되었습니다.")
+      setSuccess("저장되었습니다.")
+      // 최근 저장된 행을 강조 (editingId 우선, 신규는 promotion_id)
+      const savedKey = editingId ?? (data?.data?.promotion?.promotion_id ?? formData.promotion_id)
+      setRecentlySavedKey(savedKey as any)
       resetForm()
       loadPromotions()
       setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setRecentlySavedKey(null), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.")
     } finally {
@@ -344,7 +525,7 @@ export function PromotionManager() {
           </div>
         </div>
         <Button onClick={handleAddNew} className="bg-orange-600 hover:bg-orange-700">
-          <Plus className="h-4 w-4 mr-2" /> 새 프로모션 추가
+          <Plus className="h-4 w-4 mr-2" /> 프로모션 추가
         </Button>
       </div>
 
@@ -392,72 +573,8 @@ export function PromotionManager() {
         </div>
       )}
 
-      {activeTab === 'manage' && showForm && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">{editingId ? "프로모션 수정" : "새 프로모션 추가"}</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">프로모션 ID*</label>
-                <Input
-                  type="number"
-                  value={formData.promotion_id === "" ? "" : String(formData.promotion_id)}
-                  onChange={(e) => setFormData({ ...formData, promotion_id: e.target.value === "" ? "" : Number(e.target.value) })}
-                  placeholder="예: 101"
-                  required
-                  disabled={!!editingId}
-                  className={editingId ? "bg-gray-100" : ""}
-                />
-                {!editingId && (
-                  <p className="text-xs text-gray-500 mt-1">자동으로 생성된 숫자 ID입니다. 필요시 수정 가능합니다.</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">프로모션명*</label>
-                <Input
-                  value={formData.promotion}
-                  onChange={(e) => setFormData({ ...formData, promotion: e.target.value })}
-                  placeholder="예: 신년 특가 프로모션"
-                  required
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">프로모션 설명</label>
-                <textarea
-                  value={formData.promotion_description}
-                  onChange={(e) => setFormData({ ...formData, promotion_description: e.target.value })}
-                  placeholder="프로모션 상세 설명을 입력하세요"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">예약 기간</label>
-                <Input type="date" value={formData.booking_date ?? ""} onChange={(e) => setFormData({ ...formData, booking_date: e.target.value || null })} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">체크인 기간</label>
-                <Input type="date" value={formData.check_in_date ?? ""} onChange={(e) => setFormData({ ...formData, check_in_date: e.target.value || null })} />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <Button type="submit" disabled={formLoading} className="bg-orange-600 hover:bg-orange-700">
-                {formLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> 저장 중...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" /> {editingId ? "수정" : "추가"}
-                  </>
-                )}
-              </Button>
-              <Button type="button" variant="outline" onClick={resetForm} disabled={formLoading}>
-                <X className="h-4 w-4 mr-2" /> 취소
-              </Button>
-            </div>
-          </form>
-        </div>
+      {activeTab === 'manage' && showForm && !editingId && (
+        renderPromotionForm()
       )}
 
       {activeTab === 'manage' && (
@@ -477,7 +594,7 @@ export function PromotionManager() {
             <h3 className="text-lg font-medium text-gray-900 mb-2">항목이 없습니다</h3>
             <p className="text-gray-600 mb-4">새 프로모션을 추가해보세요.</p>
             <Button onClick={handleAddNew} className="bg-orange-600 hover:bg-orange-700">
-              <Plus className="h-4 w-4 mr-2" /> 새 프로모션 추가
+              <Plus className="h-4 w-4 mr-2" /> 프로모션 추가
             </Button>
           </div>
         ) : (
@@ -486,25 +603,28 @@ export function PromotionManager() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Promotion ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-4/5">프로모션명</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">예약 기간</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">체크인 기간</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">작업</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-7/12">프로모션명</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-44">예약 시작</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-44">예약 종료</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-44">투숙 시작</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-44">투숙 종료</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Note</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">실행</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {promotions.map((p, idx) => (
-                  <tr key={typeof p.id === "number" || typeof p.id === "string" ? `promo-${p.id}` : `promo-${idx}`} className="hover:bg-gray-50">
+                  <React.Fragment key={typeof p.id === "number" || typeof p.id === "string" ? `promo-${p.id}` : `promo-${idx}`}>
+                  <tr className={`hover:bg-gray-50 ${recentlySavedKey != null && recentlySavedKey === ((p as any).id ?? p.promotion_id) ? 'bg-green-50' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">{p.promotion_id}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900 w-4/5">{p.promotion}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {p.booking_date ? <div className="flex items-center gap-1"><Calendar className="h-4 w-4" />{p.booking_date}</div> : "-"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {p.check_in_date ? <div className="flex items-center gap-1"><Calendar className="h-4 w-4" />{p.check_in_date}</div> : "-"}
-                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 w-7/12">{p.promotion}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{(p as any).booking_start_date ? String((p as any).booking_start_date).slice(0,10) : '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{(p as any).booking_end_date ? String((p as any).booking_end_date).slice(0,10) : '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{(p as any).check_in_start_date ? String((p as any).check_in_start_date).slice(0,10) : '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{(p as any).check_in_end_date ? String((p as any).check_in_end_date).slice(0,10) : '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(p as any).note ?? '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 justify-center">
                         <Button
                           size="sm"
                           variant="outline"
@@ -520,9 +640,20 @@ export function PromotionManager() {
                         <Button size="sm" variant="outline" onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
                           <Trash2 className="h-3 w-3" />
                         </Button>
+                        {recentlySavedKey != null && recentlySavedKey === ((p as any).id ?? p.promotion_id) && (
+                          <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">저장됨</span>
+                        )}
                       </div>
                     </td>
                   </tr>
+                  {editingId === ((p as any).id ?? p.promotion_id) && showForm && (
+                    <tr className="bg-orange-50">
+                      <td colSpan={8} className="px-6 py-4">
+                        {renderPromotionForm()}
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -686,7 +817,7 @@ export function PromotionManager() {
 
             {/* 프로모션 추가 섹션 */}
             <div className="px-6 py-4 border-b border-gray-200">
-              <h4 className="text-sm font-medium text-gray-900 mb-3">새 프로모션 추가</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">프로모션 추가 및 변경</h4>
               <div className="flex gap-3">
                 <select 
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -733,7 +864,18 @@ export function PromotionManager() {
               ) : (
                 <div className="space-y-2">
                   {hotelPromotions.map((promotion) => (
-                    <div key={promotion.promotion_id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                    <div 
+                      key={promotion.promotion_id} 
+                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                      onClick={() => {
+                        const full = promotions.find(p => Number(p.promotion_id) === Number(promotion.promotion_id))
+                        if (full) {
+                          setActiveTab('manage')
+                          startEdit(full)
+                          setShowHotelPromotionPopup(false)
+                        }
+                      }}
+                    >
                       <div>
                         <div className="font-medium text-gray-900">{promotion.promotion_name}</div>
                         <div className="text-sm text-gray-500 font-mono">{promotion.promotion_id}</div>
@@ -741,8 +883,12 @@ export function PromotionManager() {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => removeHotelPromotion(selectedHotel.sabre_id, promotion.promotion_id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          removeHotelPromotion(selectedHotel.sabre_id, promotion.promotion_id)
+                        }}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        title="연결 해제"
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>

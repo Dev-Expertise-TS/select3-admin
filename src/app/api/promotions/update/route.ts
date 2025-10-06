@@ -5,37 +5,26 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     const { 
-      id, 
       promotion_id, 
       promotion, 
       promotion_description, 
-      booking_date, 
-      check_in_date 
+      note,
+      booking_start_date,
+      booking_end_date,
+      check_in_start_date,
+      check_in_end_date,
     } = body;
 
-    if (!id || !promotion_id || !promotion) {
+    if (!promotion_id || !promotion) {
       return NextResponse.json(
-        { success: false, error: "ID, 프로모션 ID, 프로모션명은 필수입니다." },
+        { success: false, error: "프로모션 ID와 프로모션명은 필수입니다." },
         { status: 400 },
       );
     }
 
     const supabase = createServiceRoleClient();
 
-    // promotion_id 중복 체크 (자신 제외)
-    const { data: existingPromotion } = await supabase
-      .from("select_hotel_promotions")
-      .select("id, promotion_id")
-      .eq("promotion_id", promotion_id)
-      .neq("id", id)
-      .single();
-
-    if (existingPromotion) {
-      return NextResponse.json(
-        { success: false, error: "이미 존재하는 프로모션 ID입니다." },
-        { status: 409 },
-      );
-    }
+    // promotion_id를 기준으로 업데이트하므로 별도의 중복 체크는 불필요
 
     const { data: updatedPromotion, error } = await supabase
       .from("select_hotel_promotions")
@@ -43,11 +32,13 @@ export async function PUT(request: NextRequest) {
         promotion_id,
         promotion,
         promotion_description: promotion_description || null,
-        booking_date: booking_date || null,
-        check_in_date: check_in_date || null,
-        updated_at: new Date().toISOString(),
+        note: note || null,
+        booking_start_date: booking_start_date || null,
+        booking_end_date: booking_end_date || null,
+        check_in_start_date: check_in_start_date || null,
+        check_in_end_date: check_in_end_date || null,
       })
-      .eq("id", id)
+      .eq("promotion_id", promotion_id)
       .select()
       .single();
 
