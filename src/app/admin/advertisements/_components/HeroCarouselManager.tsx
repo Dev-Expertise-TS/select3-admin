@@ -227,7 +227,9 @@ export default function HeroCarouselManager() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.sabre_id.trim() || !formData.slot_key.trim()) {
+    const sabreIdStr = String(formData.sabre_id ?? '').trim()
+    const slotKeyStr = String(formData.slot_key ?? '').trim()
+    if (!sabreIdStr || !slotKeyStr) {
       setError('모든 필드를 입력해주세요.')
       return
     }
@@ -244,7 +246,11 @@ export default function HeroCarouselManager() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          sabre_id: sabreIdStr,
+          slot_key: slotKeyStr,
+        })
       })
 
       const data = await response.json()

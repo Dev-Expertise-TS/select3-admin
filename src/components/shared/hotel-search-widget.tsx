@@ -293,7 +293,7 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
             {/* 이미지 그리드 */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {state.storageImages?.map((image, _index) => (
-                <div key={image.name} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                <div key={`${hotelId}-${image.name ?? 'noname'}-${String(image.seq ?? _index)}`} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
                   {/* 헤더 */}
                   <div className="p-3 bg-gray-50 border-b">
                     <div className="flex items-center justify-between">
