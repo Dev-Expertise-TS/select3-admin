@@ -33,7 +33,7 @@ export async function GET() {
     // 데이터 변환
     const mappedHotels = mappings?.map(mapping => ({
       sabre_id: mapping.sabre_id,
-      promotion_id: mapping.promotion_id,
+      promotion_id: Number(mapping.promotion_id),
       promotion_name: mapping.select_hotel_promotions.promotion,
       property_name_ko: mapping.select_hotels.property_name_ko,
       property_name_en: mapping.select_hotels.property_name_en,

@@ -8,7 +8,7 @@ import HotelQuickSearch from "@/components/shared/hotel-quick-search"
 
 interface Promotion {
   id: number
-  promotion_id: string
+  promotion_id: number
   promotion: string
   promotion_description: string | null
   booking_date: string | null
@@ -18,7 +18,7 @@ interface Promotion {
 }
 
 interface PromotionForm {
-  promotion_id: string
+  promotion_id: number | ""
   promotion: string
   promotion_description: string
   booking_date: string | null
@@ -27,7 +27,7 @@ interface PromotionForm {
 
 interface MappedHotel {
   sabre_id: string
-  promotion_id: string
+  promotion_id: number
   promotion_name: string
   property_name_ko: string | null
   property_name_en: string | null
@@ -44,10 +44,11 @@ export function PromotionManager() {
   const [mappingLoading, setMappingLoading] = useState(false)
   const [allMappedHotels, setAllMappedHotels] = useState<MappedHotel[]>([])
   const [allMappedLoading, setAllMappedLoading] = useState(false)
+  const [newlyAddedMappings, setNewlyAddedMappings] = useState<Set<string>>(new Set())
   const [showAddHotelForm, setShowAddHotelForm] = useState(false)
   const [showHotelPromotionPopup, setShowHotelPromotionPopup] = useState(false)
   const [selectedHotel, setSelectedHotel] = useState<{sabre_id: string, property_name_ko: string} | null>(null)
-  const [hotelPromotions, setHotelPromotions] = useState<Array<{promotion_id: string, promotion_name: string}>>([])
+  const [hotelPromotions, setHotelPromotions] = useState<Array<{promotion_id: number, promotion_name: string}>>([])
   const [hotelPopupLoading, setHotelPopupLoading] = useState(false)
 
   const [showForm, setShowForm] = useState(false)
@@ -100,10 +101,11 @@ export function PromotionManager() {
   const openMapping = (p: Promotion) => {
     setSelectedPromotion(p)
     setActiveTab('mapped')
+    setShowAddHotelForm(true)
     loadMappedHotels(p.promotion_id)
   }
 
-  const loadMappedHotels = async (promotionId: string) => {
+  const loadMappedHotels = async (promotionId: string | number) => {
     setMappingLoading(true)
     try {
       const res = await fetch(`/api/promotions/hotels?promotionId=${encodeURIComponent(promotionId)}`)
@@ -123,7 +125,7 @@ export function PromotionManager() {
       const res = await fetch('/api/promotions/hotels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ promotionId: selectedPromotion.promotion_id, sabreId })
+        body: JSON.stringify({ promotionId: Number(selectedPromotion.promotion_id), sabreId })
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || '호텔 연결에 실패했습니다.')
@@ -138,12 +140,12 @@ export function PromotionManager() {
     }
   }
 
-  const disconnectHotel = async (sabreId: string, promotionId?: string) => {
-    const targetPromotionId = promotionId || selectedPromotion?.promotion_id
+  const disconnectHotel = async (sabreId: string, promotionId?: string | number) => {
+    const targetPromotionId = typeof promotionId !== 'undefined' ? promotionId : selectedPromotion?.promotion_id
     if (!targetPromotionId) return
     if (!confirm('이 호텔을 연결 해제하시겠습니까?')) return
     try {
-      const res = await fetch(`/api/promotions/hotels?promotionId=${encodeURIComponent(targetPromotionId)}&sabreId=${encodeURIComponent(sabreId)}`, { method: 'DELETE' })
+      const res = await fetch(`/api/promotions/hotels?promotionId=${encodeURIComponent(String(targetPromotionId))}&sabreId=${encodeURIComponent(sabreId)}`, { method: 'DELETE' })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || '호텔 연결 해제에 실패했습니다.')
       setSuccess('호텔 연결을 해제했습니다.')
@@ -159,21 +161,35 @@ export function PromotionManager() {
     }
   }
 
-  const addHotelMapping = async (promotionId: string, sabreId: string) => {
+  const addHotelMapping = async (promotionId: string | number, sabreId: string) => {
     try {
       const res = await fetch('/api/promotions/hotels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ promotionId, sabreId })
+        body: JSON.stringify({ promotionId: Number(promotionId), sabreId })
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || '호텔 연결에 실패했습니다.')
+      
+      // 새로 추가된 매핑을 강조 표시용으로 기록
+      const mappingKey = `${sabreId}-${promotionId}`
+      setNewlyAddedMappings(prev => new Set([...prev, mappingKey]))
+      
       setSuccess('호텔이 연결되었습니다.')
       loadAllMappedHotels()
       if (showHotelPromotionPopup && selectedHotel) {
         loadHotelPromotions(selectedHotel.sabre_id)
       }
       setTimeout(() => setSuccess(null), 3000)
+      
+      // 3초 후 강조 표시 제거
+      setTimeout(() => {
+        setNewlyAddedMappings(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(mappingKey)
+          return newSet
+        })
+      }, 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : '호텔 연결 중 오류가 발생했습니다.')
     }
@@ -208,15 +224,43 @@ export function PromotionManager() {
     }
   }
 
-  const removeHotelPromotion = async (sabreId: string, promotionId: string) => {
+  const removeHotelPromotion = async (sabreId: string, promotionId: string | number) => {
     try {
-      await disconnectHotel(sabreId, promotionId)
+      // 실제 삭제 호출
+      const res = await fetch(`/api/promotions/hotels?promotionId=${encodeURIComponent(String(promotionId))}&sabreId=${encodeURIComponent(sabreId)}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || '프로모션 연결 해제에 실패했습니다.')
+
+      // 즉시 UI 반영: 팝업 목록/전체 목록/현재 탭 목록에서 제거
+      const removedPromotionId = Number(promotionId)
+      setHotelPromotions(prev => prev.filter(p => p.promotion_id !== removedPromotionId))
+      setAllMappedHotels(prev => prev.filter(h => !(h.sabre_id === sabreId && h.promotion_id === removedPromotionId)))
+      setMappedHotels(prev => prev.filter(h => !(h.sabre_id === sabreId && h.promotion_id === removedPromotionId)))
+
+      // 동기화: 원격 데이터 재로드
+      if (activeTab === 'mapped') {
+        await loadAllMappedHotels()
+      }
+      if (selectedPromotion) {
+        await loadMappedHotels(selectedPromotion.promotion_id)
+      }
       if (selectedHotel) {
         await loadHotelPromotions(selectedHotel.sabre_id)
       }
+      setSuccess('프로모션 연결을 해제했습니다.')
+      setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : '프로모션 연결 해제 중 오류가 발생했습니다.')
     }
+  }
+
+  const generateNextPromotionId = () => {
+    // 숫자 promotion_id의 최대값 + 1 생성
+    const existingNumbers = promotions
+      .map(p => Number(p.promotion_id))
+      .filter((n) => Number.isFinite(n)) as number[]
+    const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0
+    return maxNumber + 1
   }
 
   const resetForm = () => {
@@ -226,7 +270,15 @@ export function PromotionManager() {
   }
 
   const handleAddNew = () => {
-    resetForm()
+    const nextId = generateNextPromotionId()
+    setFormData({ 
+      promotion_id: nextId, 
+      promotion: "", 
+      promotion_description: "", 
+      booking_date: null, 
+      check_in_date: null 
+    })
+    setEditingId(null)
     setShowForm(true)
   }
 
@@ -249,7 +301,7 @@ export function PromotionManager() {
     try {
       const url = editingId ? "/api/promotions/update" : "/api/promotions/create"
       const method = editingId ? "PUT" : "POST"
-      const body = editingId ? { id: editingId, ...formData } : formData
+      const body = editingId ? { id: editingId, ...formData, promotion_id: Number(formData.promotion_id) } : { ...formData, promotion_id: Number(formData.promotion_id) }
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || "저장 중 오류가 발생했습니다.")
@@ -348,12 +400,17 @@ export function PromotionManager() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">프로모션 ID*</label>
                 <Input
-                  value={formData.promotion_id}
-                  onChange={(e) => setFormData({ ...formData, promotion_id: e.target.value })}
-                  placeholder="예: PROMO202501"
+                  type="number"
+                  value={formData.promotion_id === "" ? "" : String(formData.promotion_id)}
+                  onChange={(e) => setFormData({ ...formData, promotion_id: e.target.value === "" ? "" : Number(e.target.value) })}
+                  placeholder="예: 101"
                   required
                   disabled={!!editingId}
+                  className={editingId ? "bg-gray-100" : ""}
                 />
+                {!editingId && (
+                  <p className="text-xs text-gray-500 mt-1">자동으로 생성된 숫자 ID입니다. 필요시 수정 가능합니다.</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">프로모션명*</label>
@@ -428,7 +485,6 @@ export function PromotionManager() {
             <table className="w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Promotion ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-4/5">프로모션명</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">예약 기간</th>
@@ -439,7 +495,6 @@ export function PromotionManager() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {promotions.map((p, idx) => (
                   <tr key={typeof p.id === "number" || typeof p.id === "string" ? `promo-${p.id}` : `promo-${idx}`} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{p.id}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">{p.promotion_id}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 w-4/5">{p.promotion}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -450,6 +505,15 @@ export function PromotionManager() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openMapping(p)}
+                          title="호텔 매핑 관리"
+                          className="hover:bg-orange-50"
+                        >
+                          <MapPin className="h-3 w-3" />
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => startEdit(p)}>
                           <Edit className="h-3 w-3" />
                         </Button>
@@ -478,20 +542,22 @@ export function PromotionManager() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">프로모션 선택*</label>
                   <select 
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={selectedPromotion ? String(selectedPromotion.promotion_id) : ""}
                     onChange={(e) => {
-                      const promotion = promotions.find(p => p.promotion_id === e.target.value)
+                      const promotion = promotions.find(p => String(p.promotion_id) === e.target.value)
                       if (promotion) setSelectedPromotion(promotion)
                     }}
                   >
                     <option value="">프로모션을 선택하세요</option>
                     {promotions.map(p => (
-                      <option key={p.promotion_id} value={p.promotion_id}>{p.promotion}</option>
+                      <option key={p.promotion_id} value={String(p.promotion_id)}>{p.promotion}</option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">호텔 검색*</label>
                   <HotelQuickSearch
+                    placeholder="호텔명(한/영) 또는 Sabre ID로 검색..."
                     onSelect={(hotel) => {
                       if (hotel?.sabre_id && selectedPromotion) {
                         addHotelMapping(selectedPromotion.promotion_id, hotel.sabre_id)
@@ -543,8 +609,18 @@ export function PromotionManager() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {allMappedHotels.map((h, idx) => (
-                    <tr key={`${h.sabre_id}-${h.promotion_id}-${idx}`} className="hover:bg-gray-50">
+                  {allMappedHotels
+                    .sort((a, b) => b.promotion_id - a.promotion_id)
+                    .map((h, idx) => {
+                      const mappingKey = `${h.sabre_id}-${h.promotion_id}`
+                      const isNewlyAdded = newlyAddedMappings.has(mappingKey)
+                      return (
+                    <tr 
+                      key={`${h.sabre_id}-${h.promotion_id}-${idx}`} 
+                      className={`hover:bg-gray-50 transition-all duration-500 ${
+                        isNewlyAdded ? 'bg-green-50 border-l-4 border-green-400 shadow-md' : ''
+                      }`}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">
                         {h.sabre_id}
                       </td>
@@ -556,8 +632,11 @@ export function PromotionManager() {
                           {h.property_name_ko || '-'}
                         </button>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-orange-600">
-                        {h.promotion_id}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
+                        <span className={`${isNewlyAdded ? 'text-green-600 font-bold bg-green-100 px-2 py-1 rounded-full text-xs' : 'text-orange-600'}`}>
+                          {h.promotion_id}
+                          {isNewlyAdded && <span className="ml-1">✨</span>}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {h.promotion_name}
@@ -573,7 +652,8 @@ export function PromotionManager() {
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                      )
+                    })}
                 </tbody>
               </table>
             </div>
@@ -584,7 +664,7 @@ export function PromotionManager() {
 
       {/* 호텔 프로모션 관리 팝업 */}
       {showHotelPromotionPopup && selectedHotel && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl h-[600px] flex flex-col border border-gray-200">
             {/* 팝업 헤더 */}
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
@@ -611,13 +691,13 @@ export function PromotionManager() {
                 <select 
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onChange={(e) => {
-                    const promotion = promotions.find(p => p.promotion_id === e.target.value)
+                      const promotion = promotions.find(p => String(p.promotion_id) === e.target.value)
                     if (promotion) setSelectedPromotion(promotion)
                   }}
                 >
                   <option value="">프로모션을 선택하세요</option>
                   {promotions
-                    .filter(p => !hotelPromotions.some(hp => hp.promotion_id === p.promotion_id))
+                    .filter(p => !hotelPromotions.some(hp => hp.promotion_id === Number(p.promotion_id)))
                     .map(p => (
                       <option key={p.promotion_id} value={p.promotion_id}>{p.promotion}</option>
                     ))}
