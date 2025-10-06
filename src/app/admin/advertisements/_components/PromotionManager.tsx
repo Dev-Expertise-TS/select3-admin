@@ -534,8 +534,8 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {slots.map((slot) => (
-                  <tr key={`slot-${slot.id}-${slot.slot_key}`} className="hover:bg-gray-50">
+                {slots.map((slot, index) => (
+                  <tr key={typeof slot.id === 'number' || typeof slot.id === 'string' ? `slot-${slot.id}` : `slot-${index}`} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {slot.id}
                     </td>
@@ -644,7 +644,7 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
                 <div className="space-y-2">
                   {searchResults.map((hotel, idx) => (
                     <button
-                      key={`${hotel.sabre_id}-${idx}`}
+                      key={hotel.sabre_id ? `result-${hotel.sabre_id}-${idx}` : `result-${idx}`}
                       onClick={() => handleHotelSelect(hotel)}
                       className="w-full text-left p-4 border border-gray-200 rounded-lg hover:bg-orange-50 hover:border-orange-300 transition-colors"
                     >
