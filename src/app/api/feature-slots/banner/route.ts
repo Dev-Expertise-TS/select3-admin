@@ -13,12 +13,13 @@ export async function GET() {
         sabre_id,
         surface,
         slot_key,
+        start_date,
+        end_date,
         created_at,
         select_hotels!inner(property_name_ko)
       `)
       .eq('surface', '상단베너')
-      .order('created_at', { ascending: false })
-      .limit(1) // 상단 베너는 하나만 존재
+      .order('start_date', { ascending: true }) // 시작일 순으로 정렬
 
     if (error) {
       console.error('상단 베너 슬롯 조회 오류:', error)
@@ -34,7 +35,7 @@ export async function GET() {
     return NextResponse.json(
       { 
         success: true, 
-        data: data?.[0] || null, // 첫 번째 레코드만 반환
+        data: data || [], // 모든 레코드 반환
         count: data?.length || 0
       },
       { status: 200 }
@@ -57,7 +58,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { sabre_id, slot_key } = body
+    const { sabre_id, slot_key, start_date, end_date } = body
 
     // 필수 필드 검증
     if (!sabre_id || !slot_key) {
@@ -73,35 +74,24 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceRoleClient()
     const surface = '상단베너'
 
-    // 기존 상단 베너가 있는지 확인
-    const { data: existingData } = await supabase
-      .from('select_feature_slots')
-      .select('id')
-      .eq('surface', surface)
-      .single()
-
-    if (existingData) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: '상단 베너는 하나만 설정할 수 있습니다. 기존 설정을 수정하거나 삭제해주세요.' 
-        },
-        { status: 409 }
-      )
-    }
+    // 여러 상단 베너를 스케줄링할 수 있도록 중복 체크 제거
 
     const { data, error } = await supabase
       .from('select_feature_slots')
       .insert({
         sabre_id,
         surface,
-        slot_key
+        slot_key,
+        start_date,
+        end_date
       })
       .select(`
         id,
         sabre_id,
         surface,
         slot_key,
+        start_date,
+        end_date,
         created_at,
         select_hotels!inner(property_name_ko)
       `)
@@ -144,14 +134,14 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { sabre_id, slot_key } = body
+    const { id, sabre_id, slot_key, start_date, end_date } = body
 
     // 필수 필드 검증
-    if (!sabre_id || !slot_key) {
+    if (!id || !sabre_id || !slot_key) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'sabre_id, slot_key는 필수 입력값입니다.' 
+          error: 'id, sabre_id, slot_key는 필수 입력값입니다.' 
         },
         { status: 400 }
       )
@@ -159,35 +149,22 @@ export async function PUT(request: NextRequest) {
 
     const supabase = createServiceRoleClient()
 
-    // 기존 상단 베너 찾기
-    const { data: existingData, error: findError } = await supabase
-      .from('select_feature_slots')
-      .select('id')
-      .eq('surface', '상단베너')
-      .single()
-
-    if (findError || !existingData) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: '수정할 상단 베너를 찾을 수 없습니다.' 
-        },
-        { status: 404 }
-      )
-    }
-
     const { data, error } = await supabase
       .from('select_feature_slots')
       .update({
         sabre_id,
-        slot_key
+        slot_key,
+        start_date,
+        end_date
       })
-      .eq('id', existingData.id)
+      .eq('id', id)
       .select(`
         id,
         sabre_id,
         surface,
         slot_key,
+        start_date,
+        end_date,
         created_at,
         select_hotels!inner(property_name_ko)
       `)
@@ -227,31 +204,27 @@ export async function PUT(request: NextRequest) {
 }
 
 // DELETE: 상단 베너 슬롯 삭제
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createServiceRoleClient()
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
 
-    // 기존 상단 베너 찾기
-    const { data: existingData, error: findError } = await supabase
-      .from('select_feature_slots')
-      .select('id')
-      .eq('surface', '상단베너')
-      .single()
-
-    if (findError || !existingData) {
+    if (!id) {
       return NextResponse.json(
         { 
           success: false, 
-          error: '삭제할 상단 베너를 찾을 수 없습니다.' 
+          error: '삭제할 레코드의 ID가 필요합니다.' 
         },
-        { status: 404 }
+        { status: 400 }
       )
     }
+
+    const supabase = createServiceRoleClient()
 
     const { error } = await supabase
       .from('select_feature_slots')
       .delete()
-      .eq('id', existingData.id)
+      .eq('id', id)
 
     if (error) {
       console.error('상단 베너 슬롯 삭제 오류:', error)

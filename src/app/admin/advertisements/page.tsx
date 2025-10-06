@@ -6,8 +6,9 @@ import { AuthGuard } from '@/components/shared/auth-guard'
 import HeroCarouselManager from './_components/HeroCarouselManager'
 import PromotionManager from './_components/PromotionManager'
 import BannerManager from './_components/BannerManager'
+import { PromoBannerManager } from './_components/PromoBannerManager'
 
-type AdType = 'banner' | 'carousel' | 'featured' | 'promotion'
+type AdType = 'promo-banner' | 'banner' | 'carousel' | 'featured' | 'promotion'
 
 interface AdItem {
   id: string
@@ -22,7 +23,7 @@ interface AdItem {
 }
 
 export default function AdminAdvertisementsPage() {
-  const [activeTab, setActiveTab] = useState<AdType>('banner')
+  const [activeTab, setActiveTab] = useState<AdType>('promo-banner')
   const [ads, setAds] = useState<AdItem[]>([
     {
       id: '1',
@@ -60,10 +61,11 @@ export default function AdminAdvertisementsPage() {
   ])
 
   const tabs = [
-    { id: 'banner', label: '상단 베너 관리', icon: Image },
-    { id: 'carousel', label: '히어로 캐러셀 관리', icon: Sliders },
-    { id: 'promotion', label: '프로모션 관리', icon: Megaphone },
-    { id: 'featured', label: '피처드 관리', icon: Star }
+    { id: 'promo-banner', label: '랜딩 프로모션 띠 베너 노출 관리', icon: Megaphone },
+    { id: 'carousel', label: '랜딩 히어로 캐러셀 노출 관리', icon: Sliders },
+    { id: 'promotion', label: '랜딩 프로모션 노출 관리', icon: Megaphone },
+    { id: 'featured', label: '랜딩 신규 등록 호텔', icon: Star },
+    { id: 'banner', label: '호텔 목록 메인 베너 노출 관리', icon: Image }
   ]
 
   const filteredAds = ads.filter(ad => ad.type === activeTab)
@@ -87,8 +89,8 @@ export default function AdminAdvertisementsPage() {
             <DollarSign className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">광고 관리</h1>
-            <p className="text-sm text-gray-600 mt-1">호텔 광고 및 프로모션을 관리하세요</p>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">광고 노출 관리</h1>
+            <p className="text-sm text-gray-600 mt-1">호텔 광고 노출 및 프로모션을 관리하세요</p>
           </div>
         </div>
 
@@ -119,7 +121,10 @@ export default function AdminAdvertisementsPage() {
 
         {/* 광고 관리 콘텐츠 */}
         <div className="space-y-6">
-          {activeTab === 'banner' ? (
+          {activeTab === 'promo-banner' ? (
+            // 상단 프로모션 띠 베너 관리 컴포넌트
+            <PromoBannerManager />
+          ) : activeTab === 'banner' ? (
             // 상단 베너 관리 컴포넌트
             <BannerManager />
           ) : activeTab === 'carousel' ? (
@@ -127,7 +132,10 @@ export default function AdminAdvertisementsPage() {
             <HeroCarouselManager />
           ) : activeTab === 'promotion' ? (
             // 프로모션 관리 컴포넌트
-            <PromotionManager />
+            <PromotionManager title="프로모션 관리" surface="프로모션" />
+          ) : activeTab === 'featured' ? (
+            // 랜딩 신규 등록 호텔: surface='신규등록' 대상
+            <PromotionManager title="신규 등록 호텔 노출 관리" surface="신규등록" />
           ) : (
             <>
               {/* 새 광고 추가 버튼 */}

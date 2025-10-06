@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 
-// GET: select_feature_slots에서 surface가 '프로모션'인 목록 조회
-export async function GET() {
+// GET: select_feature_slots에서 surface가 특정 값인 목록 조회 (기본: '프로모션')
+export async function GET(request: NextRequest) {
   try {
     const supabase = createServiceRoleClient()
+    const { searchParams } = new URL(request.url)
+    const surface = searchParams.get('surface') ?? '프로모션'
 
     const { data, error } = await supabase
       .from('select_feature_slots')
@@ -16,7 +18,7 @@ export async function GET() {
         created_at,
         select_hotels!inner(property_name_ko)
       `)
-      .eq('surface', '프로모션')
+      .eq('surface', surface)
       .order('slot_key', { ascending: true })
 
     if (error) {
@@ -52,11 +54,12 @@ export async function GET() {
   }
 }
 
-// POST: select_feature_slots에 surface가 '프로모션'인 새 항목 생성
+// POST: select_feature_slots에 surface가 특정 값(기본: '프로모션')인 새 항목 생성
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { sabre_id, slot_key } = body
+    const surfaceFromBody: string | undefined = body.surface
 
     // 필수 필드 검증
     if (!sabre_id || !slot_key) {
@@ -70,9 +73,11 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServiceRoleClient()
-    const surface = '프로모션' // 프로모션은 항상 '프로모션' surface 사용
+    const surface = surfaceFromBody && typeof surfaceFromBody === 'string' && surfaceFromBody.trim().length > 0
+      ? surfaceFromBody
+      : '프로모션' // 기본 surface
 
-    // 중복 검사
+    // 중복 검사 (동일 sabre_id, surface, slot_key 조합 방지)
     const { data: existingData } = await supabase
       .from('select_feature_slots')
       .select('id')
@@ -116,7 +121,7 @@ export async function POST(request: NextRequest) {
       { 
         success: true, 
         data,
-        message: '프로모션 항목이 성공적으로 생성되었습니다.'
+        message: '항목이 성공적으로 생성되었습니다.'
       },
       { status: 201 }
     )

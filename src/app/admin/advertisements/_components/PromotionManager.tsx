@@ -37,7 +37,12 @@ interface Hotel {
   property_name_en: string
 }
 
-export default function PromotionManager() {
+type PromotionManagerProps = {
+  title?: string
+  surface?: string // API 필터 및 생성 시 사용할 surface
+}
+
+export default function PromotionManager({ title = '프로모션 관리', surface = '프로모션' }: PromotionManagerProps) {
   const [slots, setSlots] = useState<PromotionSlot[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,7 +71,8 @@ export default function PromotionManager() {
     setError(null)
 
     try {
-      const response = await fetch('/api/promotion-slots')
+      const qs = new URLSearchParams({ surface }).toString()
+      const response = await fetch(`/api/promotion-slots?${qs}`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -88,7 +94,7 @@ export default function PromotionManager() {
   // 초기 로드
   useEffect(() => {
     loadSlots()
-  }, [])
+  }, [surface])
 
   // 폼 초기화
   const resetForm = () => {
@@ -235,7 +241,9 @@ export default function PromotionManager() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        // surface는 서버에서 기본값으로 '프로모션'을 사용하지만,
+        // 신규등록 탭에서는 '신규등록'으로 명시 전달
+        body: JSON.stringify({ ...formData, surface })
       })
 
       const data = await response.json()
@@ -301,11 +309,9 @@ export default function PromotionManager() {
             <Megaphone className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-gray-900">
-              프로모션 관리
-            </h2>
+            <h2 className="text-xl font-bold tracking-tight text-gray-900">{title}</h2>
             <p className="text-sm text-gray-600 mt-1">
-              select_feature_slots 테이블의 surface가 &apos;프로모션&apos;인 레코드를 관리합니다
+              select_feature_slots 테이블의 surface가 &apos;{surface}&apos;인 레코드를 관리합니다
             </p>
           </div>
         </div>
@@ -396,7 +402,7 @@ export default function PromotionManager() {
                   <Megaphone className="h-4 w-4" />
                 </div>
                 <div className="text-sm text-orange-800">
-                  <strong>Surface:</strong> 프로모션 (자동 설정)
+                  <strong>Surface:</strong> {surface} (자동 설정)
                 </div>
               </div>
             </div>

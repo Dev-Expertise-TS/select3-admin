@@ -58,7 +58,7 @@ const navSections: NavSection[] = [
       { label: '호텔 정보 업데이트', href: '/admin/hotel-update', icon: Pencil, requiredRole: 'admin' },
       { label: '기본 혜택 관리', href: '/admin/benefits/manage', icon: ListChecks, requiredRole: 'admin' },
       { label: '프로모션 관리', href: '/admin/promotions', icon: DollarSign, requiredRole: 'admin' },
-      { label: '광고 관리', href: '/admin/advertisements', icon: DollarSign, requiredRole: 'admin' },
+      { label: '광고 노출 관리', href: '/admin/advertisements', icon: DollarSign, requiredRole: 'admin' },
       { label: '체인 브랜드 관리', href: '/admin/chain-brand', icon: Network, requiredRole: 'admin' },
       { label: '호텔 이미지 관리', href: '/admin/hotel-images', icon: Image, requiredRole: 'admin' },
       { label: '호텔 콘텐츠 관리', href: '/admin/hotel-content', icon: FileText, requiredRole: 'admin' },

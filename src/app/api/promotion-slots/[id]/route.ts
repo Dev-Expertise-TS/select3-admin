@@ -28,7 +28,6 @@ export async function GET(
         created_at
       `)
       .eq('id', id)
-      .eq('surface', '프로모션')
       .single()
 
     if (error) {
@@ -72,6 +71,7 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
     const { sabre_id, slot_key } = body
+    const surfaceFromBody: string | undefined = body.surface
 
     if (!id) {
       return NextResponse.json(
@@ -92,7 +92,9 @@ export async function PUT(
     }
 
     const supabase = createServiceRoleClient()
-    const surface = '프로모션' // 프로모션은 항상 '프로모션' surface 사용
+    const surface = surfaceFromBody && typeof surfaceFromBody === 'string' && surfaceFromBody.trim().length > 0
+      ? surfaceFromBody
+      : '프로모션'
 
     // 중복 검사 (자기 자신 제외)
     const { data: existingData } = await supabase
@@ -122,7 +124,6 @@ export async function PUT(
         slot_key
       })
       .eq('id', id)
-      .eq('surface', '프로모션')
       .select()
       .single()
 
@@ -180,7 +181,6 @@ export async function DELETE(
       .from('select_feature_slots')
       .delete()
       .eq('id', id)
-      .eq('surface', '프로모션')
 
     if (error) {
       console.error('Promotion slot 삭제 오류:', error)
