@@ -14,12 +14,15 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import HotelQuickSearch from '@/components/shared/hotel-quick-search'
 
 interface PromotionSlot {
   id: number
   sabre_id: string
   surface: string
   slot_key: string
+  start_date?: string | null
+  end_date?: string | null
   created_at: string
   select_hotels: {
     property_name_ko: string
@@ -29,6 +32,8 @@ interface PromotionSlot {
 interface PromotionSlotForm {
   sabre_id: string
   slot_key: string
+  start_date?: string | null
+  end_date?: string | null
 }
 
 interface Hotel {
@@ -53,7 +58,9 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
   const [editingId, setEditingId] = useState<number | null>(null)
   const [formData, setFormData] = useState<PromotionSlotForm>({
     sabre_id: '',
-    slot_key: ''
+    slot_key: '',
+    start_date: null,
+    end_date: null
   })
   const [formLoading, setFormLoading] = useState(false)
   
@@ -80,7 +87,24 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
       }
 
       if (data.success) {
-        setSlots(data.data || [])
+        type ApiPromotionSlot = PromotionSlot & { start_date?: string | null; end_date?: string | null }
+        const normalizeDate = (d?: string | null) => {
+          if (!d) return null
+          const dt = new Date(d)
+          if (Number.isNaN(dt.getTime())) return null
+          return dt.toISOString().slice(0, 10)
+        }
+        const rows: PromotionSlot[] = (data.data as ApiPromotionSlot[] | undefined)?.map((s) => ({
+          id: s.id,
+          sabre_id: s.sabre_id,
+          surface: s.surface,
+          slot_key: s.slot_key,
+          start_date: normalizeDate(s.start_date ?? null),
+          end_date: normalizeDate(s.end_date ?? null),
+          created_at: s.created_at,
+          select_hotels: { property_name_ko: s.select_hotels?.property_name_ko }
+        })) ?? []
+        setSlots(rows)
       } else {
         throw new Error(data.error || '데이터를 불러올 수 없습니다.')
       }
@@ -100,7 +124,9 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
   const resetForm = () => {
     setFormData({
       sabre_id: '',
-      slot_key: ''
+      slot_key: '',
+      start_date: null,
+      end_date: null
     })
     setShowForm(false)
     setEditingId(null)
@@ -134,7 +160,10 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
         },
         body: JSON.stringify({
           sabre_id: slot.sabre_id,
-          slot_key: slot.slot_key
+          slot_key: slot.slot_key,
+          start_date: slot.start_date ?? null,
+          end_date: slot.end_date ?? null,
+          surface
         })
       })
 
@@ -224,7 +253,9 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.sabre_id.trim() || !formData.slot_key.trim()) {
+    const sabreId = String(formData.sabre_id ?? '').trim()
+    const slotKey = String(formData.slot_key ?? '').trim()
+    if (!sabreId || !slotKey) {
       setError('모든 필드를 입력해주세요.')
       return
     }
@@ -243,7 +274,7 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
         },
         // surface는 서버에서 기본값으로 '프로모션'을 사용하지만,
         // 신규등록 탭에서는 '신규등록'으로 명시 전달
-        body: JSON.stringify({ ...formData, surface })
+        body: JSON.stringify({ sabre_id: sabreId, slot_key: slotKey, start_date: formData.start_date, end_date: formData.end_date, surface })
       })
 
       const data = await response.json()
@@ -368,16 +399,11 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label htmlFor="sabre_id" className="block text-sm font-medium text-gray-700 mb-2">
-                  Sabre ID *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  호텔명 또는 Sabre ID*
                 </label>
-                <Input
-                  id="sabre_id"
-                  type="text"
-                  value={formData.sabre_id}
-                  onChange={(e) => setFormData({ ...formData, sabre_id: e.target.value })}
-                  placeholder="Sabre ID를 입력하세요"
-                  required
+                <HotelQuickSearch
+                  onSelect={(hotel) => setFormData({ ...formData, sabre_id: hotel.sabre_id })}
                 />
               </div>
               
@@ -392,6 +418,22 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
                   onChange={(e) => setFormData({ ...formData, slot_key: e.target.value })}
                   placeholder="Slot Key를 입력하세요"
                   required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">시작일</label>
+                <Input
+                  type="date"
+                  value={formData.start_date ?? ''}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value || null })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">종료일</label>
+                <Input
+                  type="date"
+                  value={formData.end_date ?? ''}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value || null })}
                 />
               </div>
             </div>
@@ -484,9 +526,8 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Slot Key
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    생성일
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">시작일</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">종료일</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     작업
                   </th>
@@ -494,7 +535,7 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {slots.map((slot) => (
-                  <tr key={slot.id} className="hover:bg-gray-50">
+                  <tr key={`slot-${slot.id}-${slot.slot_key}`} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {slot.id}
                     </td>
@@ -513,8 +554,11 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {slot.slot_key}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(slot.created_at).toLocaleDateString('ko-KR')}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <Input type="date" value={slot.start_date ?? ''} onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, start_date: e.target.value || null } : s))} />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <Input type="date" value={slot.end_date ?? ''} onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, end_date: e.target.value || null } : s))} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex gap-2">
@@ -598,9 +642,9 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {searchResults.map((hotel) => (
+                  {searchResults.map((hotel, idx) => (
                     <button
-                      key={hotel.sabre_id}
+                      key={`${hotel.sabre_id}-${idx}`}
                       onClick={() => handleHotelSelect(hotel)}
                       className="w-full text-left p-4 border border-gray-200 rounded-lg hover:bg-orange-50 hover:border-orange-300 transition-colors"
                     >

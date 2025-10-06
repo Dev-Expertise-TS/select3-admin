@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
         sabre_id,
         surface,
         slot_key,
+        start_date,
+        end_date,
         created_at,
         select_hotels!inner(property_name_ko)
       `)
@@ -60,6 +62,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { sabre_id, slot_key } = body
     const surfaceFromBody: string | undefined = body.surface
+    const start_date: string | null | undefined = body.start_date ?? null
+    const end_date: string | null | undefined = body.end_date ?? null
 
     // 필수 필드 검증
     if (!sabre_id || !slot_key) {
@@ -101,7 +105,9 @@ export async function POST(request: NextRequest) {
       .insert({
         sabre_id,
         surface,
-        slot_key
+        slot_key,
+        start_date,
+        end_date
       })
       .select()
       .single()

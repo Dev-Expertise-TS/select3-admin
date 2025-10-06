@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 
 // GET: select_feature_slots 목록 조회
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = createServiceRoleClient()
+    const { searchParams } = new URL(request.url)
+    const surface = searchParams.get('surface') ?? '히어로'
 
     const { data, error } = await supabase
       .from('select_feature_slots')
@@ -16,7 +18,7 @@ export async function GET() {
         created_at,
         select_hotels!inner(property_name_ko)
       `)
-      .eq('surface', '히어로')
+      .eq('surface', surface)
       .order('slot_key', { ascending: true })
 
     if (error) {
@@ -57,6 +59,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { sabre_id, slot_key } = body
+    const surfaceFromBody: string | undefined = body.surface
 
     // 필수 필드 검증
     if (!sabre_id || !slot_key) {
@@ -70,7 +73,9 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServiceRoleClient()
-    const surface = '히어로' // 히어로 캐러셀은 항상 '히어로' surface 사용
+    const surface = surfaceFromBody && typeof surfaceFromBody === 'string' && surfaceFromBody.trim().length > 0
+      ? surfaceFromBody
+      : '히어로'
 
     // 중복 검사
     const { data: existingData } = await supabase

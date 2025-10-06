@@ -6,7 +6,7 @@ import { AuthGuard } from '@/components/shared/auth-guard'
 import HeroCarouselManager from './_components/HeroCarouselManager'
 import PromotionManager from './_components/PromotionManager'
 import BannerManager from './_components/BannerManager'
-import { PromoBannerManager } from './_components/PromoBannerManager'
+// import { PromoBannerManager } from './_components/PromoBannerManager'
 
 type AdType = 'promo-banner' | 'banner' | 'carousel' | 'featured' | 'promotion'
 
@@ -122,8 +122,8 @@ export default function AdminAdvertisementsPage() {
         {/* 광고 관리 콘텐츠 */}
         <div className="space-y-6">
           {activeTab === 'promo-banner' ? (
-            // 상단 프로모션 띠 베너 관리 컴포넌트
-            <PromoBannerManager />
+            // 랜딩 프로모션 띠 베너: 공통 컴포넌트 재사용 (surface='띠베너')
+            <PromotionManager title="랜딩 프로모션 띠 베너 노출 관리" surface="띠베너" />
           ) : activeTab === 'banner' ? (
             // 상단 베너 관리 컴포넌트
             <BannerManager />

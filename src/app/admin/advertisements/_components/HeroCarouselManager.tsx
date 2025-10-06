@@ -14,12 +14,15 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import HotelQuickSearch from '@/components/shared/hotel-quick-search'
 
 interface FeatureSlot {
   id: number
   sabre_id: string
   surface: string
   slot_key: string
+  start_date?: string | null
+  end_date?: string | null
   created_at: string
   select_hotels: {
     property_name_ko: string
@@ -29,6 +32,8 @@ interface FeatureSlot {
 interface FeatureSlotForm {
   sabre_id: string
   slot_key: string
+  start_date?: string | null
+  end_date?: string | null
 }
 
 interface Hotel {
@@ -48,7 +53,9 @@ export default function HeroCarouselManager() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [formData, setFormData] = useState<FeatureSlotForm>({
     sabre_id: '',
-    slot_key: ''
+    slot_key: '',
+    start_date: null,
+    end_date: null
   })
   const [formLoading, setFormLoading] = useState(false)
   
@@ -94,7 +101,9 @@ export default function HeroCarouselManager() {
   const resetForm = () => {
     setFormData({
       sabre_id: '',
-      slot_key: ''
+      slot_key: '',
+      start_date: null,
+      end_date: null
     })
     setShowForm(false)
     setEditingId(null)
@@ -362,16 +371,11 @@ export default function HeroCarouselManager() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label htmlFor="sabre_id" className="block text-sm font-medium text-gray-700 mb-2">
-                  Sabre ID *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  호텔명 또는 Sabre ID*
                 </label>
-                <Input
-                  id="sabre_id"
-                  type="text"
-                  value={formData.sabre_id}
-                  onChange={(e) => setFormData({ ...formData, sabre_id: e.target.value })}
-                  placeholder="Sabre ID를 입력하세요"
-                  required
+                <HotelQuickSearch
+                  onSelect={(hotel) => setFormData({ ...formData, sabre_id: hotel.sabre_id })}
                 />
               </div>
               
@@ -386,6 +390,22 @@ export default function HeroCarouselManager() {
                   onChange={(e) => setFormData({ ...formData, slot_key: e.target.value })}
                   placeholder="Slot Key를 입력하세요"
                   required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">시작일</label>
+                <Input
+                  type="date"
+                  value={formData.start_date ?? ''}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value || null })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">종료일</label>
+                <Input
+                  type="date"
+                  value={formData.end_date ?? ''}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value || null })}
                 />
               </div>
             </div>

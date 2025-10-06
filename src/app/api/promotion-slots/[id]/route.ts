@@ -25,6 +25,8 @@ export async function GET(
         sabre_id,
         surface,
         slot_key,
+        start_date,
+        end_date,
         created_at
       `)
       .eq('id', id)
@@ -72,6 +74,8 @@ export async function PUT(
     const body = await request.json()
     const { sabre_id, slot_key } = body
     const surfaceFromBody: string | undefined = body.surface
+    const start_date: string | null | undefined = body.start_date ?? null
+    const end_date: string | null | undefined = body.end_date ?? null
 
     if (!id) {
       return NextResponse.json(
@@ -121,7 +125,9 @@ export async function PUT(
       .update({
         sabre_id,
         surface,
-        slot_key
+        slot_key,
+        start_date,
+        end_date
       })
       .eq('id', id)
       .select()
