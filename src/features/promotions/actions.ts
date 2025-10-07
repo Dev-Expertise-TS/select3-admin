@@ -46,64 +46,50 @@ export async function savePromotion(formData: FormData): Promise<ActionResult> {
       }
     }
 
-    const promotionData = {
-      promotion: promotion.trim(),
-      promotion_description: promotionDescription?.trim() || null,
-      note: note?.trim() || null,
-      booking_start_date: bookingStartDate || null,
-      booking_end_date: bookingEndDate || null,
-      check_in_start_date: checkInStartDate || null,
-      check_in_end_date: checkInEndDate || null,
+    // Upsert 데이터 준비
+    const upsertData = promotionId && promotionId !== ''
+      ? {
+          promotion_id: Number(promotionId),
+          promotion: promotion.trim(),
+          promotion_description: promotionDescription?.trim() || null,
+          note: note?.trim() || null,
+          booking_start_date: bookingStartDate || null,
+          booking_end_date: bookingEndDate || null,
+          check_in_start_date: checkInStartDate || null,
+          check_in_end_date: checkInEndDate || null,
+        }
+      : {
+          promotion: promotion.trim(),
+          promotion_description: promotionDescription?.trim() || null,
+          note: note?.trim() || null,
+          booking_start_date: bookingStartDate || null,
+          booking_end_date: bookingEndDate || null,
+          check_in_start_date: checkInStartDate || null,
+          check_in_end_date: checkInEndDate || null,
+        }
+
+    // Upsert 실행 (존재하면 업데이트, 없으면 생성)
+    const { data, error } = await supabase
+      .from('select_hotel_promotions')
+      .upsert(upsertData, { onConflict: 'promotion_id' })
+      .select()
+
+    if (error) {
+      console.error('프로모션 저장 오류:', error)
+      return {
+        success: false,
+        error: `프로모션 저장에 실패했습니다: ${error.message}`,
+      }
     }
 
-    let result
-
-    if (promotionId && promotionId !== '') {
-      // 업데이트
-      const { data, error } = await supabase
-        .from('select_hotel_promotions')
-        .update(promotionData)
-        .eq('promotion_id', Number(promotionId))
-        .select()
-
-      if (error) {
-        console.error('프로모션 업데이트 오류:', error)
-        return {
-          success: false,
-          error: `프로모션 업데이트에 실패했습니다: ${error.message}`,
-        }
+    if (!data || data.length === 0) {
+      return {
+        success: false,
+        error: '프로모션 저장 후 데이터를 가져올 수 없습니다.',
       }
-
-      if (!data || data.length === 0) {
-        return {
-          success: false,
-          error: '해당 프로모션을 찾을 수 없습니다.',
-        }
-      }
-
-      result = data[0]
-    } else {
-      // 생성 (Upsert)
-      const insertData = promotionId 
-        ? { promotion_id: Number(promotionId), ...promotionData }
-        : promotionData
-
-      const { data, error } = await supabase
-        .from('select_hotel_promotions')
-        .upsert(insertData, { onConflict: 'promotion_id' })
-        .select()
-        .single()
-
-      if (error) {
-        console.error('프로모션 생성 오류:', error)
-        return {
-          success: false,
-          error: `프로모션 생성에 실패했습니다: ${error.message}`,
-        }
-      }
-
-      result = data
     }
+
+    const result = data[0]
 
     // 캐시 무효화
     revalidatePath('/admin/promotions')
