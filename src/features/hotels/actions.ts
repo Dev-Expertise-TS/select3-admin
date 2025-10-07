@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import { normalizeSlug } from '@/lib/media-naming'
 import { revalidatePath } from 'next/cache'
 
 export type ActionResult<T = unknown> = {
@@ -156,10 +157,17 @@ export async function createHotel(formData: FormData): Promise<ActionResult> {
       }
     }
 
+    // slug 자동 생성: 영문명이 있으면 영문명 → slug, 없으면 한글명 → slug 시도
+    let slugCandidate = ''
+    if (propertyNameEn) slugCandidate = normalizeSlug(propertyNameEn)
+    if (!slugCandidate && propertyNameKo) slugCandidate = normalizeSlug(propertyNameKo)
+    if (!slugCandidate) slugCandidate = `hotel-${sabreId}`
+
     const hotelData: Record<string, unknown> = {
       sabre_id: sabreId,
       property_name_ko: propertyNameKo,
       property_name_en: propertyNameEn,
+      slug: slugCandidate,
     }
 
     // 선택적 필드
@@ -183,17 +191,38 @@ export async function createHotel(formData: FormData): Promise<ActionResult> {
       }
     })
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('select_hotels')
       .insert(hotelData)
       .select()
       .single()
 
     if (error) {
-      console.error('호텔 생성 오류:', error)
-      return {
-        success: false,
-        error: `호텔 생성에 실패했습니다: ${error.message}`,
+      // slug 유니크 충돌 시 sabreId를 suffix로 붙여 재시도
+      const isUniqueViolation = (error as { code?: string; message?: string }).code === '23505'
+      const message = (error as { message?: string }).message || ''
+      const isSlugConflict = isUniqueViolation && message.toLowerCase().includes('slug')
+      if (isSlugConflict) {
+        const retryData = { ...hotelData, slug: `${String(hotelData.slug)}-${sabreId}` }
+        const retry = await supabase
+          .from('select_hotels')
+          .insert(retryData)
+          .select()
+          .single()
+        if (retry.error) {
+          console.error('호텔 생성 오류(재시도 실패):', retry.error)
+          return {
+            success: false,
+            error: `호텔 생성에 실패했습니다: ${retry.error.message}`,
+          }
+        }
+        data = retry.data
+      } else {
+        console.error('호텔 생성 오류:', error)
+        return {
+          success: false,
+          error: `호텔 생성에 실패했습니다: ${error.message}`,
+        }
       }
     }
 
