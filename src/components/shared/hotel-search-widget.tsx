@@ -11,9 +11,7 @@ import {
   ChevronUp, 
   X, 
   Play,
-  Save,
-  Edit3,
-  EyeOff,
+  // Save, Edit3, EyeOff,  // 편집 기능 제거
   FolderPlus,
   FolderCheck,
   FolderX,
@@ -97,8 +95,8 @@ interface ImageManagementPanelProps {
       [key: string]: boolean
     }
   } | undefined
-  onToggleEditMode: (hotelId: string) => void
-  onSaveImageUrls: (hotelId: string, sabreId: string) => void
+  onToggleEditMode?: (hotelId: string) => void
+  onSaveImageUrls?: (hotelId: string, sabreId: string) => void
   onCreateStorageFolder: (hotelId: string, sabreId: string) => void
   onCheckStorageFolder: (hotelId: string, sabreId: string) => void
   onLoadStorageImages: (hotelId: string, sabreId: string) => void
@@ -108,12 +106,43 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
   hotel,
   hotelId,
   state,
-  onToggleEditMode,
-  onSaveImageUrls,
+  onToggleEditMode: _onToggleEditMode,
+  onSaveImageUrls: _onSaveImageUrls,
   onCreateStorageFolder,
   onCheckStorageFolder,
   onLoadStorageImages
 }) => {
+  // URL 업로드 모달 로컬 상태 (훅은 최상위에서 호출)
+  const [urlModalOpen, setUrlModalOpen] = useState(false)
+  const [urlInputs, setUrlInputs] = useState<string[]>(Array.from({ length: 10 }, () => ''))
+
+  const uploadFromUrls = async () => {
+    const sabreId = String(hotel.sabre_id || '')
+    if (!sabreId) return
+    const urls = urlInputs.map((u) => u.trim()).filter((u) => u.length > 0)
+    if (urls.length === 0) {
+      alert('하나 이상의 이미지 URL을 입력해주세요.')
+      return
+    }
+    try {
+      const res = await fetch('/api/hotel-images/upload-from-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sabreId, urls }),
+      })
+      const data = await res.json()
+      if (data?.success) {
+        alert(`업로드 완료: ${data.data.uploaded}/${data.data.total}`)
+        setUrlModalOpen(false)
+        setUrlInputs(Array.from({ length: 10 }, () => ''))
+        onLoadStorageImages(hotelId, sabreId)
+      } else {
+        alert(`업로드 실패: ${data?.error || '알 수 없는 오류'}`)
+      }
+    } catch {
+      alert('업로드 중 오류가 발생했습니다.')
+    }
+  }
   if (!state) {
     return (
       <div className="text-center py-8">
@@ -133,26 +162,7 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
           </h4>
           <p className="text-sm text-gray-600 mt-1">Sabre ID: {hotel.sabre_id}</p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={() => onToggleEditMode(hotelId)}
-            variant={state.editingImages ? "outline" : "default"}
-            className="flex items-center gap-2"
-          >
-            {state.editingImages ? <EyeOff className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
-            {state.editingImages ? '편집 취소' : '편집하기'}
-          </Button>
-          {state.editingImages && (
-            <Button
-              onClick={() => onSaveImageUrls(hotelId, String(hotel.sabre_id))}
-              disabled={state.saving}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-            >
-              <Save className="h-4 w-4" />
-              {state.saving ? '저장 중...' : '저장하기'}
-            </Button>
-          )}
-        </div>
+        <div />
       </div>
 
       {/* 에러 메시지 */}
@@ -294,42 +304,13 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
             
             {/* 업로드 버튼 */}
             <div className="flex justify-end mb-4">
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file || !hotel.sabre_id) return;
-
-                    const formData = new FormData();
-                    formData.append('sabreId', String(hotel.sabre_id));
-                    formData.append('file', file);
-
-                    try {
-                      const res = await fetch('/api/hotel-images/upload', {
-                        method: 'POST',
-                        body: formData,
-                      });
-                      const data = await res.json();
-                      if (data.success) {
-                        alert('이미지가 업로드되었습니다.');
-                        onLoadStorageImages(hotelId, String(hotel.sabre_id));
-                      } else {
-                        alert(`업로드 실패: ${data.error}`);
-                      }
-                    } catch {
-                      alert('업로드 중 오류가 발생했습니다.');
-                    }
-                    e.target.value = '';
-                  }}
-                />
-                <Button type="button" className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="h-4 w-4 mr-2" />
-                  이미지 업로드
-                </Button>
-              </label>
+              <Button
+                type="button"
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={() => setUrlModalOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" /> 이미지 URL로 업로드
+              </Button>
             </div>
 
             {/* 이미지 그리드 */}
@@ -404,7 +385,14 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                         </span>
                       </div>
                     </div>
-                    
+                    {/* Sabre ID & 경로 표시 (겹치지 않게 카드 하단 텍스트로) */}
+                    <div className="mt-2 text-[11px] text-gray-600">
+                      <div>Sabre ID: <span className="font-mono text-gray-800">{String(hotel.sabre_id)}</span></div>
+                      {image.storagePath && (
+                        <div className="break-all">경로: <span className="font-mono text-gray-800">{image.storagePath}</span></div>
+                      )}
+                    </div>
+
                     {/* Storage 경로 */}
                     {image.storagePath && (
                       <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
@@ -466,6 +454,36 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
             )}
           </div>
 
+        </div>
+      )}
+
+      {/* URL 업로드 모달 */}
+      {urlModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/20" onClick={() => setUrlModalOpen(false)} />
+          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">이미지 URL로 업로드</h3>
+            <p className="text-sm text-gray-600 mb-4">이미지 URL을 한 줄에 하나씩 입력하세요 (최대 10개).</p>
+            <div className="grid grid-cols-1 gap-2 max-h-[50vh] overflow-y-auto">
+              {urlInputs.map((val, idx) => (
+                <input
+                  key={`url-${idx}`}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  placeholder={`이미지 URL #${idx + 1}`}
+                  value={val}
+                  onChange={(e) => {
+                    const next = [...urlInputs]
+                    next[idx] = e.target.value
+                    setUrlInputs(next)
+                  }}
+                />
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setUrlModalOpen(false)}>취소</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700" onClick={uploadFromUrls}>저장하기</Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
