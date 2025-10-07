@@ -3,11 +3,11 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 export default async function SchemaTestPage() {
   const supabase = createServiceRoleClient()
   
-  let chainsSchema = null
-  let brandsSchema = null
-  let chainsSample = null
-  let brandsSample = null
-  let error = null
+  let chainsSchema: string[] | null = null
+  let brandsSchema: string[] | null = null
+  let chainsSample: Record<string, unknown> | null = null
+  let brandsSample: Record<string, unknown> | null = null
+  let error: string | null = null
 
   try {
     // hotel_chains 테이블 스키마 확인

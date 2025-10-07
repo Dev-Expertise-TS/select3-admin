@@ -464,9 +464,13 @@ export function PromotionManager() {
       try {
         // FormData 생성
         const formDataObj = new FormData()
-        if (formData.promotion_id !== "") {
-          formDataObj.append('promotion_id', String(formData.promotion_id))
+        
+        // 편집 중이면 editingId 사용, 아니면 formData.promotion_id 사용
+        const promotionIdToSave = editingId || formData.promotion_id
+        if (promotionIdToSave !== "" && promotionIdToSave !== null) {
+          formDataObj.append('promotion_id', String(promotionIdToSave))
         }
+        
         formDataObj.append('promotion', formData.promotion)
         formDataObj.append('promotion_description', formData.promotion_description || '')
         formDataObj.append('note', formData.note || '')
