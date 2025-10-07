@@ -116,7 +116,7 @@ export async function deletePromotion(promotionId: number): Promise<ActionResult
 
     // 먼저 호텔 매핑이 있는지 확인
     const { data: mappings, error: mappingError } = await supabase
-      .from('select_hotel_promotion_map')
+      .from('select_hotel_promotions_map')
       .select('sabre_id')
       .eq('promotion_id', promotionId)
       .limit(1)
@@ -177,7 +177,7 @@ export async function addHotelToPromotion(
 
     // 중복 확인
     const { data: existing } = await supabase
-      .from('select_hotel_promotion_map')
+      .from('select_hotel_promotions_map')
       .select('*')
       .eq('promotion_id', promotionId)
       .eq('sabre_id', sabreId)
@@ -192,7 +192,7 @@ export async function addHotelToPromotion(
 
     // 매핑 추가
     const { error } = await supabase
-      .from('select_hotel_promotion_map')
+      .from('select_hotel_promotions_map')
       .insert({
         promotion_id: promotionId,
         sabre_id: sabreId,
@@ -232,7 +232,7 @@ export async function removeHotelFromPromotion(
     const supabase = createServiceRoleClient()
 
     const { error } = await supabase
-      .from('select_hotel_promotion_map')
+      .from('select_hotel_promotions_map')
       .delete()
       .eq('promotion_id', promotionId)
       .eq('sabre_id', sabreId)

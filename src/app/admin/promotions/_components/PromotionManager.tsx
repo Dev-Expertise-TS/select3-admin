@@ -637,7 +637,9 @@ export function PromotionManager() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{p.booking_end_date ? String(p.booking_end_date).slice(0,10) : '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{p.check_in_start_date ? String(p.check_in_start_date).slice(0,10) : '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{p.check_in_end_date ? String(p.check_in_end_date).slice(0,10) : '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{p.note ?? '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {p.note ? (p.note.length > 5 ? `${p.note.slice(0, 5)}...` : p.note) : '-'}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex gap-2 justify-center">
                         <Button
