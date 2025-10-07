@@ -31,7 +31,7 @@ export function BenefitsTable({ createAction: _createAction }: BenefitsTableProp
   })
 
   // 데이터 처리 로직
-  const rows: Row[] = benefitsData || []
+  const rows: Row[] = useMemo(() => benefitsData || [], [benefitsData])
   
   const originalColumns = useMemo(() => {
     return rows[0] ? Object.keys(rows[0]) : ['benefit', 'name', 'description']

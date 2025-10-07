@@ -25,7 +25,7 @@ export function BenefitsTableV2() {
     },
   })
 
-  const rows: Row[] = benefitsData || []
+  const rows: Row[] = useMemo(() => benefitsData || [], [benefitsData])
   
   const originalColumns = useMemo(() => {
     return rows[0] ? Object.keys(rows[0]) : ['benefit_id', 'name_kr', 'name_en', 'description_kr', 'description_en']
