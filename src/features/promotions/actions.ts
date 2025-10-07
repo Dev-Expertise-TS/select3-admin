@@ -65,7 +65,6 @@ export async function savePromotion(formData: FormData): Promise<ActionResult> {
         .update(promotionData)
         .eq('promotion_id', Number(promotionId))
         .select()
-        .single()
 
       if (error) {
         console.error('프로모션 업데이트 오류:', error)
@@ -75,7 +74,14 @@ export async function savePromotion(formData: FormData): Promise<ActionResult> {
         }
       }
 
-      result = data
+      if (!data || data.length === 0) {
+        return {
+          success: false,
+          error: '해당 프로모션을 찾을 수 없습니다.',
+        }
+      }
+
+      result = data[0]
     } else {
       // 생성 (Upsert)
       const insertData = promotionId 
@@ -189,9 +195,9 @@ export async function addHotelToPromotion(
       .select('*')
       .eq('promotion_id', promotionId)
       .eq('sabre_id', sabreId)
-      .single()
+      .limit(1)
 
-    if (existing) {
+    if (existing && existing.length > 0) {
       return {
         success: false,
         error: '이미 연결된 호텔입니다.',
