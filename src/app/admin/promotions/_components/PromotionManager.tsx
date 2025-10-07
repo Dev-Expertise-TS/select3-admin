@@ -441,18 +441,9 @@ export function PromotionManager() {
       check_in_end_date: toDateOnly(p.check_in_end_date),
     })
     setEditLinkedLoading(true)
-    fetch(`/api/promotions/hotels?promotionId=${encodeURIComponent(String(p.promotion_id))}`)
-      .then(async (res) => {
-        const data = await res.json()
-        if (res.ok && data?.success) {
-          const hotels = (data.data?.hotels ?? []) as Array<{ sabre_id: string, property_name_ko: string | null, property_name_en: string | null }>
-          setEditLinkedHotels(hotels)
-        } else {
-          setEditLinkedHotels([])
-        }
-      })
-      .catch(() => setEditLinkedHotels([]))
-      .finally(() => setEditLinkedLoading(false))
+    // TODO: 프로모션에 연결된 호텔 목록을 Server Action으로 구현
+    setEditLinkedHotels([])
+    setEditLinkedLoading(false)
     setShowForm(true)
   }
 
