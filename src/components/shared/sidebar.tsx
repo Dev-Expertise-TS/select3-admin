@@ -26,6 +26,7 @@ import {
   Shield,
   User,
   ArrowRightLeft,
+  Globe,
 } from 'lucide-react'
 
 interface NavItem {
@@ -60,6 +61,7 @@ const navSections: NavSection[] = [
       { label: '프로모션 관리', href: '/admin/promotions', icon: DollarSign, requiredRole: 'admin' },
       { label: '광고 노출 관리', href: '/admin/advertisements', icon: DollarSign, requiredRole: 'admin' },
       { label: '체인 브랜드 관리', href: '/admin/chain-brand', icon: Network, requiredRole: 'admin' },
+      { label: '지역 코드 맵핑 관리', href: '/admin/region-mapping', icon: Globe, requiredRole: 'admin' },
       { label: '호텔 이미지 관리', href: '/admin/hotel-images', icon: Image, requiredRole: 'admin' },
       { label: '호텔 콘텐츠 관리', href: '/admin/hotel-content', icon: FileText, requiredRole: 'admin' },
       { label: '호텔 아티클 관리', href: '/admin/hotel-articles', icon: Newspaper, requiredRole: 'admin' },

@@ -34,6 +34,7 @@ import {
   ExpandedRowState, 
   HotelDetailsRequest 
 } from '@/types/hotel'
+import { uploadHotelImagesFromUrls } from '@/features/hotel-images/actions'
 
 interface ImageInfo {
   width: number
@@ -125,12 +126,7 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
       return
     }
     try {
-      const res = await fetch('/api/hotel-images/upload-from-urls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sabreId, urls }),
-      })
-      const data = await res.json()
+      const data = await uploadHotelImagesFromUrls({ sabreId, urls })
       if (data?.success) {
         alert(`업로드 완료: ${data.data.uploaded}/${data.data.total}`)
         setUrlModalOpen(false)
