@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useTransition } from 'react'
+import React, { useTransition, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { BenefitsManager, type BenefitRow as BBRow } from '@/features/hotels/components/benefits-manager'
 import { BenefitsAddButton } from '@/features/hotels/components/benefits-add-button'
@@ -16,11 +16,12 @@ import { updateHotel } from '@/features/hotels/actions'
 interface Props {
   initialData: Record<string, unknown>
   mappedBenefits: BBRow[]
+  isNewHotel?: boolean
 }
 
-export function HotelEditForm({ initialData, mappedBenefits }: Props) {
+export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false }: Props) {
   const router = useRouter()
-  const [isEditMode, setIsEditMode] = React.useState(false)
+  const [isEditMode, setIsEditMode] = React.useState(isNewHotel)
   const formRef = React.useRef<HTMLFormElement>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -29,6 +30,7 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
     sabre_id: String(initialData.sabre_id ?? ''),
     property_name_ko: String(initialData.property_name_ko ?? ''),
     property_name_en: String(initialData.property_name_en ?? ''),
+    slug: String(initialData.slug ?? ''),
     property_address: String(initialData.property_address ?? ''),
     city_ko: String(initialData.city_ko ?? ''),
     city_en: String(initialData.city_en ?? ''),
@@ -88,6 +90,9 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   })
   
   const toggleEditMode = () => {
+    // 신규 호텔 생성 모드에서는 편집 모드 토글 비활성화
+    if (isNewHotel) return
+    
     setIsEditMode(prev => {
       if (prev) {
         // 편집 모드 종료 시 원본 데이터로 복원 및 하이라이트 초기화
@@ -95,6 +100,7 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
           sabre_id: String(initialData.sabre_id ?? ''),
           property_name_ko: String(initialData.property_name_ko ?? ''),
           property_name_en: String(initialData.property_name_en ?? ''),
+          slug: String(initialData.slug ?? ''),
           property_address: String(initialData.property_address ?? ''),
           city_ko: String(initialData.city_ko ?? ''),
           city_en: String(initialData.city_en ?? ''),
@@ -124,11 +130,11 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
     })
   }
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = useCallback((field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-  }
+  }, [])
 
-  const handleChainBrandSelect = (chain: Chain | null, brand: Brand | null) => {
+  const handleChainBrandSelect = useCallback((chain: Chain | null, brand: Brand | null) => {
     setSelectedChain(chain)
     setSelectedBrand(brand)
     if (brand) {
@@ -140,10 +146,26 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
     
     // 체인/브랜드 변경 시 하이라이트
     setHighlightedFields(prev => new Set([...prev, 'chain_field', 'brand_field']))
-  }
+  }, [])
 
   const handleSave = async () => {
     if (!isEditMode) return
+
+    // 신규 호텔 생성 시 필수 필드 검증
+    if (isNewHotel) {
+      if (!formData.sabre_id.trim()) {
+        alert('Sabre ID는 필수입니다.')
+        return
+      }
+      if (!formData.property_name_ko.trim()) {
+        alert('호텔명(한글)은 필수입니다.')
+        return
+      }
+      if (!formData.property_name_en.trim()) {
+        alert('호텔명(영문)은 필수입니다.')
+        return
+      }
+    }
 
     startTransition(async () => {
       try {
@@ -151,6 +173,7 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         formDataToSubmit.append('sabre_id', formData.sabre_id)
         formDataToSubmit.append('property_name_ko', formData.property_name_ko)
         formDataToSubmit.append('property_name_en', formData.property_name_en)
+        formDataToSubmit.append('slug', formData.slug)
         formDataToSubmit.append('property_address', formData.property_address)
         formDataToSubmit.append('city_ko', formData.city_ko)
         formDataToSubmit.append('city_en', formData.city_en)
@@ -173,36 +196,49 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
           formDataToSubmit.append('brand_id', String(selectedBrand.brand_id))
         }
 
+        // 신규 호텔 생성 시 is_new 플래그 추가
+        if (isNewHotel) {
+          formDataToSubmit.append('is_new', 'true')
+        }
+
         const result = await updateHotel(formDataToSubmit)
         
         if (result.success) {
-          // 성공 시 편집 모드 종료 및 하이라이트 초기화
-          setIsEditMode(false)
-          setHighlightedFields(new Set())
-          
-          // 폼 데이터를 최신 데이터로 업데이트
-          if (result.data) {
-            setFormData(prev => ({
-              ...prev,
-              property_name_ko: String(result.data.property_name_ko ?? prev.property_name_ko),
-              property_name_en: String(result.data.property_name_en ?? prev.property_name_en),
-              property_address: String(result.data.property_address ?? prev.property_address),
-              city_ko: String(result.data.city_ko ?? prev.city_ko),
-              city_en: String(result.data.city_en ?? prev.city_en),
-              city_code: String(result.data.city_code ?? prev.city_code),
-              country_ko: String(result.data.country_ko ?? prev.country_ko),
-              country_en: String(result.data.country_en ?? prev.country_en),
-              country_code: String(result.data.country_code ?? prev.country_code),
-              continent_ko: String(result.data.continent_ko ?? prev.continent_ko),
-              continent_en: String(result.data.continent_en ?? prev.continent_en),
-              continent_code: String(result.data.continent_code ?? prev.continent_code),
-              region_ko: String(result.data.region_ko ?? prev.region_ko),
-              region_en: String(result.data.region_en ?? prev.region_en),
-              region_code: String(result.data.region_code ?? prev.region_code),
-              rate_plan_codes: result.data.rate_plan_codes || prev.rate_plan_codes
-            }))
+          if (isNewHotel) {
+            // 신규 호텔 생성 성공 시 호텔 업데이트 페이지로 이동
+            alert('신규 호텔이 생성되었습니다.')
+            router.push(`/admin/hotel-update/${formData.sabre_id}`)
+          } else {
+            // 기존 호텔 업데이트 성공 시 편집 모드 종료 및 하이라이트 초기화
+            setIsEditMode(false)
+            setHighlightedFields(new Set())
+            
+            // 폼 데이터를 최신 데이터로 업데이트
+            if (result.data) {
+              setFormData(prev => ({
+                ...prev,
+                property_name_ko: String(result.data.property_name_ko ?? prev.property_name_ko),
+                property_name_en: String(result.data.property_name_en ?? prev.property_name_en),
+                slug: String(result.data.slug ?? prev.slug),
+                property_address: String(result.data.property_address ?? prev.property_address),
+                city_ko: String(result.data.city_ko ?? prev.city_ko),
+                city_en: String(result.data.city_en ?? prev.city_en),
+                city_code: String(result.data.city_code ?? prev.city_code),
+                country_ko: String(result.data.country_ko ?? prev.country_ko),
+                country_en: String(result.data.country_en ?? prev.country_en),
+                country_code: String(result.data.country_code ?? prev.country_code),
+                continent_ko: String(result.data.continent_ko ?? prev.continent_ko),
+                continent_en: String(result.data.continent_en ?? prev.continent_en),
+                continent_code: String(result.data.continent_code ?? prev.continent_code),
+                region_ko: String(result.data.region_ko ?? prev.region_ko),
+                region_en: String(result.data.region_en ?? prev.region_en),
+                region_code: String(result.data.region_code ?? prev.region_code),
+                rate_plan_codes: result.data.rate_plan_codes || prev.rate_plan_codes
+              }))
+            }
           }
         } else {
+          alert(result.error || '저장에 실패했습니다.')
           console.error('호텔 정보 업데이트 실패:', result.error)
         }
       } catch (error) {
@@ -212,8 +248,8 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   }
 
 
-  // 기본 정보 탭 콘텐츠
-  const BasicInfoTab = () => (
+  // 기본 정보 탭 콘텐츠 (useCallback으로 메모이제이션)
+  const BasicInfoTab = React.useCallback(() => (
     <div className="space-y-6">
       {/* 기본 정보 */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -224,10 +260,11 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
             <label className="block text-sm font-medium text-gray-700">Sabre ID</label>
             {isEditMode ? (
               <input
+                key="sabre_id_input"
                 type="text"
                 name="sabre_id_editable"
-                value={formData.sabre_id}
-                onChange={(e) => handleInputChange('sabre_id', e.target.value)}
+                defaultValue={formData.sabre_id}
+                onBlur={(e) => handleInputChange('sabre_id', e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Sabre ID"
               />
@@ -246,10 +283,11 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
             <label className="block text-sm font-medium text-gray-700">호텔명(한글)</label>
             {isEditMode ? (
               <input
+                key="property_name_ko_input"
                 type="text"
                 name="property_name_ko"
-                value={formData.property_name_ko}
-                onChange={(e) => handleInputChange('property_name_ko', e.target.value)}
+                defaultValue={formData.property_name_ko}
+                onBlur={(e) => handleInputChange('property_name_ko', e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="호텔명(한글)"
               />
@@ -268,10 +306,11 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
             <label className="block text-sm font-medium text-gray-700">호텔명(영문)</label>
             {isEditMode ? (
               <input
+                key="property_name_en_input"
                 type="text"
                 name="property_name_en"
-                value={formData.property_name_en}
-                onChange={(e) => handleInputChange('property_name_en', e.target.value)}
+                defaultValue={formData.property_name_en}
+                onBlur={(e) => handleInputChange('property_name_en', e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="호텔명(영문)"
               />
@@ -281,6 +320,29 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                 highlightedFields.has('property_name_en') ? "bg-yellow-100" : "bg-gray-50"
               )}>
                 {formData.property_name_en || '-'}
+              </div>
+            )}
+          </div>
+
+          {/* Slug */}
+          <div className="space-y-1 md:col-span-1">
+            <label className="block text-sm font-medium text-gray-700">Slug</label>
+            {isEditMode ? (
+              <input
+                key="slug_input"
+                type="text"
+                name="slug"
+                defaultValue={formData.slug}
+                onBlur={(e) => handleInputChange('slug', e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="비우면 자동 생성됩니다"
+              />
+            ) : (
+              <div className={cn(
+                "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                highlightedFields.has('slug') ? "bg-yellow-100" : "bg-gray-50"
+              )}>
+                {formData.slug || '-'}
               </div>
             )}
           </div>
@@ -570,10 +632,10 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         </div>
       </div>
     </div>
-  )
+  ), [formData, isEditMode, highlightedFields, selectedChain, selectedBrand, handleInputChange])
 
   // 혜택 탭 콘텐츠
-  const BenefitsTab = () => (
+  const BenefitsTab = React.useCallback(() => (
     <div className="space-y-6">
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
@@ -585,10 +647,10 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         />
       </div>
     </div>
-  )
+  ), [mappedBenefits])
 
   // 체인 브랜드 관리 탭 콘텐츠
-  const ChainBrandTab = () => (
+  const ChainBrandTab = React.useCallback(() => (
     <div className="space-y-6">
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">체인/브랜드 관리</h3>
@@ -613,10 +675,10 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         </div>
       </div>
     </div>
-  )
+  ), [selectedChain, selectedBrand, handleChainBrandSelect])
 
   // 이미지 관리 탭 콘텐츠
-  const ImagesTab = () => (
+  const ImagesTab = React.useCallback(() => (
     <div className="space-y-6">
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">이미지 관리</h3>
@@ -625,10 +687,10 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         </div>
       </div>
     </div>
-  )
+  ), [])
 
   // 호텔 소개 글 탭 콘텐츠
-  const ContentTab = () => (
+  const ContentTab = React.useCallback(() => (
     <div className="space-y-6">
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">호텔 소개 글</h3>
@@ -637,10 +699,10 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         </div>
       </div>
     </div>
-  )
+  ), [])
 
   // 아티클 탭 콘텐츠
-  const ArticlesTab = () => (
+  const ArticlesTab = React.useCallback(() => (
     <div className="space-y-6">
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">아티클 관리</h3>
@@ -649,9 +711,10 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
         </div>
       </div>
     </div>
-  )
+  ), [])
 
   // 탭 아이템 정의
+  // 탭 컴포넌트들은 클로저를 통해 최신 상태를 참조하므로 의존성 배열 불필요
   const tabItems = [
     {
       id: 'basic',

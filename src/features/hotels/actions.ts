@@ -11,7 +11,7 @@ export type ActionResult<T = unknown> = {
 }
 
 /**
- * 호텔 정보 업데이트
+ * 호텔 정보 업데이트 또는 생성
  */
 export async function updateHotel(formData: FormData): Promise<ActionResult> {
   try {
@@ -19,6 +19,7 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
 
     const sabreId = formData.get('sabre_id') as string
     const sabreIdEditable = formData.get('sabre_id_editable') as string
+    const isNew = formData.get('is_new') === 'true'
 
     if (!sabreId && !sabreIdEditable) {
       return {
@@ -35,6 +36,7 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     // 기본 정보
     const propertyNameKo = formData.get('property_name_ko') as string
     const propertyNameEn = formData.get('property_name_en') as string
+    const slug = formData.get('slug') as string
     const propertyAddress = formData.get('property_address') as string
     const cityKo = formData.get('city_ko') as string
     const cityEn = formData.get('city_en') as string
@@ -49,8 +51,33 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     const regionEn = formData.get('region_en') as string
     const regionCode = formData.get('region_code') as string
     
-    if (propertyNameKo) updateData.property_name_ko = propertyNameKo
-    if (propertyNameEn) updateData.property_name_en = propertyNameEn
+    // 신규 생성 시 필수 필드 추가
+    if (isNew) {
+      updateData.sabre_id = targetSabreId
+      if (!propertyNameKo || !propertyNameEn) {
+        return {
+          success: false,
+          error: '호텔명(한글)과 호텔명(영문)은 필수입니다.',
+        }
+      }
+      updateData.property_name_ko = propertyNameKo
+      updateData.property_name_en = propertyNameEn
+      
+      // Slug 처리 (비어있으면 자동 생성)
+      if (slug && slug.trim()) {
+        updateData.slug = normalizeSlug(slug.trim())
+      } else {
+        // 영문 호텔명으로 slug 자동 생성
+        updateData.slug = normalizeSlug(propertyNameEn)
+      }
+    } else {
+      if (propertyNameKo) updateData.property_name_ko = propertyNameKo
+      if (propertyNameEn) updateData.property_name_en = propertyNameEn
+      if (slug !== undefined) {
+        updateData.slug = slug && slug.trim() ? normalizeSlug(slug.trim()) : null
+      }
+    }
+    
     if (propertyAddress) updateData.property_address = propertyAddress
     if (cityKo !== undefined) updateData.city_ko = cityKo || null
     if (cityEn !== undefined) updateData.city_en = cityEn || null
@@ -102,10 +129,6 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     if (propertyRecreation !== null) updateData.property_recreation = propertyRecreation || null
     if (propertyFamily !== null) updateData.property_family = propertyFamily || null
 
-    // 슬러그
-    const slug = formData.get('slug') as string
-    if (slug) updateData.slug = slug
-
     // 이미지 URL들
     for (let i = 1; i <= 5; i++) {
       const imageKey = `image_${i}`
@@ -115,17 +138,33 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
       }
     }
 
-    // DB 업데이트
-    const { error } = await supabase
-      .from('select_hotels')
-      .update(updateData)
-      .eq('sabre_id', targetSabreId)
+    // DB 업데이트 또는 생성
+    if (isNew) {
+      // 신규 호텔 생성
+      const { error } = await supabase
+        .from('select_hotels')
+        .insert(updateData)
 
-    if (error) {
-      console.error('호텔 업데이트 오류:', error)
-      return {
-        success: false,
-        error: `호텔 업데이트에 실패했습니다: ${error.message}`,
+      if (error) {
+        console.error('호텔 생성 오류:', error)
+        return {
+          success: false,
+          error: `호텔 생성에 실패했습니다: ${error.message}`,
+        }
+      }
+    } else {
+      // 기존 호텔 업데이트
+      const { error } = await supabase
+        .from('select_hotels')
+        .update(updateData)
+        .eq('sabre_id', targetSabreId)
+
+      if (error) {
+        console.error('호텔 업데이트 오류:', error)
+        return {
+          success: false,
+          error: `호텔 업데이트에 실패했습니다: ${error.message}`,
+        }
       }
     }
 

@@ -18,8 +18,6 @@ interface TabsProps {
 export function Tabs({ items, defaultActiveTab, className }: TabsProps) {
   const [activeTab, setActiveTab] = React.useState(defaultActiveTab || items[0]?.id)
 
-  const activeTabContent = items.find(item => item.id === activeTab)?.content
-
   return (
     <div className={cn('w-full', className)}>
       {/* 탭 헤더 */}
@@ -42,9 +40,16 @@ export function Tabs({ items, defaultActiveTab, className }: TabsProps) {
         </nav>
       </div>
 
-      {/* 탭 콘텐츠 */}
+      {/* 탭 콘텐츠 - 모든 탭을 렌더링하되 활성 탭만 표시 */}
       <div className="mt-6">
-        {activeTabContent}
+        {items.map((item) => (
+          <div
+            key={item.id}
+            style={{ display: activeTab === item.id ? 'block' : 'none' }}
+          >
+            {item.content}
+          </div>
+        ))}
       </div>
     </div>
   )
