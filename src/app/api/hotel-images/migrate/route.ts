@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // select_hotel_media 테이블에 레코드 생성 (업로드 성공 시)
+        // select_hotel_media 테이블에 레코드 Upsert (업로드 성공 시)
         if (shouldUpload && sabreId) {
           const { data: publicUrlData } = supabase.storage
             .from(MEDIA_BUCKET)
@@ -218,15 +218,52 @@ export async function POST(request: NextRequest) {
             original_url: url,
           }
 
-          const { error: insertError } = await supabase
-            .from("select_hotel_media")
-            .insert(mediaRecord)
+          console.log(`[hotel-images/migrate] Attempting to upsert media record (${column}):`, mediaRecord)
 
-          if (insertError) {
-            console.error(`[hotel-images/migrate] select_hotel_media 레코드 생성 오류 (${column}):`, insertError)
-            errors.push(`DB 레코드 생성 실패 (${column}): ${insertError.message}`)
+          // 기존 레코드 확인
+          const { data: existing } = await supabase
+            .from("select_hotel_media")
+            .select("id")
+            .eq("sabre_id", sabreId)
+            .eq("file_path", originalPath)
+            .maybeSingle()
+
+          if (existing) {
+            // 업데이트
+            console.log(`[hotel-images/migrate] 기존 레코드 업데이트 (${column}):`, existing.id)
+            const { error: updateError } = await supabase
+              .from("select_hotel_media")
+              .update({
+                file_name: mediaRecord.file_name,
+                storage_path: mediaRecord.storage_path,
+                public_url: mediaRecord.public_url,
+                file_type: mediaRecord.file_type,
+                file_size: mediaRecord.file_size,
+                slug: mediaRecord.slug,
+                image_seq: mediaRecord.image_seq,
+                original_url: mediaRecord.original_url,
+              })
+              .eq("id", existing.id)
+
+            if (updateError) {
+              console.error(`[hotel-images/migrate] DB 업데이트 오류 (${column}):`, updateError)
+              errors.push(`DB 레코드 업데이트 실패 (${column}): ${updateError.message}`)
+            } else {
+              console.log(`[hotel-images/migrate] DB 레코드 업데이트 완료: ${sabreId} - ${originalFilename}`)
+            }
           } else {
-            console.log(`[hotel-images/migrate] select_hotel_media 레코드 생성 완료: ${sabreId} - ${originalFilename}`)
+            // 삽입
+            console.log(`[hotel-images/migrate] 새 레코드 삽입 (${column})`)
+            const { error: insertError } = await supabase
+              .from("select_hotel_media")
+              .insert(mediaRecord)
+
+            if (insertError) {
+              console.error(`[hotel-images/migrate] DB 삽입 오류 (${column}):`, insertError)
+              errors.push(`DB 레코드 생성 실패 (${column}): ${insertError.message}`)
+            } else {
+              console.log(`[hotel-images/migrate] DB 레코드 생성 완료: ${sabreId} - ${originalFilename}`)
+            }
           }
         }
 

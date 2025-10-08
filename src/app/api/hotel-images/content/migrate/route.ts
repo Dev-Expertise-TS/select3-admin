@@ -187,6 +187,64 @@ export async function POST(request: NextRequest) {
               `호텔 ${sabreId} 본문 이미지 ${nextSeq} 공개 파일 생성 실패: ${publicUploadError.message}`,
             );
           }
+
+          // select_hotel_media 테이블에 레코드 Upsert
+          if (hotel.sabre_id) {
+            const { data: publicUrlData } = supabase.storage
+              .from(MEDIA_BUCKET)
+              .getPublicUrl(originalPath)
+
+            const mediaRecord = {
+              sabre_id: hotel.sabre_id,
+              file_name: originalFilename,
+              file_path: originalPath,
+              storage_path: originalPath,
+              public_url: publicUrlData.publicUrl,
+              file_type: imageBlob.type,
+              file_size: imageBlob.size,
+              slug: hotel.slug,
+              image_seq: nextSeq,
+              original_url: url,
+            }
+
+            // 기존 레코드 확인
+            const { data: existing } = await supabase
+              .from('select_hotel_media')
+              .select('id')
+              .eq('sabre_id', hotel.sabre_id)
+              .eq('file_path', originalPath)
+              .maybeSingle()
+
+            if (existing) {
+              // 업데이트
+              const { error: updateError } = await supabase
+                .from('select_hotel_media')
+                .update({
+                  file_name: mediaRecord.file_name,
+                  storage_path: mediaRecord.storage_path,
+                  public_url: mediaRecord.public_url,
+                  file_type: mediaRecord.file_type,
+                  file_size: mediaRecord.file_size,
+                  slug: mediaRecord.slug,
+                  image_seq: mediaRecord.image_seq,
+                  original_url: mediaRecord.original_url,
+                })
+                .eq('id', existing.id)
+
+              if (updateError) {
+                console.error(`[content/migrate] DB 업데이트 오류 (${sabreId} seq:${nextSeq}):`, updateError)
+              }
+            } else {
+              // 삽입
+              const { error: insertError } = await supabase
+                .from('select_hotel_media')
+                .insert(mediaRecord)
+
+              if (insertError) {
+                console.error(`[content/migrate] DB 삽입 오류 (${sabreId} seq:${nextSeq}):`, insertError)
+              }
+            }
+          }
         }
 
         // Supabase Storage 공개 URL 생성
