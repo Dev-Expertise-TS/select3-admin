@@ -199,6 +199,37 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // select_hotel_media 테이블에 레코드 생성 (업로드 성공 시)
+        if (shouldUpload && sabreId) {
+          const { data: publicUrlData } = supabase.storage
+            .from(MEDIA_BUCKET)
+            .getPublicUrl(originalPath)
+
+          const mediaRecord = {
+            sabre_id: sabreId,
+            file_name: originalFilename,
+            file_path: originalPath,
+            storage_path: originalPath,
+            public_url: publicUrlData.publicUrl,
+            file_type: imageBlob.type,
+            file_size: newSize,
+            slug: hotelSlug,
+            image_seq: seq,
+            original_url: url,
+          }
+
+          const { error: insertError } = await supabase
+            .from("select_hotel_media")
+            .insert(mediaRecord)
+
+          if (insertError) {
+            console.error(`[hotel-images/migrate] select_hotel_media 레코드 생성 오류 (${column}):`, insertError)
+            errors.push(`DB 레코드 생성 실패 (${column}): ${insertError.message}`)
+          } else {
+            console.log(`[hotel-images/migrate] select_hotel_media 레코드 생성 완료: ${sabreId} - ${originalFilename}`)
+          }
+        }
+
         migratedFiles.push({
           column,
           originalUrl: url,

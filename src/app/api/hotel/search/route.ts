@@ -8,7 +8,27 @@ async function searchHotels(query: string) {
   if (!query || !query.trim()) {
     const { data, error } = await supabase
       .from('select_hotels')
-      .select('sabre_id, property_name_ko, property_name_en, property_address, rate_plan_code, paragon_id, brand_id, id_old')
+      .select(`
+        sabre_id, 
+        property_name_ko, 
+        property_name_en, 
+        property_address, 
+        rate_plan_code, 
+        paragon_id, 
+        brand_id, 
+        id_old,
+        hotel_brands(
+          brand_id,
+          brand_name_ko,
+          brand_name_en,
+          chain_id,
+          hotel_chains(
+            chain_id,
+            chain_name_ko,
+            chain_name_en
+          )
+        )
+      `)
       .order('id_old', { ascending: false })
       .limit(10)
 
@@ -24,7 +44,27 @@ async function searchHotels(query: string) {
   // sabre_id는 bigint이므로 정확히 일치하는 경우만 검색, 호텔명은 ilike로 부분 일치 검색
   let queryBuilder = supabase
     .from('select_hotels')
-    .select('sabre_id, property_name_ko, property_name_en, property_address, rate_plan_code, paragon_id, brand_id, id_old')
+    .select(`
+      sabre_id, 
+      property_name_ko, 
+      property_name_en, 
+      property_address, 
+      rate_plan_code, 
+      paragon_id, 
+      brand_id, 
+      id_old,
+      hotel_brands(
+        brand_id,
+        brand_name_ko,
+        brand_name_en,
+        chain_id,
+        hotel_chains(
+          chain_id,
+          chain_name_ko,
+          chain_name_en
+        )
+      )
+    `)
   
   // 숫자인 경우 sabre_id로도 검색
   if (/^\d+$/.test(query)) {

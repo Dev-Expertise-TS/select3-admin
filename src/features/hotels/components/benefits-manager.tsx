@@ -10,10 +10,11 @@ export type { BenefitRow }
 
 interface Props {
   initial: BenefitRow[]
+  sabreId: string
   onAddClick?: () => void
 }
 
-export function BenefitsManager({ initial, onAddClick }: Props) {
+export function BenefitsManager({ initial, sabreId, onAddClick }: Props) {
   const [selected, setSelected] = React.useState<BenefitRow[]>(initial)
   const [open, setOpen] = React.useState(false)
   const [allRows, setAllRows] = React.useState<BenefitRow[]>([])
@@ -25,6 +26,7 @@ export function BenefitsManager({ initial, onAddClick }: Props) {
   const [draggingId, setDraggingId] = React.useState<string | null>(null)
   const [dropHighlightIds, setDropHighlightIds] = React.useState<Set<string>>(new Set())
   const dropTimerRef = React.useRef<number | null>(null)
+  const [isSaving, setIsSaving] = React.useState(false)
 
   const selectedIdSet = React.useMemo(() => new Set(selected.map((r) => String(r.benefit_id))), [selected])
   const available = React.useMemo(() => allRows.filter((r) => !selectedIdSet.has(String(r.benefit_id))), [allRows, selectedIdSet])
@@ -171,8 +173,58 @@ export function BenefitsManager({ initial, onAddClick }: Props) {
   }
   const onDragEnd = () => setDraggingId(null)
 
+  const handleSaveBenefits = async () => {
+    if (!isDirty) {
+      alert('변경 사항이 없습니다.')
+      return
+    }
+
+    if (!sabreId) {
+      alert('Sabre ID가 없습니다.')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const benefit_ids = selected.map(r => String(r.benefit_id))
+      
+      const response = await fetch('/api/hotel/update-benefits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          sabre_id: sabreId, 
+          benefit_ids 
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // 저장 성공 시 baseline 업데이트
+        setBaselineOrder(benefit_ids)
+        alert('혜택 매핑이 저장되었습니다.')
+      } else {
+        alert(result.error || '저장에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('혜택 저장 오류:', error)
+      alert('저장 중 오류가 발생했습니다.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
-    <div className="overflow-x-auto rounded border">
+    <div className="space-y-4">
+      {isDirty && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center justify-between">
+          <p className="text-sm text-yellow-800">
+            ⚠️ 변경 사항이 있습니다. 저장하려면 아래 버튼을 클릭하세요.
+          </p>
+        </div>
+      )}
+      
+      <div className="overflow-x-auto rounded border">
       {isDirty && (
         <input type="hidden" name="__benefits_dirty" value="1" data-initial="0" />
       )}
@@ -298,6 +350,21 @@ export function BenefitsManager({ initial, onAddClick }: Props) {
               </div>
             )}
           </div>
+        </div>
+      )}
+      </div>
+      
+      {/* 저장 버튼 - 변경사항이 있을 때만 표시 */}
+      {isDirty && (
+        <div className="flex justify-end pt-2">
+          <Button
+            type="button"
+            onClick={handleSaveBenefits}
+            disabled={isSaving}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {isSaving ? '저장 중...' : '변경 사항 저장'}
+          </Button>
         </div>
       )}
     </div>

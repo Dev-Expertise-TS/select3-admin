@@ -75,6 +75,81 @@ export async function POST(request: NextRequest) {
 
     console.log(`이미지 업로드 완료: ${filePath}`);
 
+    // select_hotel_media 테이블에 레코드 Upsert
+    const mediaRecord = {
+      sabre_id: sabreId,
+      file_name: fileName,
+      file_path: filePath,
+      storage_path: uploadData.path,
+      public_url: publicUrlData.publicUrl,
+      file_type: file.type,
+      file_size: file.size,
+      slug: normalizedSlug,
+    }
+
+    console.log('[hotel-images/upload] Attempting to upsert media record:', mediaRecord)
+
+    // 기존 레코드 확인 (sabre_id + file_path 조합)
+    const { data: existing } = await supabase
+      .from("select_hotel_media")
+      .select("id")
+      .eq("sabre_id", sabreId)
+      .eq("file_path", filePath)
+      .maybeSingle()
+
+    let upsertData
+    let upsertError
+
+    if (existing) {
+      // 기존 레코드가 있으면 업데이트
+      console.log('[hotel-images/upload] 기존 레코드 발견, 업데이트 진행:', existing.id)
+      const { data, error } = await supabase
+        .from("select_hotel_media")
+        .update({
+          file_name: mediaRecord.file_name,
+          storage_path: mediaRecord.storage_path,
+          public_url: mediaRecord.public_url,
+          file_type: mediaRecord.file_type,
+          file_size: mediaRecord.file_size,
+          slug: mediaRecord.slug,
+        })
+        .eq("id", existing.id)
+        .select()
+
+      upsertData = data
+      upsertError = error
+    } else {
+      // 새 레코드 삽입
+      console.log('[hotel-images/upload] 새 레코드 삽입')
+      const { data, error } = await supabase
+        .from("select_hotel_media")
+        .insert(mediaRecord)
+        .select()
+
+      upsertData = data
+      upsertError = error
+    }
+
+    if (upsertError) {
+      console.error("[hotel-images/upload] select_hotel_media 레코드 upsert 오류:", upsertError)
+      console.error("[hotel-images/upload] Error code:", upsertError.code)
+      console.error("[hotel-images/upload] Error details:", upsertError.details)
+      console.error("[hotel-images/upload] Error hint:", upsertError.hint)
+      // 업로드는 성공했지만 DB 레코드 upsert 실패 - 경고 반환
+      return NextResponse.json({
+        success: true,
+        warning: `이미지는 업로드되었지만 DB 레코드 upsert 실패: ${upsertError.message}`,
+        data: {
+          fileName: fileName,
+          filePath: filePath,
+          url: publicUrlData.publicUrl,
+          storagePath: uploadData.path,
+        },
+      });
+    }
+
+    console.log(`[hotel-images/upload] select_hotel_media 레코드 upsert 완료:`, upsertData)
+
     return NextResponse.json({
       success: true,
       data: {

@@ -2283,10 +2283,10 @@ export default function HotelSearchWidget({
                           {hotel.property_name_en || '영문명 없음'}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {hotel.hotel_brands?.hotel_chains?.chain_name_en || '-'}
+                          {(hotel as any).hotel_brands?.hotel_chains?.chain_name_en || '-'}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {hotel.hotel_brands?.brand_name_en || '-'}
+                          {(hotel as any).hotel_brands?.brand_name_en || '-'}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500">
                           {formatDate(hotel.created_at)}

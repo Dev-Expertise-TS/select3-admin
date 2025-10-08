@@ -104,8 +104,69 @@ export async function uploadHotelImagesFromUrls(input: UploadFromUrlsInput) {
         continue
       }
 
+      // select_hotel_media 테이블에 레코드 Upsert
+      const { data: publicUrlData } = supabase.storage
+        .from(MEDIA_BUCKET)
+        .getPublicUrl(storagePath)
+
+      const mediaRecord = {
+        sabre_id: sabreId,
+        file_name: filename,
+        file_path: storagePath,
+        storage_path: storagePath,
+        public_url: publicUrlData.publicUrl,
+        file_type: contentType,
+        file_size: buffer.length,
+        slug: slug,
+        image_seq: nextSeq,
+        original_url: url,
+      }
+
+      console.log('[uploadHotelImagesFromUrls] Attempting to upsert media record:', mediaRecord)
+
+      // 기존 레코드 확인
+      const { data: existing } = await supabase
+        .from('select_hotel_media')
+        .select('id')
+        .eq('sabre_id', sabreId)
+        .eq('file_path', storagePath)
+        .maybeSingle()
+
+      if (existing) {
+        // 업데이트
+        console.log('[uploadHotelImagesFromUrls] 기존 레코드 업데이트:', existing.id)
+        const { error: updateError } = await supabase
+          .from('select_hotel_media')
+          .update({
+            file_name: mediaRecord.file_name,
+            storage_path: mediaRecord.storage_path,
+            public_url: mediaRecord.public_url,
+            file_type: mediaRecord.file_type,
+            file_size: mediaRecord.file_size,
+            slug: mediaRecord.slug,
+            image_seq: mediaRecord.image_seq,
+            original_url: mediaRecord.original_url,
+          })
+          .eq('id', existing.id)
+
+        if (updateError) {
+          console.error('[uploadHotelImagesFromUrls] DB 업데이트 오류:', updateError)
+        }
+      } else {
+        // 삽입
+        console.log('[uploadHotelImagesFromUrls] 새 레코드 삽입')
+        const { error: insertError } = await supabase
+          .from('select_hotel_media')
+          .insert(mediaRecord)
+
+        if (insertError) {
+          console.error('[uploadHotelImagesFromUrls] DB 삽입 오류:', insertError)
+        }
+      }
+
       results.push({ url, path: storagePath })
-    } catch {
+    } catch (err) {
+      console.error('[uploadHotelImagesFromUrls] 오류:', err)
       results.push({ url, error: '다운로드/업로드 중 오류' })
     }
   }

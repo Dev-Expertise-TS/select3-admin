@@ -12,6 +12,7 @@ import HotelSearchWidget from "@/components/shared/hotel-search-widget";
 import { ImageMigrationPanel } from "./ImageMigrationPanel";
 import { BulkImageMigrationPanel } from "./BulkImageMigrationPanel";
 import { ContentImageMigrationPanel } from "./ContentImageMigrationPanel";
+import { StorageToDbSyncPanel } from "./StorageToDbSyncPanel";
 
 export function HotelImageManager() {
   const [activeTab, setActiveTab] = useState<
@@ -19,6 +20,7 @@ export function HotelImageManager() {
     | "individual-migration"
     | "gallery-migration"
     | "content-migration"
+    | "storage-sync"
   >("management");
 
   return (
@@ -93,6 +95,19 @@ export function HotelImageManager() {
               전체 호텔 본문 이미지 마이그레이션
             </div>
           </button>
+          <button
+            onClick={() => setActiveTab("storage-sync")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "storage-sync"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Storage → DB 동기화
+            </div>
+          </button>
         </nav>
       </div>
 
@@ -111,6 +126,7 @@ export function HotelImageManager() {
       {activeTab === "individual-migration" && <ImageMigrationPanel />}
       {activeTab === "gallery-migration" && <BulkImageMigrationPanel />}
       {activeTab === "content-migration" && <ContentImageMigrationPanel />}
+      {activeTab === "storage-sync" && <StorageToDbSyncPanel />}
     </div>
   );
 }
