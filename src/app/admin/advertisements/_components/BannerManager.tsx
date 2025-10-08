@@ -45,12 +45,12 @@ interface Hotel {
   brand_id?: string
   hotel_brands?: {
     brand_id: string
-    brand_name_kr: string
+    brand_name_ko: string
     brand_name_en: string
     chain_id: string
     hotel_chains?: {
       chain_id: string
-      chain_name_kr: string
+      chain_name_ko: string
       chain_name_en: string
     }
   }

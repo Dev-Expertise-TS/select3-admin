@@ -134,7 +134,7 @@ export default async function SchemaTestPage() {
         <h3 className="text-lg font-medium text-yellow-900 mb-3">컬럼 매핑 가이드</h3>
         <div className="space-y-2 text-sm text-yellow-800">
           <p>• <strong>ID 컬럼:</strong> chain_id, brand_id, id, chainId, brandId 등</p>
-          <p>• <strong>한글 이름 컬럼:</strong> name_kr, name_kr, chain_name_kr, brand_name_kr, name_ko, name_ko 등</p>
+          <p>• <strong>한글 이름 컬럼:</strong> name_ko, chain_name_ko, brand_name_ko, name_kr 등</p>
           <p>• <strong>영문 이름 컬럼:</strong> name_en, name_en, chain_name_en, brand_name_en 등</p>
           <p>• <strong>관계 컬럼:</strong> chain_id, brand_id, parent_id 등</p>
         </div>

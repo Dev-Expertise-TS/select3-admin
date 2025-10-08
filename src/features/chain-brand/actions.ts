@@ -28,10 +28,15 @@ export async function saveChain(formData: FormData): Promise<ActionResult<ChainF
   const supabase = createServiceRoleClient()
 
   const chainId = formData.get('chain_id') ? Number(formData.get('chain_id')) : undefined
-  const chainData: Partial<ChainFormData> = {
-    name_kr: formData.get('name_kr') as string || null,
-    name_en: formData.get('name_en') as string || null,
-    slug: formData.get('slug') as string || null,
+  const nameKr = formData.get('name_kr') as string || null
+  const nameEn = formData.get('name_en') as string || null
+  const slug = formData.get('slug') as string || null
+  
+  // hotel_chains 테이블의 실제 컬럼명 사용
+  const chainData: Record<string, unknown> = {
+    chain_name_ko: nameKr,
+    chain_name_en: nameEn,
+    slug: slug,
   }
 
   let query;
@@ -58,10 +63,15 @@ export async function saveChain(formData: FormData): Promise<ActionResult<ChainF
 export async function createChain(formData: FormData): Promise<ActionResult<ChainFormData>> {
   const supabase = createServiceRoleClient()
 
-  const chainData: Partial<ChainFormData> = {
-    name_kr: formData.get('name_kr') as string || null,
-    name_en: formData.get('name_en') as string || null,
-    slug: formData.get('slug') as string || null,
+  const nameKr = formData.get('name_kr') as string || null
+  const nameEn = formData.get('name_en') as string || null
+  const slug = formData.get('slug') as string || null
+  
+  // hotel_chains 테이블의 실제 컬럼명 사용
+  const chainData: Record<string, unknown> = {
+    chain_name_ko: nameKr,
+    chain_name_en: nameEn,
+    slug: slug,
   }
 
   const { data, error } = await supabase
@@ -102,11 +112,11 @@ export async function saveBrand(formData: FormData): Promise<ActionResult<BrandF
 
   const brandId = formData.get('brand_id') ? Number(formData.get('brand_id')) : undefined
   // Prefer canonical columns; fallback to legacy brand_name_* if DB schema differs
-  const nameKr = (formData.get('name_kr') as string) ?? (formData.get('brand_name_kr') as string) ?? null
+  const nameKo = (formData.get('name_kr') as string) ?? (formData.get('brand_name_ko') as string) ?? null
   const nameEn = (formData.get('name_en') as string) ?? (formData.get('brand_name_en') as string) ?? null
   const brandData: Record<string, unknown> = {
-    name_kr: nameKr || null,
-    name_en: nameEn || null,
+    brand_name_ko: nameKo || null,
+    brand_name_en: nameEn || null,
     chain_id: formData.get('chain_id') ? Number(formData.get('chain_id')) : null,
   }
 
@@ -129,8 +139,8 @@ export async function saveBrand(formData: FormData): Promise<ActionResult<BrandF
     const needsLegacy = message.includes("'name_en'") || message.includes("'name_kr'")
     if (needsLegacy) {
       const legacyBrandData: Record<string, unknown> = {
-        brand_name_kr: nameKr || null,
-        brand_name_en: nameEn || null,
+        name_kr: nameKo || null,
+        name_en: nameEn || null,
         chain_id: formData.get('chain_id') ? Number(formData.get('chain_id')) : null,
       }
       if (brandId) {
@@ -170,11 +180,11 @@ export async function saveBrand(formData: FormData): Promise<ActionResult<BrandF
 export async function createBrand(formData: FormData): Promise<ActionResult<BrandFormData>> {
   const supabase = createServiceRoleClient()
 
-  const nameKr = (formData.get('name_kr') as string) ?? (formData.get('brand_name_kr') as string) ?? null
+  const nameKo = (formData.get('name_kr') as string) ?? (formData.get('brand_name_ko') as string) ?? null
   const nameEn = (formData.get('name_en') as string) ?? (formData.get('brand_name_en') as string) ?? null
   const brandData: Record<string, unknown> = {
-    name_kr: nameKr || null,
-    name_en: nameEn || null,
+    brand_name_ko: nameKo || null,
+    brand_name_en: nameEn || null,
     chain_id: formData.get('chain_id') ? Number(formData.get('chain_id')) : null,
   }
 
@@ -190,8 +200,8 @@ export async function createBrand(formData: FormData): Promise<ActionResult<Bran
     const needsLegacy = message.includes("'name_en'") || message.includes("'name_kr'")
     if (needsLegacy) {
       const legacyBrandData: Record<string, unknown> = {
-        brand_name_kr: nameKr || null,
-        brand_name_en: nameEn || null,
+        name_kr: nameKo || null,
+        name_en: nameEn || null,
         chain_id: formData.get('chain_id') ? Number(formData.get('chain_id')) : null,
       }
       const retryResult = await supabase

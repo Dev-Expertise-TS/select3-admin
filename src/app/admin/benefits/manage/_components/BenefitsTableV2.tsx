@@ -28,7 +28,7 @@ export function BenefitsTableV2() {
   const rows: Row[] = useMemo(() => benefitsData || [], [benefitsData])
   
   const originalColumns = useMemo(() => {
-    return rows[0] ? Object.keys(rows[0]) : ['benefit_id', 'name_kr', 'name_en', 'description_kr', 'description_en']
+    return rows[0] ? Object.keys(rows[0]) : ['benefit_id', 'benefit', 'benefit_description']
   }, [rows])
   
   const pkCandidates = ['benefit_id', 'id', 'uuid']
@@ -141,11 +141,11 @@ export function BenefitsTableV2() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          혜택명 (한글) *
+                          혜택명 *
                         </label>
                         <input
                           type="text"
-                          name="name_kr"
+                          name="benefit"
                           required
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                           placeholder="예: 조식 무료"
@@ -153,35 +153,13 @@ export function BenefitsTableV2() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          혜택명 (영문)
-                        </label>
-                        <input
-                          type="text"
-                          name="name_en"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          placeholder="예: Free Breakfast"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          설명 (한글)
+                          혜택 설명
                         </label>
                         <textarea
-                          name="description_kr"
+                          name="benefit_description"
                           rows={2}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                           placeholder="혜택 설명"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          설명 (영문)
-                        </label>
-                        <textarea
-                          name="description_en"
-                          rows={2}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          placeholder="Benefit description"
                         />
                       </div>
                     </div>

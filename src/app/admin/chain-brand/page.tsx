@@ -51,14 +51,14 @@ async function getData() {
     const chainsColumns = chainsSample && chainsSample.length > 0 ? Object.keys(chainsSample[0]) : []
     const brandsColumns = brandsSample && brandsSample.length > 0 ? Object.keys(brandsSample[0]) : []
 
-    // 체인 데이터 조회 - 실제 컬럼명 사용
-    const chainsRes = await supabase.from('hotel_chains').select('*').order('chain_id', { ascending: true })
+    // 체인 데이터 조회 - 최신 레코드가 맨 위에 오도록 내림차순 정렬
+    const chainsRes = await supabase.from('hotel_chains').select('*').order('chain_id', { ascending: false })
     if (chainsRes.error) {
       throw new Error(`체인 목록 조회 중 오류가 발생했습니다: ${chainsRes.error.message}`)
     }
 
-    // 브랜드 데이터 조회 - 실제 컬럼명 사용
-    const brandsRes = await supabase.from('hotel_brands').select('*').order('brand_id', { ascending: true })
+    // 브랜드 데이터 조회 - 최신 레코드가 맨 위에 오도록 내림차순 정렬
+    const brandsRes = await supabase.from('hotel_brands').select('*').order('brand_id', { ascending: false })
     if (brandsRes.error) {
       throw new Error(`브랜드 목록 조회 중 오류가 발생했습니다: ${brandsRes.error.message}`)
     }
@@ -78,7 +78,7 @@ async function getData() {
         key.toLowerCase().includes('chain') && key.toLowerCase().includes('id')
       ) || 'chain_id'
       
-      // name_kr 컬럼 찾기 (name_kr, name_kr, chain_name_kr 등)
+      // name_ko 컬럼 찾기 (name_ko, chain_name_ko, name_kr 등)
       const nameKrKey = chainsColumns.find(key => 
         key.toLowerCase().includes('name') && (key.toLowerCase().includes('kr') || key.toLowerCase().includes('ko'))
       ) || 'name_kr'

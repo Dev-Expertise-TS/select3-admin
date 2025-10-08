@@ -80,7 +80,29 @@ export function BenefitsTable({ createAction: _createAction }: BenefitsTableProp
       const pkField = formData.get('pkField')
       console.log(`API 호출 - ${pkField}: ${pkValue}`)
       
-      const result = await saveBenefit(formData)
+      // 필드명은 그대로 사용 (benefit, benefit_description)
+      const mappedFormData = new FormData()
+      
+      // benefit 필드 그대로 사용
+      const benefitValue = formData.get('benefit')
+      if (benefitValue) {
+        mappedFormData.append('benefit', benefitValue as string)
+      }
+      
+      // benefit_description 필드 그대로 사용
+      const descriptionValue = formData.get('benefit_description')
+      if (descriptionValue) {
+        mappedFormData.append('benefit_description', descriptionValue as string)
+      }
+      
+      // 다른 필드들도 복사 (benefit_id, pkField, pkValue 등)
+      for (const [key, value] of formData.entries()) {
+        if (key !== 'benefit' && key !== 'benefit_description') {
+          mappedFormData.append(key, value)
+        }
+      }
+      
+      const result = await saveBenefit(mappedFormData)
       if (!result.success) throw new Error(result.error || 'save failed')
       return { formData, pkValue: String(pkValue) }
     },
@@ -151,7 +173,29 @@ export function BenefitsTable({ createAction: _createAction }: BenefitsTableProp
   // 새 행 추가를 위한 mutation
   const createMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      const result = await saveBenefit(formData)
+      // 필드명은 그대로 사용 (benefit, benefit_description)
+      const mappedFormData = new FormData()
+      
+      // benefit 필드 그대로 사용
+      const benefitValue = formData.get('benefit')
+      if (benefitValue) {
+        mappedFormData.append('benefit', benefitValue as string)
+      }
+      
+      // benefit_description 필드 그대로 사용
+      const descriptionValue = formData.get('benefit_description')
+      if (descriptionValue) {
+        mappedFormData.append('benefit_description', descriptionValue as string)
+      }
+      
+      // 다른 필드들도 복사 (benefit_id, start_date, end_date 등)
+      for (const [key, value] of formData.entries()) {
+        if (key !== 'benefit' && key !== 'benefit_description') {
+          mappedFormData.append(key, value)
+        }
+      }
+      
+      const result = await saveBenefit(mappedFormData)
       if (!result.success) throw new Error(result.error || 'create failed')
       return result
     },

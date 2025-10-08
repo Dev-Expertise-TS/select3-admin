@@ -5,10 +5,8 @@ import { revalidatePath } from 'next/cache'
 
 export type BenefitFormData = {
   benefit_id?: number
-  name_kr: string
-  name_en?: string
-  description_kr?: string
-  description_en?: string
+  benefit: string
+  benefit_description?: string
 }
 
 export type ActionResult<T = unknown> = {
@@ -27,24 +25,20 @@ export async function saveBenefit(formData: FormData): Promise<ActionResult> {
 
     // FormData에서 데이터 추출
     const benefitId = formData.get('benefit_id')
-    const nameKr = formData.get('name_kr') as string
-    const nameEn = formData.get('name_en') as string
-    const descriptionKr = formData.get('description_kr') as string
-    const descriptionEn = formData.get('description_en') as string
+    const benefit = formData.get('benefit') as string
+    const benefitDescription = formData.get('benefit_description') as string
 
     // 필수 필드 검증
-    if (!nameKr || nameKr.trim() === '') {
+    if (!benefit || benefit.trim() === '') {
       return {
         success: false,
-        error: '혜택명(한글)은 필수입니다.',
+        error: '혜택명은 필수입니다.',
       }
     }
 
-    const benefit = {
-      name_kr: nameKr.trim(),
-      name_en: nameEn?.trim() || null,
-      description_kr: descriptionKr?.trim() || null,
-      description_en: descriptionEn?.trim() || null,
+    const benefitData = {
+      benefit: benefit.trim(),
+      benefit_description: benefitDescription?.trim() || null,
     }
 
     let result
@@ -53,7 +47,7 @@ export async function saveBenefit(formData: FormData): Promise<ActionResult> {
       // 업데이트
       const { data, error } = await supabase
         .from('select_hotel_benefits')
-        .update(benefit)
+        .update(benefitData)
         .eq('benefit_id', Number(benefitId))
         .select()
         .single()
@@ -71,7 +65,7 @@ export async function saveBenefit(formData: FormData): Promise<ActionResult> {
       // 생성
       const { data, error } = await supabase
         .from('select_hotel_benefits')
-        .insert(benefit)
+        .insert(benefitData)
         .select()
         .single()
 

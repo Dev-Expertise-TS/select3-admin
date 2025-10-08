@@ -105,7 +105,7 @@ export async function GET() {
         key.toLowerCase().includes('chain') && key.toLowerCase().includes('id')
       ) || 'chain_id'
       
-      // name_kr 컬럼 찾기 (name_kr, name_kr, chain_name_kr 등)
+      // name_ko 컬럼 찾기 (name_ko, chain_name_ko, name_kr 등)
       const nameKrKey = chainsColumns.find(key => 
         key.toLowerCase().includes('name') && (key.toLowerCase().includes('kr') || key.toLowerCase().includes('ko'))
       ) || 'name_kr'
