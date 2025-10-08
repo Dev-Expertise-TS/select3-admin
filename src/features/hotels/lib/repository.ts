@@ -23,8 +23,7 @@ export async function getHotelBySabreOrParagon(params: { sabreId: string | null;
   if (String(hotel.sabre_id) === '313016') {
     console.log('=== Repository 호텔 데이터 디버깅 ===')
     console.log('전체 호텔 데이터:', hotel)
-    console.log('rate_code 값:', hotel.rate_code)
-    console.log('rate_plan_codes 값:', hotel.rate_plan_codes)
+    console.log('rate_plan_code 값:', hotel.rate_plan_code)
     console.log('=====================================')
   }
   
@@ -214,39 +213,39 @@ export async function getHotelBySabreOrParagon(params: { sabreId: string | null;
     }
   }
   
-  // rate_code 값을 rate_plan_codes로 변환 (하위 호환성 유지)
+  // rate_plan_code 값을 rate_plan_codes로 변환 (UI 호환성)
   let ratePlanCodes = null
-  if (hotel.rate_code) {
-    // rate_code가 문자열인 경우 처리
-    if (typeof hotel.rate_code === 'string') {
+  if (hotel.rate_plan_code) {
+    // rate_plan_code가 문자열인 경우 처리
+    if (typeof hotel.rate_plan_code === 'string') {
       // JSON 문자열인지 확인 (배열 형태의 문자열)
-      if (hotel.rate_code.startsWith('[') && hotel.rate_code.endsWith(']')) {
+      if (hotel.rate_plan_code.startsWith('[') && hotel.rate_plan_code.endsWith(']')) {
         try {
           // JSON 파싱 시도
-          const parsedCodes = JSON.parse(hotel.rate_code)
+          const parsedCodes = JSON.parse(hotel.rate_plan_code)
           if (Array.isArray(parsedCodes)) {
             ratePlanCodes = parsedCodes.filter(code => typeof code === 'string' && code.trim().length > 0)
           }
         } catch (parseError) {
-          console.error('rate_code JSON 파싱 오류:', parseError)
+          console.error('rate_plan_code JSON 파싱 오류:', parseError)
           // JSON 파싱 실패 시 콤마로 분리 시도
-          ratePlanCodes = hotel.rate_code.split(',').map(code => code.trim()).filter(Boolean)
+          ratePlanCodes = hotel.rate_plan_code.split(',').map(code => code.trim()).filter(Boolean)
         }
       } else {
         // 일반 콤마로 구분된 문자열
-        ratePlanCodes = hotel.rate_code.split(',').map(code => code.trim()).filter(Boolean)
+        ratePlanCodes = hotel.rate_plan_code.split(',').map(code => code.trim()).filter(Boolean)
       }
     }
-    // rate_code가 이미 배열인 경우 그대로 사용
-    else if (Array.isArray(hotel.rate_code)) {
-      ratePlanCodes = hotel.rate_code.filter(code => typeof code === 'string' && code.trim().length > 0)
+    // rate_plan_code가 이미 배열인 경우 그대로 사용
+    else if (Array.isArray(hotel.rate_plan_code)) {
+      ratePlanCodes = hotel.rate_plan_code.filter(code => typeof code === 'string' && code.trim().length > 0)
     }
     
-    // 디버깅: rate_code 변환 결과
+    // 디버깅: rate_plan_code 변환 결과
     if (String(hotel.sabre_id) === '313016') {
-      console.log('=== rate_code 변환 디버깅 ===')
-      console.log('원본 rate_code:', hotel.rate_code)
-      console.log('rate_code 타입:', typeof hotel.rate_code)
+      console.log('=== rate_plan_code 변환 디버깅 ===')
+      console.log('원본 rate_plan_code:', hotel.rate_plan_code)
+      console.log('rate_plan_code 타입:', typeof hotel.rate_plan_code)
       console.log('변환된 rate_plan_codes:', ratePlanCodes)
       console.log('변환된 타입:', Array.isArray(ratePlanCodes) ? 'array' : typeof ratePlanCodes)
       console.log('================================')
@@ -258,8 +257,8 @@ export async function getHotelBySabreOrParagon(params: { sabreId: string | null;
     ...hotel,
     hotel_chains: chainData,
     hotel_brands: brandData,
-    // rate_code가 있으면 변환된 값을 사용, 없으면 기존 rate_plan_codes 사용
-    rate_plan_codes: ratePlanCodes || hotel.rate_plan_codes
+    // rate_plan_code를 배열로 변환하여 rate_plan_codes로 제공 (UI 호환성)
+    rate_plan_codes: ratePlanCodes
   }
   
   // 디버깅: 최종 결과
@@ -334,7 +333,7 @@ export async function updateHotelRow(params: { sabreId: string | null; paragonId
       throw new Error('sabre_id 또는 paragon_id가 필요합니다.')
     }
     
-    const { data, error } = await query.select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_code, brand_id').single()
+    const { data, error } = await query.select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_code, brand_id').single()
     
     if (error) {
       console.error('호텔 업데이트 오류:', error)

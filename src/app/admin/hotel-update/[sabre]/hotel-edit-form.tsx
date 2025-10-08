@@ -2,10 +2,13 @@
 
 import React, { useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { BenefitsManager, type BenefitRow as BBRow } from '@/features/hotels/components/benefits-manager'
 import { BenefitsAddButton } from '@/features/hotels/components/benefits-add-button'
 import { ChainBrandPicker, type Chain, type Brand } from '@/features/hotels/components/chain-brand-picker'
 import { Button } from '@/components/ui/button'
+import { RegionSelector } from '@/components/shared/region-selector'
+import { RatePlanCodesEditor } from '@/components/shared/rate-plan-codes-editor'
 
 import { cn } from '@/lib/utils'
 import { updateHotel } from '@/features/hotels/actions'
@@ -16,6 +19,7 @@ interface Props {
 }
 
 export function HotelEditForm({ initialData, mappedBenefits }: Props) {
+  const router = useRouter()
   const [isEditMode, setIsEditMode] = React.useState(false)
   const formRef = React.useRef<HTMLFormElement>(null)
   const [isPending, startTransition] = useTransition()
@@ -28,10 +32,25 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
     property_address: String(initialData.property_address ?? ''),
     city_ko: String(initialData.city_ko ?? ''),
     city_en: String(initialData.city_en ?? ''),
+    city_code: String(initialData.city_code ?? ''),
     country_ko: String(initialData.country_ko ?? ''),
     country_en: String(initialData.country_en ?? ''),
+    country_code: String(initialData.country_code ?? ''),
     continent_ko: String(initialData.continent_ko ?? ''),
-    continent_en: String(initialData.continent_en ?? '')
+    continent_en: String(initialData.continent_en ?? ''),
+    continent_code: String(initialData.continent_code ?? ''),
+    region_ko: String(initialData.region_ko ?? ''),
+    region_en: String(initialData.region_en ?? ''),
+    region_code: String(initialData.region_code ?? ''),
+    rate_plan_codes: Array.isArray(initialData.rate_plan_codes) 
+      ? initialData.rate_plan_codes as string[]
+      : initialData.rate_plan_code
+        ? (typeof initialData.rate_plan_code === 'string' 
+            ? initialData.rate_plan_code.split(',').map(s => s.trim()).filter(Boolean)
+            : Array.isArray(initialData.rate_plan_code) 
+              ? initialData.rate_plan_code as string[]
+              : [])
+        : []
   })
 
   // 하이라이트된 필드 추적
@@ -79,10 +98,25 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
           property_address: String(initialData.property_address ?? ''),
           city_ko: String(initialData.city_ko ?? ''),
           city_en: String(initialData.city_en ?? ''),
+          city_code: String(initialData.city_code ?? ''),
           country_ko: String(initialData.country_ko ?? ''),
           country_en: String(initialData.country_en ?? ''),
+          country_code: String(initialData.country_code ?? ''),
           continent_ko: String(initialData.continent_ko ?? ''),
-          continent_en: String(initialData.continent_en ?? '')
+          continent_en: String(initialData.continent_en ?? ''),
+          continent_code: String(initialData.continent_code ?? ''),
+          region_ko: String(initialData.region_ko ?? ''),
+          region_en: String(initialData.region_en ?? ''),
+          region_code: String(initialData.region_code ?? ''),
+          rate_plan_codes: Array.isArray(initialData.rate_plan_codes) 
+            ? initialData.rate_plan_codes as string[]
+            : initialData.rate_plan_code
+              ? (typeof initialData.rate_plan_code === 'string' 
+                  ? initialData.rate_plan_code.split(',').map(s => s.trim()).filter(Boolean)
+                  : Array.isArray(initialData.rate_plan_code) 
+                    ? initialData.rate_plan_code as string[]
+                    : [])
+              : []
         })
         setHighlightedFields(new Set())
       }
@@ -133,29 +167,24 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
           submitFormData.set('property_address', formData.property_address)
           submitFormData.set('city_ko', formData.city_ko)
           submitFormData.set('city_en', formData.city_en)
+          submitFormData.set('city_code', formData.city_code)
           submitFormData.set('country_ko', formData.country_ko)
           submitFormData.set('country_en', formData.country_en)
+          submitFormData.set('country_code', formData.country_code)
           submitFormData.set('continent_ko', formData.continent_ko)
           submitFormData.set('continent_en', formData.continent_en)
+          submitFormData.set('continent_code', formData.continent_code)
+          submitFormData.set('region_ko', formData.region_ko)
+          submitFormData.set('region_en', formData.region_en)
+          submitFormData.set('region_code', formData.region_code)
+          submitFormData.set('rate_plan_codes', JSON.stringify(formData.rate_plan_codes))
         }
         
-        // 체인/브랜드 정보를 FormData에 추가
-        // 현재 선택된 브랜드 ID 사용
+        // 브랜드 정보만 FormData에 추가 (chain_id는 select_hotels 테이블에 없음)
         if (currentBrandId) {
           submitFormData.set('brand_id', String(currentBrandId))
-          // 브랜드가 선택된 경우, 브랜드의 chain_id도 함께 저장
-          if (selectedBrand?.chain_id) {
-            submitFormData.set('chain_id', String(selectedBrand.chain_id))
-          } else {
-            submitFormData.set('chain_id', '') // null 대신 빈 문자열
-          }
-        } else if (selectedChain?.chain_id) {
-          // 체인만 선택된 경우 (브랜드 없음)
-          submitFormData.set('chain_id', String(selectedChain.chain_id))
-          submitFormData.set('brand_id', '') // null 대신 빈 문자열
         } else {
-          // 둘 다 선택 해제된 경우
-          submitFormData.set('chain_id', '')
+          // 브랜드 선택 해제된 경우
           submitFormData.set('brand_id', '')
         }
 
@@ -175,10 +204,17 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
           property_address: property_address || formData.property_address,
           city_ko: city_ko || formData.city_ko,
           city_en: city_en || formData.city_en,
+          city_code: formData.city_code,
           country_ko: country_ko || formData.country_ko,
           country_en: country_en || formData.country_en,
+          country_code: formData.country_code,
           continent_ko: continent_ko || formData.continent_ko,
-          continent_en: continent_en || formData.continent_en
+          continent_en: continent_en || formData.continent_en,
+          continent_code: formData.continent_code,
+          region_ko: formData.region_ko,
+          region_en: formData.region_en,
+          region_code: formData.region_code,
+          rate_plan_codes: formData.rate_plan_codes
         })
 
         // 체인/브랜드 상태도 업데이트 (저장된 값으로)
@@ -212,17 +248,51 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
           if (String(initialData.city_en ?? '') !== String(city_en ?? '')) {
             fieldNames.add('city_en')
           }
+          if (String(initialData.city_code ?? '') !== String(formData.city_code ?? '')) {
+            fieldNames.add('city_code')
+          }
           if (String(initialData.country_ko ?? '') !== String(country_ko ?? '')) {
             fieldNames.add('country_ko')
           }
           if (String(initialData.country_en ?? '') !== String(country_en ?? '')) {
             fieldNames.add('country_en')
           }
+          if (String(initialData.country_code ?? '') !== String(formData.country_code ?? '')) {
+            fieldNames.add('country_code')
+          }
           if (String(initialData.continent_ko ?? '') !== String(continent_ko ?? '')) {
             fieldNames.add('continent_ko')
           }
           if (String(initialData.continent_en ?? '') !== String(continent_en ?? '')) {
             fieldNames.add('continent_en')
+          }
+          if (String(initialData.continent_code ?? '') !== String(formData.continent_code ?? '')) {
+            fieldNames.add('continent_code')
+          }
+          if (String(initialData.region_ko ?? '') !== String(formData.region_ko ?? '')) {
+            fieldNames.add('region_ko')
+          }
+          if (String(initialData.region_en ?? '') !== String(formData.region_en ?? '')) {
+            fieldNames.add('region_en')
+          }
+          if (String(initialData.region_code ?? '') !== String(formData.region_code ?? '')) {
+            fieldNames.add('region_code')
+          }
+          
+          // Rate Plan Codes 변경 검사
+          const initialRatePlanCodes = Array.isArray(initialData.rate_plan_codes) 
+            ? initialData.rate_plan_codes as string[]
+            : initialData.rate_plan_code
+              ? (typeof initialData.rate_plan_code === 'string' 
+                  ? initialData.rate_plan_code.split(',').map(s => s.trim()).filter(Boolean)
+                  : Array.isArray(initialData.rate_plan_code) 
+                    ? initialData.rate_plan_code as string[]
+                    : [])
+              : []
+          
+          const currentRatePlanCodes = formData.rate_plan_codes
+          if (JSON.stringify(initialRatePlanCodes.sort()) !== JSON.stringify(currentRatePlanCodes.sort())) {
+            fieldNames.add('rate_plan_codes')
           }
         }
         
@@ -310,7 +380,12 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
   return (
     <>
       <div className="mb-4 text-sm">
-        <Link href="/admin/hotel-update" className="text-blue-600 hover:underline">← 목록으로 돌아가기</Link>
+        <button 
+          onClick={() => router.back()}
+          className="text-blue-600 hover:underline"
+        >
+          ← 목록으로 돌아가기
+        </button>
       </div>
 
       <form 
@@ -481,23 +556,45 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
             
             {/* Rate Plan Codes */}
             <div className="space-y-1 md:col-span-2 lg:col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Rate Plan Codes (rate_plan_code 컬럼)</label>
-              <div className="w-full px-3 py-2 text-sm bg-gray-50 rounded-md border border-gray-200">
-                {Array.isArray(initialData.rate_plan_code) 
-                  ? (initialData.rate_plan_code as string[]).join(', ') || '-'
-                  : '-'
-                }
-              </div>
-              <input type="hidden" name="rate_plan_code" value={Array.isArray(initialData.rate_plan_code) ? (initialData.rate_plan_code as string[]).join(', ') : ''} />
+              <label className="block text-sm font-medium text-gray-700">Rate Plan Codes</label>
+              {isEditMode ? (
+                <>
+                  <RatePlanCodesEditor
+                    value={formData.rate_plan_codes}
+                    onChange={(codes) => {
+                      setFormData(prev => ({ ...prev, rate_plan_codes: codes }))
+                    }}
+                    disabled={false}
+                  />
+                  <input type="hidden" name="rate_plan_codes" value={JSON.stringify(formData.rate_plan_codes)} />
+                </>
+              ) : (
+                <div className={cn(
+                  "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                  highlightedFields.has('rate_plan_codes') ? "bg-yellow-100" : "bg-gray-50"
+                )}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {formData.rate_plan_codes.length > 0 ? (
+                      formData.rate_plan_codes.map((code) => (
+                        <span key={code} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          {code}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-500">-</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* 주소 및 위치 정보 */}
           <div className="mt-6 pt-6 border-t border-gray-200">
             <h3 className="text-md font-semibold text-gray-900 mb-4">주소 및 위치 정보</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-6">
               {/* 호텔 주소 */}
-              <div className="space-y-1 md:col-span-2">
+              <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">호텔 주소</label>
                 {isEditMode ? (
                   <input 
@@ -516,124 +613,198 @@ export function HotelEditForm({ initialData, mappedBenefits }: Props) {
                 )}
               </div>
 
-              {/* 도시 (한글) */}
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">도시 (한글)</label>
-                {isEditMode ? (
-                  <input 
-                    name="city_ko" 
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
-                    value={formData.city_ko}
-                    onChange={(e) => handleInputChange('city_ko', e.target.value)}
-                  />
-                ) : (
-                  <div className={cn(
-                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
-                    highlightedFields.has('city_ko') ? "bg-yellow-100" : "bg-gray-50"
-                  )}>
-                    {formData.city_ko || '-'}
-                  </div>
-                )}
+              {/* 도시 / 국가 (2열) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 도시 */}
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    도시
+                    {formData.city_code && (
+                      <span className="ml-2 text-xs font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                        {formData.city_code}
+                      </span>
+                    )}
+                  </label>
+                  {isEditMode ? (
+                    <>
+                      <RegionSelector
+                        regionType="city"
+                        value={{ ko: formData.city_ko, en: formData.city_en, code: formData.city_code }}
+                        onChange={(val) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            city_ko: val.ko,
+                            city_en: val.en,
+                            city_code: val.code || ''
+                          }))
+                        }}
+                        disabled={false}
+                      />
+                      <input type="hidden" name="city_ko" value={formData.city_ko} />
+                      <input type="hidden" name="city_en" value={formData.city_en} />
+                      <input type="hidden" name="city_code" value={formData.city_code} />
+                    </>
+                  ) : (
+                    <div className={cn(
+                      "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                      highlightedFields.has('city_ko') || highlightedFields.has('city_en') ? "bg-yellow-100" : "bg-gray-50"
+                    )}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{formData.city_ko || formData.city_en || '-'}</span>
+                        {formData.city_en && formData.city_ko && (
+                          <span className="text-gray-500">/ {formData.city_en}</span>
+                        )}
+                        {formData.city_code && (
+                          <span className="text-xs font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">[{formData.city_code}]</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 국가 */}
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    국가
+                    {formData.country_code && (
+                      <span className="ml-2 text-xs font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                        {formData.country_code}
+                      </span>
+                    )}
+                  </label>
+                  {isEditMode ? (
+                    <>
+                      <RegionSelector
+                        regionType="country"
+                        value={{ ko: formData.country_ko, en: formData.country_en, code: formData.country_code }}
+                        onChange={(val) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            country_ko: val.ko,
+                            country_en: val.en,
+                            country_code: val.code || ''
+                          }))
+                        }}
+                        disabled={false}
+                      />
+                      <input type="hidden" name="country_ko" value={formData.country_ko} />
+                      <input type="hidden" name="country_en" value={formData.country_en} />
+                      <input type="hidden" name="country_code" value={formData.country_code} />
+                    </>
+                  ) : (
+                    <div className={cn(
+                      "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                      highlightedFields.has('country_ko') || highlightedFields.has('country_en') ? "bg-yellow-100" : "bg-gray-50"
+                    )}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{formData.country_ko || formData.country_en || '-'}</span>
+                        {formData.country_en && formData.country_ko && (
+                          <span className="text-gray-500">/ {formData.country_en}</span>
+                        )}
+                        {formData.country_code && (
+                          <span className="text-xs font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">[{formData.country_code}]</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* 도시 (영문) */}
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">도시 (영문)</label>
-                {isEditMode ? (
-                  <input 
-                    name="city_en" 
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
-                    value={formData.city_en}
-                    onChange={(e) => handleInputChange('city_en', e.target.value)}
-                  />
-                ) : (
-                  <div className={cn(
-                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
-                    highlightedFields.has('city_en') ? "bg-yellow-100" : "bg-gray-50"
-                  )}>
-                    {formData.city_en || '-'}
-                  </div>
-                )}
-              </div>
+              {/* 대륙 / 지역 (2열) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 대륙 */}
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    대륙
+                    {formData.continent_code && (
+                      <span className="ml-2 text-xs font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                        {formData.continent_code}
+                      </span>
+                    )}
+                  </label>
+                  {isEditMode ? (
+                    <>
+                      <RegionSelector
+                        regionType="continent"
+                        value={{ ko: formData.continent_ko, en: formData.continent_en, code: formData.continent_code }}
+                        onChange={(val) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            continent_ko: val.ko,
+                            continent_en: val.en,
+                            continent_code: val.code || ''
+                          }))
+                        }}
+                        disabled={false}
+                      />
+                      <input type="hidden" name="continent_ko" value={formData.continent_ko} />
+                      <input type="hidden" name="continent_en" value={formData.continent_en} />
+                      <input type="hidden" name="continent_code" value={formData.continent_code} />
+                    </>
+                  ) : (
+                    <div className={cn(
+                      "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                      highlightedFields.has('continent_ko') || highlightedFields.has('continent_en') ? "bg-yellow-100" : "bg-gray-50"
+                    )}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{formData.continent_ko || formData.continent_en || '-'}</span>
+                        {formData.continent_en && formData.continent_ko && (
+                          <span className="text-gray-500">/ {formData.continent_en}</span>
+                        )}
+                        {formData.continent_code && (
+                          <span className="text-xs font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">[{formData.continent_code}]</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-              {/* 국가 (한글) */}
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">국가 (한글)</label>
-                {isEditMode ? (
-                  <input 
-                    name="country_ko" 
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
-                    value={formData.country_ko}
-                    onChange={(e) => handleInputChange('country_ko', e.target.value)}
-                  />
-                ) : (
-                  <div className={cn(
-                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
-                    highlightedFields.has('country_ko') ? "bg-yellow-100" : "bg-gray-50"
-                  )}>
-                    {formData.country_ko || '-'}
-                  </div>
-                )}
-              </div>
-
-              {/* 국가 (영문) */}
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">국가 (영문)</label>
-                {isEditMode ? (
-                  <input 
-                    name="country_en" 
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
-                    value={formData.country_en}
-                    onChange={(e) => handleInputChange('country_en', e.target.value)}
-                  />
-                ) : (
-                  <div className={cn(
-                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
-                    highlightedFields.has('country_en') ? "bg-yellow-100" : "bg-gray-50"
-                  )}>
-                    {formData.country_en || '-'}
-                  </div>
-                )}
-              </div>
-
-              {/* 대륙 (한글) */}
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">대륙 (한글)</label>
-                {isEditMode ? (
-                  <input 
-                    name="continent_ko" 
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
-                    value={formData.continent_ko}
-                    onChange={(e) => handleInputChange('continent_ko', e.target.value)}
-                  />
-                ) : (
-                  <div className={cn(
-                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
-                    highlightedFields.has('continent_ko') ? "bg-yellow-100" : "bg-gray-50"
-                  )}>
-                    {formData.continent_ko || '-'}
-                  </div>
-                )}
-              </div>
-
-              {/* 대륙 (영문) */}
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">대륙 (영문)</label>
-                {isEditMode ? (
-                  <input 
-                    name="continent_en" 
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sky-50 transition-colors duration-300" 
-                    value={formData.continent_en}
-                    onChange={(e) => handleInputChange('continent_en', e.target.value)}
-                  />
-                ) : (
-                  <div className={cn(
-                    "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
-                    highlightedFields.has('continent_en') ? "bg-yellow-100" : "bg-gray-50"
-                  )}>
-                    {formData.continent_en || '-'}
-                  </div>
-                )}
+                {/* 지역 */}
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    지역
+                    {formData.region_code && (
+                      <span className="ml-2 text-xs font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                        {formData.region_code}
+                      </span>
+                    )}
+                  </label>
+                  {isEditMode ? (
+                    <>
+                      <RegionSelector
+                        regionType="region"
+                        value={{ ko: formData.region_ko, en: formData.region_en, code: formData.region_code }}
+                        onChange={(val) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            region_ko: val.ko,
+                            region_en: val.en,
+                            region_code: val.code || ''
+                          }))
+                        }}
+                        disabled={false}
+                      />
+                      <input type="hidden" name="region_ko" value={formData.region_ko} />
+                      <input type="hidden" name="region_en" value={formData.region_en} />
+                      <input type="hidden" name="region_code" value={formData.region_code} />
+                    </>
+                  ) : (
+                    <div className={cn(
+                      "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                      highlightedFields.has('region_ko') || highlightedFields.has('region_en') ? "bg-yellow-100" : "bg-gray-50"
+                    )}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{formData.region_ko || formData.region_en || '-'}</span>
+                        {formData.region_en && formData.region_ko && (
+                          <span className="text-gray-500">/ {formData.region_en}</span>
+                        )}
+                        {formData.region_code && (
+                          <span className="text-xs font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">[{formData.region_code}]</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -38,40 +38,48 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     const propertyAddress = formData.get('property_address') as string
     const cityKo = formData.get('city_ko') as string
     const cityEn = formData.get('city_en') as string
+    const cityCode = formData.get('city_code') as string
     const countryKo = formData.get('country_ko') as string
     const countryEn = formData.get('country_en') as string
+    const countryCode = formData.get('country_code') as string
     const continentKo = formData.get('continent_ko') as string
     const continentEn = formData.get('continent_en') as string
+    const continentCode = formData.get('continent_code') as string
+    const regionKo = formData.get('region_ko') as string
+    const regionEn = formData.get('region_en') as string
+    const regionCode = formData.get('region_code') as string
     
     if (propertyNameKo) updateData.property_name_ko = propertyNameKo
     if (propertyNameEn) updateData.property_name_en = propertyNameEn
     if (propertyAddress) updateData.property_address = propertyAddress
-    if (cityKo) updateData.city_ko = cityKo
-    if (cityEn) updateData.city_en = cityEn
-    if (countryKo) updateData.country_ko = countryKo
-    if (countryEn) updateData.country_en = countryEn
-    if (continentKo) updateData.continent_ko = continentKo
-    if (continentEn) updateData.continent_en = continentEn
+    if (cityKo !== undefined) updateData.city_ko = cityKo || null
+    if (cityEn !== undefined) updateData.city_en = cityEn || null
+    if (cityCode !== undefined) updateData.city_code = cityCode || null
+    if (countryKo !== undefined) updateData.country_ko = countryKo || null
+    if (countryEn !== undefined) updateData.country_en = countryEn || null
+    if (countryCode !== undefined) updateData.country_code = countryCode || null
+    if (continentKo !== undefined) updateData.continent_ko = continentKo || null
+    if (continentEn !== undefined) updateData.continent_en = continentEn || null
+    if (continentCode !== undefined) updateData.continent_code = continentCode || null
+    if (regionKo !== undefined) updateData.region_ko = regionKo || null
+    if (regionEn !== undefined) updateData.region_en = regionEn || null
+    if (regionCode !== undefined) updateData.region_code = regionCode || null
 
-    // 체인/브랜드 정보
-    const chainId = formData.get('chain_id') as string
+    // 브랜드 정보만 업데이트 (chain_id는 select_hotels 테이블에 없음)
     const brandId = formData.get('brand_id') as string
     
-    if (chainId) {
-      updateData.chain_id = chainId === '' ? null : Number(chainId)
-    }
     if (brandId) {
       updateData.brand_id = brandId === '' ? null : Number(brandId)
     }
 
-    // Rate Plan Codes
+    // Rate Plan Codes (rate_plan_code 컬럼에 저장)
     const ratePlanCodes = formData.get('rate_plan_codes') as string
     if (ratePlanCodes !== undefined) {
       try {
         const parsed = JSON.parse(ratePlanCodes)
-        updateData.rate_plan_codes = Array.isArray(parsed) && parsed.length > 0 ? parsed : null
+        updateData.rate_plan_code = Array.isArray(parsed) && parsed.length > 0 ? parsed.join(',') : null
       } catch {
-        updateData.rate_plan_codes = null
+        updateData.rate_plan_code = null
       }
     }
 
@@ -255,7 +263,7 @@ export async function updateRatePlanCodes(
     const { error } = await supabase
       .from('select_hotels')
       .update({ 
-        rate_plan_codes: ratePlanCodes.length > 0 ? ratePlanCodes : null 
+        rate_plan_code: ratePlanCodes.length > 0 ? ratePlanCodes : null 
       })
       .eq('sabre_id', sabreId)
 

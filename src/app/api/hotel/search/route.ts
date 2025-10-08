@@ -1,365 +1,76 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 
-// 공통 검색 함수
 async function searchHotels(query: string) {
   const supabase = createServiceRoleClient()
   
-  // 빈 검색어인 경우 초기 호텔 목록 반환 (최근 50개)
-  if (!query || query.trim().length === 0) {
+  // 빈 검색어인 경우 id_old 값이 큰 순서대로 10개 반환
+  if (!query || !query.trim()) {
     const { data, error } = await supabase
       .from('select_hotels')
-      .select(`
-        sabre_id,
-        property_name_ko,
-        property_name_en,
-        slug,
-        image_1,
-        image_2,
-        image_3,
-        image_4,
-        image_5,
-        brand_id,
-        created_at,
-        updated_at,
-        hotel_brands!left(
-          brand_id,
-          brand_name_kr,
-          brand_name_en,
-          chain_id,
-          hotel_chains!left(
-            chain_id,
-            chain_name_kr,
-            chain_name_en
-          )
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .limit(50)
+      .select('sabre_id, property_name_ko, property_name_en, property_address, rate_plan_code, paragon_id, brand_id, id_old')
+      .order('id_old', { ascending: false })
+      .limit(10)
 
     if (error) {
-      console.error('초기 호텔 목록 조회 오류:', error)
-      return {
-        success: false,
-        error: '초기 호텔 목록을 불러올 수 없습니다.',
-        status: 500
-      }
+      console.error('[hotel/search] empty query error:', error)
+      throw error
     }
 
-    return {
-      success: true,
-      data: data || [],
-      count: data?.length || 0,
-      status: 200
-    }
+    return data || []
   }
-
-  const trimmedQuery = query.trim()
-
-  // 쉼표가 포함된 검색어의 경우 별도 쿼리 실행 (아키텍처 가이드 준수)
-  if (trimmedQuery.includes(',')) {
-    const queries = trimmedQuery.split(',').map(q => q.trim()).filter(q => q.length > 0)
-    
-    if (queries.length === 0) {
-      return {
-        success: false,
-        error: '검색어를 입력해주세요.',
-        status: 400
-      }
-    }
-
-    // 각 검색어에 대해 별도 쿼리 실행 (sabre_id 검색 포함)
-    const allResults = []
-    for (const searchTerm of queries) {
-      const isNumeric = !isNaN(Number(searchTerm))
-      
-      if (isNumeric) {
-        // 숫자인 경우: sabre_id 정확 일치 또는 호텔명 부분 일치
-        const { data: numericData, error: numericError } = await supabase
-          .from('select_hotels')
-          .select(`
-            sabre_id,
-            property_name_ko,
-            property_name_en,
-            brand_id,
-            hotel_brands!inner(
-              brand_id,
-              name_kr,
-              name_en,
-              chain_id,
-              hotel_chains!inner(
-                chain_id,
-                name_kr,
-                name_en
-              )
-            )
-          `)
-          .or(`sabre_id.eq.${searchTerm},property_name_ko.ilike.%${searchTerm}%,property_name_en.ilike.%${searchTerm}%`)
-          .limit(25)
-
-        if (numericError) {
-          console.error('숫자 검색 오류:', numericError)
-          continue
-        }
-
-        allResults.push(...(numericData || []))
-      } else {
-        // 문자열인 경우: 호텔명만 부분 일치
-        const { data: koData, error: koError } = await supabase
-          .from('select_hotels')
-          .select(`
-            sabre_id,
-            property_name_ko,
-            property_name_en,
-            brand_id,
-            hotel_brands!inner(
-              brand_id,
-              name_kr,
-              name_en,
-              chain_id,
-              hotel_chains!inner(
-                chain_id,
-                name_kr,
-                name_en
-              )
-            )
-          `)
-          .ilike('property_name_ko', `%${searchTerm}%`)
-          .limit(25)
-
-        if (koError) {
-          console.error('한국어 호텔 검색 오류:', koError)
-          continue
-        }
-
-        const { data: enData, error: enError } = await supabase
-          .from('select_hotels')
-          .select(`
-            sabre_id,
-            property_name_ko,
-            property_name_en,
-            brand_id,
-            hotel_brands!inner(
-              brand_id,
-              name_kr,
-              name_en,
-              chain_id,
-              hotel_chains!inner(
-                chain_id,
-                name_kr,
-                name_en
-              )
-            )
-          `)
-          .ilike('property_name_en', `%${searchTerm}%`)
-          .limit(25)
-
-        if (enError) {
-          console.error('영어 호텔 검색 오류:', enError)
-          continue
-        }
-
-        allResults.push(...(koData || []), ...(enData || []))
-      }
-    }
-
-    // 중복 제거 (sabre_id 기준)
-    const uniqueResults = allResults.filter((hotel, index, self) => 
-      index === self.findIndex(h => h.sabre_id === hotel.sabre_id)
-    )
-
-    return {
-      success: true,
-      data: uniqueResults.sort((a, b) => a.property_name_ko.localeCompare(b.property_name_ko)),
-      count: uniqueResults.length,
-      status: 200
-    }
-  }
-
-  // 단일 검색어의 경우 - 숫자인지 확인하여 sabre_id 검색 포함
-  const isNumeric = !isNaN(Number(trimmedQuery))
   
-  let searchQuery
-  if (isNumeric) {
-    // 숫자인 경우: sabre_id 정확 일치 또는 호텔명 부분 일치
-    searchQuery = supabase
-      .from('select_hotels')
-      .select(`
-        sabre_id,
-        property_name_ko,
-        property_name_en,
-        slug,
-        image_1,
-        image_2,
-        image_3,
-        image_4,
-        image_5,
-        brand_id,
-        created_at,
-        updated_at,
-        hotel_brands!left(
-          brand_id,
-          brand_name_kr,
-          brand_name_en,
-          chain_id,
-          hotel_chains!left(
-            chain_id,
-            chain_name_kr,
-            chain_name_en
-          )
-        )
-      `)
-      .or(`sabre_id.eq.${trimmedQuery},property_name_ko.ilike.%${trimmedQuery}%,property_name_en.ilike.%${trimmedQuery}%`)
+  // Sabre ID, 호텔명 (한글/영문) 검색
+  // sabre_id는 bigint이므로 정확히 일치하는 경우만 검색, 호텔명은 ilike로 부분 일치 검색
+  let queryBuilder = supabase
+    .from('select_hotels')
+    .select('sabre_id, property_name_ko, property_name_en, property_address, rate_plan_code, paragon_id, brand_id, id_old')
+  
+  // 숫자인 경우 sabre_id로도 검색
+  if (/^\d+$/.test(query)) {
+    queryBuilder = queryBuilder.or(`sabre_id.eq.${query},property_name_ko.ilike.%${query}%,property_name_en.ilike.%${query}%`)
   } else {
-    // 문자열인 경우: 호텔명만 부분 일치
-    searchQuery = supabase
-      .from('select_hotels')
-      .select(`
-        sabre_id,
-        property_name_ko,
-        property_name_en,
-        slug,
-        image_1,
-        image_2,
-        image_3,
-        image_4,
-        image_5,
-        brand_id,
-        created_at,
-        updated_at,
-        hotel_brands!left(
-          brand_id,
-          brand_name_kr,
-          brand_name_en,
-          chain_id,
-          hotel_chains!left(
-            chain_id,
-            chain_name_kr,
-            chain_name_en
-          )
-        )
-      `)
-      .or(`property_name_ko.ilike.%${trimmedQuery}%,property_name_en.ilike.%${trimmedQuery}%`)
+    queryBuilder = queryBuilder.or(`property_name_ko.ilike.%${query}%,property_name_en.ilike.%${query}%`)
   }
-
-  const { data, error } = await searchQuery
-    .order('property_name_ko', { ascending: true })
+  
+  const { data, error } = await queryBuilder
     .limit(50)
+    .order('property_name_en')
 
   if (error) {
-    console.error('호텔 검색 오류:', error)
-    return {
-      success: false,
-      error: '호텔 검색 중 오류가 발생했습니다.',
-      status: 500
-    }
+    console.error('[hotel/search] error:', error)
+    throw error
   }
 
-  return {
-    success: true,
-    data: data || [],
-    count: data?.length || 0,
-    status: 200
+  return data || []
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const q = searchParams.get('q')
+
+    const data = await searchHotels(q || '')
+    return NextResponse.json({ success: true, data })
+  } catch (e) {
+    console.error('[hotel/search] GET exception:', e)
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// GET: 호텔명으로 호텔 검색 (URL 쿼리 파라미터)
-export async function GET(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const query = searchParams.get('q')
+    const body = await req.json()
+    // q 또는 searching_string 둘 다 지원
+    const q = body.q || body.searching_string
 
-    console.log('호텔 검색 API 호출:', { query, url: request.url })
-
-    const result = await searchHotels(query || '')
+    const queryString = typeof q === 'string' ? q.trim() : String(q || '').trim()
+    const data = await searchHotels(queryString)
     
-    return NextResponse.json(
-      { 
-        success: result.success, 
-        data: result.data,
-        count: result.count,
-        error: result.error
-      },
-      { status: result.status }
-    )
-
-  } catch (error) {
-    console.error('호텔 검색 API 오류:', error)
-    
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: '서버 오류가 발생했습니다.' 
-      },
-      { status: 500 }
-    )
-  }
-}
-
-// POST: 호텔명으로 호텔 검색 (요청 본문)
-export async function POST(request: NextRequest) {
-  try {
-    // 요청 본문 파싱 시도
-    let body
-    try {
-      body = await request.json()
-    } catch (parseError) {
-      console.error('JSON 파싱 오류:', parseError)
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: '잘못된 요청 형식입니다.' 
-        },
-        { status: 400 }
-      )
-    }
-
-    // 요청 본문 검증
-    if (!body || typeof body !== 'object') {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: '요청 본문이 올바르지 않습니다.' 
-        },
-        { status: 400 }
-      )
-    }
-
-    // 두 가지 필드명 지원: 'q' 또는 'searching_string'
-    const query = body.q || body.searching_string
-
-    // 검색어 타입 검증
-    if (query !== undefined && typeof query !== 'string') {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: '검색어는 문자열이어야 합니다.' 
-        },
-        { status: 400 }
-      )
-    }
-
-    const result = await searchHotels(query || '')
-    
-    return NextResponse.json(
-      { 
-        success: result.success, 
-        data: result.data,
-        count: result.count,
-        error: result.error
-      },
-      { status: result.status }
-    )
-
-  } catch (error) {
-    console.error('호텔 검색 API 오류:', error)
-    
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: '서버 오류가 발생했습니다.' 
-      },
-      { status: 500 }
-    )
+    // 기존 호환성을 위해 count도 포함
+    return NextResponse.json({ success: true, data, count: data.length })
+  } catch (e) {
+    console.error('[hotel/search] POST exception:', e)
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

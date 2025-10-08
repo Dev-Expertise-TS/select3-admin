@@ -78,23 +78,37 @@ export function validateAndNormalizeRatePlanCodes(
     }
   }
   
-  // 코드 정규화: 공백 제거, 대문자 변환, 빈 값 제거
+  // 코드 정규화: 공백 제거, 대문자 변환, 빈 값 제거, 잘못된 형식 필터링
   const cleanedCodes = inputCodes
     .map((code) => {
       if (typeof code !== 'string') {
         errors.push(`Invalid code type: ${typeof code}`)
         return ''
       }
-      return code.trim().toUpperCase()
+      
+      let cleanCode = code.trim().toUpperCase()
+      
+      // JSON 파싱 오류를 일으키는 문자열 패턴 제거
+      // 예: '["API"', '"ZP3"', '"VMC"', '"TLC"]'
+      if (cleanCode.includes('[') || cleanCode.includes(']') || cleanCode.includes('"')) {
+        // JSON 배열 부분 문자열에서 실제 코드만 추출
+        cleanCode = cleanCode.replace(/[\[\]"]/g, '').trim()
+      }
+      
+      return cleanCode
     })
     .filter((code) => {
       if (code.length === 0) return false
+      
+      // 허용된 코드 목록에 있는지 확인
       if (!allowedCodes.includes(code)) {
         errors.push(`Invalid rate plan code: ${code}`)
         return false
       }
       return true
     })
+    // 중복 제거
+    .filter((code, index, array) => array.indexOf(code) === index)
   
   // 배열을 쉼표로 구분된 문자열로 변환 (빈 배열이면 null)
   const normalizedCodes = cleanedCodes.length > 0 ? cleanedCodes.join(',') : null

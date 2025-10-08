@@ -26,13 +26,13 @@ export async function GET(req: NextRequest) {
       const q = search.trim()
       query = query.or(
         [
-          `city_kr.ilike.%${q}%`,
+          `city_ko.ilike.%${q}%`,
           `city_en.ilike.%${q}%`,
           `country_ko.ilike.%${q}%`,
           `country_en.ilike.%${q}%`,
           `continent_ko.ilike.%${q}%`,
           `continent_en.ilike.%${q}%`,
-          `region_name_kr.ilike.%${q}%`,
+          `region_name_ko.ilike.%${q}%`,
           `region_name_en.ilike.%${q}%`,
         ].join(',')
       )
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     const payload = {
       region_type: body.region_type,
-      city_kr: normalizeString(body.city_kr),
+      city_ko: normalizeString(body.city_ko),
       city_en: normalizeString(body.city_en),
       city_sort_order: normalizeNumber(body.city_sort_order),
       country_ko: normalizeString(body.country_ko),
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
       continent_ko: normalizeString(body.continent_ko),
       continent_en: normalizeString(body.continent_en),
       continent_sort_order: normalizeNumber(body.continent_sort_order),
-      region_name_kr: normalizeString(body.region_name_kr),
+      region_name_ko: normalizeString(body.region_name_ko),
       region_name_en: normalizeString(body.region_name_en),
       region_name_sort_order: normalizeNumber(body.region_name_sort_order),
     }
@@ -139,7 +139,7 @@ export async function PATCH(req: NextRequest) {
 
     const payload = {
       region_type: body.region_type,
-      city_kr: normalizeString(body.city_kr),
+      city_ko: normalizeString(body.city_ko),
       city_en: normalizeString(body.city_en),
       city_sort_order: normalizeNumber(body.city_sort_order),
       country_ko: normalizeString(body.country_ko),
@@ -148,7 +148,7 @@ export async function PATCH(req: NextRequest) {
       continent_ko: normalizeString(body.continent_ko),
       continent_en: normalizeString(body.continent_en),
       continent_sort_order: normalizeNumber(body.continent_sort_order),
-      region_name_kr: normalizeString(body.region_name_kr),
+      region_name_ko: normalizeString(body.region_name_ko),
       region_name_en: normalizeString(body.region_name_en),
       region_name_sort_order: normalizeNumber(body.region_name_sort_order),
       updated_at: new Date().toISOString(),

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, FormEvent, useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { 
   Search, 
   Loader2, 
@@ -531,8 +532,11 @@ export default function HotelSearchWidget({
   connectBrandId = null,
   onConnectSuccess
 }: HotelSearchWidgetProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  
   // State 관리
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [results, setResults] = useState<HotelSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -545,6 +549,15 @@ export default function HotelSearchWidget({
   const [suppressSuggest, setSuppressSuggest] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const firstResultRef = useRef<HTMLButtonElement | null>(null);
+
+  // URL 파라미터가 있을 때 자동 검색
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q && q !== searchTerm) {
+      setSearchTerm(q)
+      performSearch(q)
+    }
+  }, [searchParams])
 
   // 초기 호텔 목록 로드
   useEffect(() => {
@@ -1327,10 +1340,6 @@ export default function HotelSearchWidget({
 
   // 검색 핸들러 + 외부 호출 함수로 분리 (자동완성 Enter 선택 시 재사용)
   const performSearch = async (term: string) => {
-    if (!term.trim()) {
-      setError('호텔명을 입력해주세요.');
-      return;
-    }
     setLoading(true);
     setError(null);
     setResults([]);
@@ -1379,6 +1388,16 @@ export default function HotelSearchWidget({
     e.preventDefault();
     setOpenSuggest(false);
     setSuggestions([]);
+    
+    // URL 업데이트
+    const params = new URLSearchParams(searchParams.toString())
+    if (searchTerm.trim()) {
+      params.set('q', searchTerm.trim())
+    } else {
+      params.delete('q')
+    }
+    router.push(`?${params.toString()}`, { scroll: false })
+    
     await performSearch(searchTerm);
   };
 
@@ -1393,6 +1412,11 @@ export default function HotelSearchWidget({
     setExpandedRowState(null);
     setSuggestions([]);
     setOpenSuggest(false);
+    
+    // URL에서 검색 파라미터 제거
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('q')
+    router.push(`?${params.toString()}`, { scroll: false })
   };
 
   // Rate Plan Codes 가져오기
@@ -1680,12 +1704,26 @@ export default function HotelSearchWidget({
       `${h.sabre_id}-${h.paragon_id}` === expandedRowState.hotelId
     );
     
-    if (!currentHotel?.sabre_id) {
+    // currentHotel이 없거나 sabre_id가 없는 경우, expandedRowState.hotelId에서 sabre_id 추출 시도
+    let sabreId = currentHotel?.sabre_id
+    
+    if (!sabreId && expandedRowState.hotelId) {
+      // hotelId가 "sabreId-paragonId" 형식인 경우 sabreId 추출
+      const parts = expandedRowState.hotelId.split('-')
+      if (parts[0] && parts[0] !== 'null' && parts[0] !== 'undefined') {
+        sabreId = parts[0]
+      }
+    }
+    
+    if (!sabreId) {
       updateExpandedRowState({ 
         error: 'Sabre ID가 없어서 테스트할 수 없습니다.' 
       });
+      console.error('[handleTestApi] No sabre_id found. expandedRowState:', expandedRowState, 'currentHotel:', currentHotel)
       return;
     }
+    
+    console.log('[handleTestApi] Using sabre_id:', sabreId)
 
     updateExpandedRowState({ 
       isLoading: true, 
@@ -1695,7 +1733,7 @@ export default function HotelSearchWidget({
 
     try {
       const requestBody: HotelDetailsRequest = {
-        HotelCode: `${currentHotel.sabre_id}`,
+        HotelCode: `${sabreId}`,
         CurrencyCode: expandedRowState.currencyCode,
         StartDate: expandedRowState.startDate,
         EndDate: expandedRowState.endDate,
@@ -1747,16 +1785,30 @@ export default function HotelSearchWidget({
   const handleSaveRatePlanCodes = async () => {
     if (!expandedRowState) return;
     
-    const currentHotel = results.find(h => 
-      `${h.sabre_id}-${h.paragon_id}` === expandedRowState.hotelId
-    );
+    // expandedRowState.hotel 사용 또는 results에서 찾기
+    let currentHotel = expandedRowState.hotel
     
     if (!currentHotel) {
+      // results에서 찾기 (여러 ID 형식 지원)
+      currentHotel = results.find(h => {
+        const hotelId = expandedRowState.hotelId
+        return (
+          `${h.sabre_id}-${h.paragon_id}` === hotelId ||
+          String(h.sabre_id) === hotelId ||
+          `${h.sabre_id}` === hotelId
+        )
+      })
+    }
+    
+    if (!currentHotel || !currentHotel.sabre_id) {
       updateExpandedRowState({ 
         error: '호텔 정보를 찾을 수 없습니다.' 
       });
+      console.error('[handleSaveRatePlanCodes] Hotel not found. expandedRowState:', expandedRowState, 'results:', results)
       return;
     }
+    
+    console.log('[handleSaveRatePlanCodes] Found hotel:', currentHotel)
 
     updateExpandedRowState({ 
       isSaving: true, 
@@ -2174,7 +2226,7 @@ export default function HotelSearchWidget({
                         scope="col" 
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
-                        Paragon ID
+                        Framer CMS ID (id_old)
                       </th>
                       <th 
                         scope="col" 
@@ -2275,9 +2327,9 @@ export default function HotelSearchWidget({
                     ) : (
                       <>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
-                          {hotel.paragon_id ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {hotel.paragon_id}
+                          {(hotel as any).id_old ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {(hotel as any).id_old}
                             </span>
                           ) : (
                             <span className="text-gray-400 italic">N/A</span>
@@ -2285,22 +2337,14 @@ export default function HotelSearchWidget({
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {enableHotelEdit ? (
-                            <div className="flex gap-2">
-                              <Link
-                                href={`/admin/hotel-details/${hotel.sabre_id ?? 'null'}`}
-                                className={cn(
-                                  'font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded text-blue-600'
-                                )}
-                              >
-                                {hotel.property_name_ko || '한글명 없음'}
-                              </Link>
-                              <Link
-                                href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
-                                className="text-xs text-gray-500 hover:text-gray-700 underline"
-                              >
-                                편집
-                              </Link>
-                            </div>
+                            <Link
+                              href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                              className={cn(
+                                'font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded text-blue-600'
+                              )}
+                            >
+                              {hotel.property_name_ko || '한글명 없음'}
+                            </Link>
                           ) : (
                             <button
                               type="button"
@@ -2322,7 +2366,7 @@ export default function HotelSearchWidget({
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {enableHotelEdit ? (
                             <Link
-                              href={`/admin/hotel-details/${hotel.sabre_id ?? 'null'}`}
+                              href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
                               className={cn(
                                 'font-medium hover:underline text-blue-600',
                                 !hotel.property_name_en ? 'text-gray-400 italic' : ''

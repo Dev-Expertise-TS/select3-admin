@@ -44,6 +44,8 @@ interface DataTableProps<T = Record<string, unknown>> {
   addButtonLabel?: string
   addButtonIcon?: React.ReactNode
   addButtonClassName?: string
+  onCellClick?: (row: Record<string, unknown>, columnKey: string) => void
+  onRowClick?: (row: Record<string, unknown>) => void
 }
 
 export function DataTable<T = Record<string, unknown>>({
@@ -57,7 +59,9 @@ export function DataTable<T = Record<string, unknown>>({
   onAdd,
   addButtonLabel = '새 항목 추가',
   addButtonIcon = <Plus className="h-4 w-4" />,
-  addButtonClassName = 'bg-purple-600 hover:bg-purple-700'
+  addButtonClassName = 'bg-purple-600 hover:bg-purple-700',
+  onCellClick,
+  onRowClick,
 }: DataTableProps<T>) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -135,21 +139,37 @@ export function DataTable<T = Record<string, unknown>>({
                 const rowData = row as Record<string, unknown>
                 const rowId = typeof rowData.id === 'string' || typeof rowData.id === 'number' ? rowData.id : index
                 return (
-                  <tr key={rowId} className="hover:bg-gray-50">
+                  <tr 
+                    key={rowId} 
+                    className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
+                    onClick={() => onRowClick && onRowClick(rowData)}
+                  >
                     {columns.map((column) => (
-                      <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td 
+                        key={column.key} 
+                        className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${onCellClick && column.key.includes('code') ? 'cursor-pointer hover:bg-blue-50 hover:text-blue-600' : ''}`}
+                        onClick={(e) => {
+                          if (onCellClick && column.key.includes('code')) {
+                            e.stopPropagation()
+                            onCellClick(rowData, column.key)
+                          }
+                        }}
+                      >
                         {column.render ? column.render(rowData[column.key], rowData) : String(rowData[column.key] ?? '')}
                       </td>
                     ))}
                     {actions.length > 0 && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-2">
                           {actions.map((action, actionIndex) => (
                             <Button
                               key={actionIndex}
                               size="sm"
                               variant={action.variant || 'outline'}
-                              onClick={() => action.onClick(rowData)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                action.onClick(rowData)
+                              }}
                               className={action.className}
                             >
                               {action.icon}
