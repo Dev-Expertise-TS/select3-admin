@@ -14,6 +14,7 @@ export default function NewHotelPage() {
     property_name_ko: '',
     property_name_en: '',
     slug: '',
+    publish: false,
     property_address: '',
     city_ko: '',
     city_en: '',

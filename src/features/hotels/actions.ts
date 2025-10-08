@@ -37,6 +37,7 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     const propertyNameKo = formData.get('property_name_ko') as string
     const propertyNameEn = formData.get('property_name_en') as string
     const slug = formData.get('slug') as string
+    const publish = formData.get('publish') as string
     const propertyAddress = formData.get('property_address') as string
     const cityKo = formData.get('city_ko') as string
     const cityEn = formData.get('city_en') as string
@@ -76,6 +77,11 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
       if (slug !== undefined) {
         updateData.slug = slug && slug.trim() ? normalizeSlug(slug.trim()) : null
       }
+    }
+    
+    // Publish 상태 처리
+    if (publish !== undefined && publish !== null) {
+      updateData.publish = publish === 'true' || publish === true
     }
     
     if (propertyAddress) updateData.property_address = propertyAddress

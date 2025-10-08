@@ -31,6 +31,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
     property_name_ko: String(initialData.property_name_ko ?? ''),
     property_name_en: String(initialData.property_name_en ?? ''),
     slug: String(initialData.slug ?? ''),
+    publish: initialData.publish === true || initialData.publish === 'true',
     property_address: String(initialData.property_address ?? ''),
     city_ko: String(initialData.city_ko ?? ''),
     city_en: String(initialData.city_en ?? ''),
@@ -101,6 +102,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           property_name_ko: String(initialData.property_name_ko ?? ''),
           property_name_en: String(initialData.property_name_en ?? ''),
           slug: String(initialData.slug ?? ''),
+          publish: initialData.publish === true || initialData.publish === 'true',
           property_address: String(initialData.property_address ?? ''),
           city_ko: String(initialData.city_ko ?? ''),
           city_en: String(initialData.city_en ?? ''),
@@ -174,6 +176,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
         formDataToSubmit.append('property_name_ko', formData.property_name_ko)
         formDataToSubmit.append('property_name_en', formData.property_name_en)
         formDataToSubmit.append('slug', formData.slug)
+        formDataToSubmit.append('publish', String(formData.publish))
         formDataToSubmit.append('property_address', formData.property_address)
         formDataToSubmit.append('city_ko', formData.city_ko)
         formDataToSubmit.append('city_en', formData.city_en)
@@ -220,6 +223,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
                 property_name_ko: String(result.data.property_name_ko ?? prev.property_name_ko),
                 property_name_en: String(result.data.property_name_en ?? prev.property_name_en),
                 slug: String(result.data.slug ?? prev.slug),
+                publish: result.data.publish === true || result.data.publish === 'true',
                 property_address: String(result.data.property_address ?? prev.property_address),
                 city_ko: String(result.data.city_ko ?? prev.city_ko),
                 city_en: String(result.data.city_en ?? prev.city_en),
@@ -426,7 +430,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           </div>
             
           {/* Rate Plan Codes */}
-          <div className="space-y-1 md:col-span-2 lg:col-span-1">
+          <div className="space-y-1 md:col-span-1">
             <label className="block text-sm font-medium text-gray-700">Rate Plan Codes</label>
             {isEditMode ? (
               <RatePlanCodesEditor
@@ -452,6 +456,52 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
                     <span className="text-gray-500">-</span>
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Publish 상태 (스위치 형태) */}
+          <div className="space-y-1 md:col-span-1">
+            <label className="block text-sm font-medium text-gray-700">게시 상태</label>
+            {isEditMode ? (
+              <div className="flex items-center h-[42px]">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={formData.publish}
+                  onClick={() => {
+                    setFormData(prev => ({ ...prev, publish: !prev.publish }))
+                    setHighlightedFields(prev => new Set([...prev, 'publish']))
+                  }}
+                  className={cn(
+                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                    formData.publish ? "bg-green-600" : "bg-gray-300"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                      formData.publish ? "translate-x-6" : "translate-x-1"
+                    )}
+                  />
+                </button>
+                <span className="ml-3 text-sm font-medium text-gray-700">
+                  {formData.publish ? '공개' : '비공개'}
+                </span>
+              </div>
+            ) : (
+              <div className={cn(
+                "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300 flex items-center",
+                highlightedFields.has('publish') ? "bg-yellow-100" : "bg-gray-50"
+              )}>
+                <span className={cn(
+                  "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+                  formData.publish 
+                    ? "bg-green-100 text-green-800" 
+                    : "bg-gray-100 text-gray-800"
+                )}>
+                  {formData.publish ? '공개' : '비공개'}
+                </span>
               </div>
             )}
           </div>
