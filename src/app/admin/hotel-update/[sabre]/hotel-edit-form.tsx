@@ -232,7 +232,20 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
     startTransition(async () => {
       try {
         const formDataToSubmit = new FormData()
-        formDataToSubmit.append('sabre_id', currentValues.sabre_id)
+        
+        // 원본 Sabre ID (URL에서 온 것)
+        const originalSabreId = String(initialData.sabre_id ?? '')
+        
+        console.log('[handleSave] 저장 시작')
+        console.log('[handleSave] 원본 Sabre ID:', originalSabreId)
+        console.log('[handleSave] 변경된 Sabre ID:', currentValues.sabre_id)
+        console.log('[handleSave] Sabre ID 변경됨?', currentValues.sabre_id !== originalSabreId)
+        
+        // 원본 sabre_id를 'sabre_id'로 전달 (비교용)
+        formDataToSubmit.append('sabre_id', originalSabreId)
+        // 변경된 sabre_id를 'sabre_id_editable'로 전달
+        formDataToSubmit.append('sabre_id_editable', currentValues.sabre_id)
+        
         formDataToSubmit.append('property_name_ko', currentValues.property_name_ko)
         formDataToSubmit.append('property_name_en', currentValues.property_name_en)
         formDataToSubmit.append('slug', currentValues.slug)
@@ -270,21 +283,32 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           if (isNewHotel) {
             // 신규 호텔 생성 성공 시 호텔 업데이트 페이지로 이동
             alert('신규 호텔이 생성되었습니다.')
-            router.push(`/admin/hotel-update/${formData.sabre_id}`)
+            router.push(`/admin/hotel-update/${currentValues.sabre_id}`)
           } else {
-            // 기존 호텔 업데이트 성공 시 편집 모드 종료 및 하이라이트 초기화
-            setIsEditMode(false)
-            setHighlightedFields(new Set())
+            // Sabre ID 변경 시 새 페이지로 이동
+            const originalSabreId = String(initialData.sabre_id ?? '')
+            console.log('[handleSave] 저장 성공, 원본:', originalSabreId, '변경:', currentValues.sabre_id)
             
-            // 현재 입력된 값으로 formData 업데이트 (저장된 값이 바로 보이도록)
-            setFormData(prev => ({
-              ...prev,
-              sabre_id: currentValues.sabre_id,
-              property_name_ko: currentValues.property_name_ko,
-              property_name_en: currentValues.property_name_en,
-              slug: currentValues.slug,
-              publish: currentValues.publish
-            }))
+            if (currentValues.sabre_id !== originalSabreId) {
+              alert(`Sabre ID가 변경되었습니다: ${originalSabreId} → ${currentValues.sabre_id}\n\n관련 데이터(혜택, 이미지)도 함께 마이그레이션되었습니다.`)
+              router.push(`/admin/hotel-update/${currentValues.sabre_id}`)
+            } else {
+              // 기존 호텔 업데이트 성공 시 편집 모드 종료 및 하이라이트 초기화
+              setIsEditMode(false)
+            setHighlightedFields(new Set())
+              
+              // 현재 입력된 값으로 formData 업데이트 (저장된 값이 바로 보이도록)
+              setFormData(prev => ({
+                ...prev,
+                sabre_id: currentValues.sabre_id,
+                property_name_ko: currentValues.property_name_ko,
+                property_name_en: currentValues.property_name_en,
+                slug: currentValues.slug,
+                publish: currentValues.publish
+              }))
+              
+              alert('저장되었습니다.')
+            }
           }
         } else {
           alert(result.error || '저장에 실패했습니다.')
@@ -550,7 +574,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
               </div>
             )}
           </div>
-        </div>
+            </div>
           </div>
 
           {/* 주소 및 위치 정보 */}
@@ -722,10 +746,10 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
                   </div>
                   </div>
                 )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
     </div>
   ), [formData, isEditMode, highlightedFields, selectedChain, selectedBrand, handleInputChange])
 

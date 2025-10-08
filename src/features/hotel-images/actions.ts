@@ -24,8 +24,10 @@ export async function uploadHotelImagesFromUrls(input: UploadFromUrlsInput) {
   if (!sabreIdRaw || typeof sabreIdRaw !== 'string') {
     return { success: false as const, error: 'Sabre ID는 필수입니다.' }
   }
+  
   const sabreId = sabreIdRaw.trim()
   const urls = urlsRaw.map((u) => String(u).trim()).filter((u) => u.length > 0).slice(0, 20)
+  
   if (urls.length === 0) {
     return { success: false as const, error: '업로드할 이미지 URL을 입력해주세요.' }
   }
@@ -50,7 +52,6 @@ export async function uploadHotelImagesFromUrls(input: UploadFromUrlsInput) {
     .list(folderPath, { limit: 1000 })
 
   if (listError) {
-    console.error('Storage 목록 조회 오류:', listError)
     return { success: false as const, error: '기존 이미지 목록을 불러오는 중 오류가 발생했습니다.' }
   }
 
@@ -172,6 +173,7 @@ export async function uploadHotelImagesFromUrls(input: UploadFromUrlsInput) {
   }
 
   const okCount = results.filter((r) => !r.error).length
+  
   return {
     success: true as const,
     data: {

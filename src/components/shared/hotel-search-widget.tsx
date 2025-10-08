@@ -118,26 +118,45 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
   const [urlModalOpen, setUrlModalOpen] = useState(false)
   const [urlInputs, setUrlInputs] = useState<string[]>(Array.from({ length: 10 }, () => ''))
 
+  const [uploading, setUploading] = useState(false)
+
   const uploadFromUrls = async () => {
     const sabreId = String(hotel.sabre_id || '')
-    if (!sabreId) return
+    
+    if (!sabreId) {
+      alert('Sabre ID가 없습니다.')
+      return
+    }
+    
     const urls = urlInputs.map((u) => u.trim()).filter((u) => u.length > 0)
+    
     if (urls.length === 0) {
       alert('하나 이상의 이미지 URL을 입력해주세요.')
       return
     }
+    
+    setUploading(true)
+    
     try {
       const data = await uploadHotelImagesFromUrls({ sabreId, urls })
+      
       if (data?.success) {
-        alert(`업로드 완료: ${data.data.uploaded}/${data.data.total}`)
+        const errorResults = data.data.results.filter(r => r.error)
+        if (errorResults.length > 0) {
+          alert(`업로드 완료: ${data.data.uploaded}/${data.data.total}\n\n오류:\n${errorResults.map(r => `- ${r.url}: ${r.error}`).join('\n')}`)
+        } else {
+          alert(`업로드 완료: ${data.data.uploaded}/${data.data.total}`)
+        }
         setUrlModalOpen(false)
         setUrlInputs(Array.from({ length: 10 }, () => ''))
         onLoadStorageImages(hotelId, sabreId)
       } else {
         alert(`업로드 실패: ${data?.error || '알 수 없는 오류'}`)
       }
-    } catch {
-      alert('업로드 중 오류가 발생했습니다.')
+    } catch (err) {
+      alert(`업로드 중 오류가 발생했습니다: ${err instanceof Error ? err.message : '알 수 없는 오류'}`)
+    } finally {
+      setUploading(false)
     }
   }
   if (!state) {
@@ -477,8 +496,21 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
               ))}
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => setUrlModalOpen(false)}>취소</Button>
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={uploadFromUrls}>저장하기</Button>
+              <Button variant="outline" onClick={() => setUrlModalOpen(false)} disabled={uploading}>취소</Button>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700" 
+                onClick={uploadFromUrls}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    업로드 중...
+                  </>
+                ) : (
+                  '저장하기'
+                )}
+              </Button>
             </div>
           </div>
         </div>

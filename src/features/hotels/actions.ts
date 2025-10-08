@@ -21,6 +21,12 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     const sabreIdEditable = formData.get('sabre_id_editable') as string
     const isNew = formData.get('is_new') === 'true'
 
+    console.log('[updateHotel] FormData 수신:', {
+      sabreId,
+      sabreIdEditable,
+      isNew,
+    })
+
     if (!sabreId && !sabreIdEditable) {
       return {
         success: false,
@@ -29,6 +35,8 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     }
 
     const targetSabreId = sabreIdEditable || sabreId
+    
+    console.log('[updateHotel] 대상 Sabre ID:', targetSabreId, '원본 Sabre ID:', sabreId)
 
     // FormData에서 필드 추출
     const updateData: Record<string, unknown> = {}
@@ -72,8 +80,9 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
         updateData.slug = normalizeSlug(propertyNameEn)
       }
     } else {
-      if (propertyNameKo) updateData.property_name_ko = propertyNameKo
-      if (propertyNameEn) updateData.property_name_en = propertyNameEn
+      // 기존 호텔 업데이트 시
+      if (propertyNameKo !== undefined) updateData.property_name_ko = propertyNameKo || null
+      if (propertyNameEn !== undefined) updateData.property_name_en = propertyNameEn || null
       if (slug !== undefined) {
         updateData.slug = slug && slug.trim() ? normalizeSlug(slug.trim()) : null
       }
@@ -160,17 +169,138 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
       }
     } else {
       // 기존 호텔 업데이트
-      const { error } = await supabase
-        .from('select_hotels')
-        .update(updateData)
-        .eq('sabre_id', targetSabreId)
+      console.log('[updateHotel] 기존 호텔 업데이트 모드')
+      console.log('[updateHotel] updateData:', updateData)
+      
+      // Sabre ID 변경 시 특별 처리 (Primary Key 변경)
+      if (targetSabreId !== sabreId) {
+        console.log(`[updateHotel] Sabre ID 변경 감지: ${sabreId} → ${targetSabreId}`)
+        
+        // 1. 기존 호텔 데이터 전체 조회
+        const { data: existingHotel, error: fetchError } = await supabase
+          .from('select_hotels')
+          .select('*')
+          .eq('sabre_id', sabreId)
+          .single()
 
-      if (error) {
-        console.error('호텔 업데이트 오류:', error)
-        return {
-          success: false,
-          error: `호텔 업데이트에 실패했습니다: ${error.message}`,
+        if (fetchError || !existingHotel) {
+          return {
+            success: false,
+            error: '기존 호텔 정보를 찾을 수 없습니다.',
+          }
         }
+
+        // 2. 관련 데이터 조회 (삭제 전에 미리 조회)
+        const { data: benefitMappings } = await supabase
+          .from('select_hotel_benefits_map')
+          .select('*')
+          .eq('sabre_id', sabreId)
+
+        const { data: mediaRecords } = await supabase
+          .from('select_hotel_media')
+          .select('*')
+          .eq('sabre_id', sabreId)
+
+        console.log('[updateHotel] 마이그레이션할 데이터:', {
+          benefits: benefitMappings?.length || 0,
+          media: mediaRecords?.length || 0,
+        })
+
+        // 3. 기존 레코드 삭제 (새 레코드 생성 전에 먼저 삭제)
+        console.log('[updateHotel] 기존 호텔 레코드 삭제:', sabreId)
+        const { error: deleteError } = await supabase
+          .from('select_hotels')
+          .delete()
+          .eq('sabre_id', sabreId)
+
+        if (deleteError) {
+          console.error('[updateHotel] 기존 호텔 삭제 오류:', deleteError)
+          return {
+            success: false,
+            error: `기존 호텔 삭제에 실패했습니다: ${deleteError.message}`,
+          }
+        }
+
+        // 4. 새로운 Sabre ID로 레코드 생성 (기존 데이터 + 변경사항)
+        const newHotelData = {
+          ...existingHotel,
+          ...updateData,
+          sabre_id: targetSabreId,
+        }
+        
+        // id, created_at, updated_at 제거 (자동 생성)
+        delete newHotelData.id
+        delete newHotelData.created_at
+        delete newHotelData.updated_at
+
+        console.log('[updateHotel] 새 호텔 레코드 생성:', targetSabreId)
+        const { error: insertError } = await supabase
+          .from('select_hotels')
+          .insert(newHotelData)
+
+        if (insertError) {
+          console.error('[updateHotel] 새 Sabre ID로 호텔 생성 오류:', insertError)
+          return {
+            success: false,
+            error: `새 Sabre ID로 호텔 생성에 실패했습니다: ${insertError.message}`,
+          }
+        }
+
+        // 5. 관련 데이터 마이그레이션 (benefits mapping)
+        if (benefitMappings && benefitMappings.length > 0) {
+          console.log('[updateHotel] 혜택 매핑 마이그레이션:', benefitMappings.length, '개')
+          const newMappings = benefitMappings.map(m => ({
+            sabre_id: targetSabreId,
+            benefit_id: m.benefit_id,
+            sort: m.sort,
+          }))
+
+          await supabase
+            .from('select_hotel_benefits_map')
+            .insert(newMappings)
+        }
+
+        // 6. 관련 데이터 마이그레이션 (media)
+        if (mediaRecords && mediaRecords.length > 0) {
+          console.log('[updateHotel] 이미지 레코드 마이그레이션:', mediaRecords.length, '개')
+          const newMediaRecords = mediaRecords.map(m => ({
+            sabre_id: targetSabreId,
+            file_name: m.file_name,
+            file_path: m.file_path,
+            storage_path: m.storage_path,
+            public_url: m.public_url,
+            file_type: m.file_type,
+            file_size: m.file_size,
+            slug: m.slug,
+            image_seq: m.image_seq,
+            original_url: m.original_url,
+          }))
+
+          await supabase
+            .from('select_hotel_media')
+            .insert(newMediaRecords)
+        }
+
+        console.log(`[updateHotel] Sabre ID 변경 완료: ${sabreId} → ${targetSabreId}`)
+      } else {
+        // Sabre ID 변경 없이 일반 업데이트
+        console.log('[updateHotel] 일반 업데이트 실행, sabre_id:', targetSabreId)
+        console.log('[updateHotel] 업데이트할 데이터:', updateData)
+        
+        const { error } = await supabase
+          .from('select_hotels')
+          .update(updateData)
+          .eq('sabre_id', targetSabreId)
+
+        if (error) {
+          console.error('[updateHotel] 호텔 업데이트 오류:', error)
+          return {
+            success: false,
+            error: `호텔 업데이트에 실패했습니다: ${error.message}`,
+          }
+        }
+        
+        console.log('[updateHotel] 업데이트 성공')
       }
     }
 
