@@ -18,6 +18,7 @@ export async function saveFeatureSlot(formData: FormData): Promise<ActionResult>
 
     const id = formData.get('id') as string
     const sabreId = formData.get('sabre_id') as string
+    const surface = formData.get('surface') as string
     const slotKey = formData.get('slot_key') as string
     const startDate = formData.get('start_date') as string
     const endDate = formData.get('end_date') as string
@@ -31,6 +32,7 @@ export async function saveFeatureSlot(formData: FormData): Promise<ActionResult>
 
     const slotData = {
       sabre_id: sabreId,
+      surface: surface || null,
       slot_key: slotKey,
       start_date: startDate || null,
       end_date: endDate || null,

@@ -246,6 +246,7 @@ export default function HeroCarouselManager() {
           form.append('id', String(editingId))
         }
         form.append('sabre_id', sabreIdStr)
+        form.append('surface', '히어로캐러셀')
         form.append('slot_key', slotKeyStr)
         form.append('start_date', formData.start_date || '')
         form.append('end_date', formData.end_date || '')
