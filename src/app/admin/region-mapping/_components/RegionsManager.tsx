@@ -166,6 +166,47 @@ export function RegionsManager({ initialItems }: Props) {
     }
   }
 
+  const handleSaveRow = async (row: SelectRegion) => {
+    if (!confirm('현재 레코드 정보를 저장하시겠습니까?')) return
+    
+    setLoading(true)
+    const input: RegionFormInput & { id?: number } = {
+      id: row.id,
+      region_type: row.region_type,
+      status: row.status || 'active',
+      city_ko: row.city_ko,
+      city_en: row.city_en,
+      city_code: row.city_code,
+      city_slug: row.city_slug,
+      city_sort_order: row.city_sort_order,
+      country_ko: row.country_ko,
+      country_en: row.country_en,
+      country_code: row.country_code,
+      country_slug: row.country_slug,
+      country_sort_order: row.country_sort_order,
+      continent_ko: row.continent_ko,
+      continent_en: row.continent_en,
+      continent_code: row.continent_code,
+      continent_slug: row.continent_slug,
+      continent_sort_order: row.continent_sort_order,
+      region_name_ko: row.region_name_ko,
+      region_name_en: row.region_name_en,
+      region_code: row.region_code,
+      region_slug: row.region_slug,
+      region_name_sort_order: row.region_name_sort_order,
+    }
+
+    const res = await upsertRegion(input)
+    setLoading(false)
+
+    if (res.success) {
+      await refreshData()
+      alert('저장되었습니다.')
+    } else {
+      alert(res.error || '저장 실패')
+    }
+  }
+
   const handleCreateNew = () => {
     setEditingRowId('new')
     setEditingData({
@@ -731,6 +772,7 @@ export function RegionsManager({ initialItems }: Props) {
                               variant="outline" 
                               className="bg-blue-50 text-blue-600 hover:bg-blue-100"
                               disabled={editingRowId !== null}
+                              title="호텔 매핑"
                             >
                               <Link2 className="h-3 w-3" />
                             </Button>
@@ -739,15 +781,30 @@ export function RegionsManager({ initialItems }: Props) {
                               size="sm" 
                               variant="outline"
                               disabled={editingRowId !== null}
+                              title="수정"
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
                             <Button 
+                              onClick={(e) => { 
+                                e.stopPropagation();
+                                handleSaveRow(row);
+                              }} 
+                              size="sm" 
+                              variant="outline"
+                              className="bg-green-50 text-green-600 hover:bg-green-100"
+                              disabled={editingRowId !== null || loading}
+                              title="저장"
+                            >
+                              <Save className="h-3 w-3" />
+                            </Button>
+                            <Button 
                               onClick={(e) => { e.stopPropagation(); handleDelete(row); }} 
                               size="sm" 
-                              variant="destructive"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                               disabled={editingRowId !== null}
+                              title="삭제"
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
