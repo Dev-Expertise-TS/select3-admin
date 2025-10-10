@@ -126,13 +126,65 @@ export async function createChain(formData: FormData): Promise<ActionResult<Chai
 export async function deleteChain(chainId: number): Promise<ActionResult> {
   const supabase = createServiceRoleClient()
 
+  // 먼저 해당 체인에 연결된 브랜드가 있는지 확인
+  const { data: relatedBrands, error: checkError } = await supabase
+    .from('hotel_brands')
+    .select('brand_id, brand_name_ko, brand_name_en')
+    .eq('chain_id', chainId)
+
+  if (checkError) {
+    console.error('[chain-brand] deleteChain check error:', checkError)
+    return { success: false, error: '체인 삭제 가능 여부를 확인하는 중 오류가 발생했습니다.' }
+  }
+
+  // 연결된 브랜드가 있으면 삭제 거부
+  if (relatedBrands && relatedBrands.length > 0) {
+    const brandNames = relatedBrands.map(b => b.brand_name_ko || b.brand_name_en || `ID: ${b.brand_id}`).join(', ')
+    return { 
+      success: false, 
+      error: `이 체인에 연결된 브랜드가 ${relatedBrands.length}개 있습니다. 먼저 다음 브랜드들을 삭제하거나 다른 체인으로 변경해주세요: ${brandNames}` 
+    }
+  }
+
+  // 체인에 연결된 호텔이 있는지도 확인 (브랜드를 통해)
+  const { data: relatedHotels, error: hotelCheckError } = await supabase
+    .from('select_hotels')
+    .select('sabre_id')
+    .not('brand_id', 'is', null)
+
+  if (!hotelCheckError && relatedHotels && relatedHotels.length > 0) {
+    // 이 호텔들의 brand_id가 이 체인의 브랜드인지 확인
+    const { data: chainBrands } = await supabase
+      .from('hotel_brands')
+      .select('brand_id')
+      .eq('chain_id', chainId)
+    
+    const chainBrandIds = (chainBrands || []).map(b => b.brand_id)
+    
+    const { data: connectedHotels } = await supabase
+      .from('select_hotels')
+      .select('sabre_id, property_name_ko, property_name_en')
+      .in('brand_id', chainBrandIds)
+      .limit(5)
+
+    if (connectedHotels && connectedHotels.length > 0) {
+      const hotelNames = connectedHotels.map(h => h.property_name_ko || h.property_name_en || h.sabre_id).join(', ')
+      const moreText = connectedHotels.length >= 5 ? ' 등' : ''
+      return {
+        success: false,
+        error: `이 체인의 브랜드에 연결된 호텔이 있습니다. 먼저 호텔 연결을 해제해주세요. 예: ${hotelNames}${moreText}`
+      }
+    }
+  }
+
+  // 연결된 브랜드/호텔이 없으면 체인 삭제
   const { error } = await supabase
     .from('hotel_chains')
     .delete()
     .eq('chain_id', chainId)
 
   if (error) {
-    console.error('Error deleting chain:', error)
+    console.error('[chain-brand] deleteChain error:', error)
     return { success: false, error: error.message }
   }
 
@@ -294,13 +346,36 @@ export async function createBrand(formData: FormData): Promise<ActionResult<Bran
 export async function deleteBrand(brandId: number): Promise<ActionResult> {
   const supabase = createServiceRoleClient()
 
+  // 먼저 해당 브랜드에 연결된 호텔이 있는지 확인
+  const { data: relatedHotels, error: checkError } = await supabase
+    .from('select_hotels')
+    .select('sabre_id, property_name_ko, property_name_en')
+    .eq('brand_id', brandId)
+    .limit(10)
+
+  if (checkError) {
+    console.error('[chain-brand] deleteBrand check error:', checkError)
+    return { success: false, error: '브랜드 삭제 가능 여부를 확인하는 중 오류가 발생했습니다.' }
+  }
+
+  // 연결된 호텔이 있으면 삭제 거부
+  if (relatedHotels && relatedHotels.length > 0) {
+    const hotelNames = relatedHotels.slice(0, 5).map(h => h.property_name_ko || h.property_name_en || h.sabre_id).join(', ')
+    const moreText = relatedHotels.length > 5 ? ` 외 ${relatedHotels.length - 5}개` : ''
+    return { 
+      success: false, 
+      error: `이 브랜드에 연결된 호텔이 ${relatedHotels.length}개 있습니다. 먼저 호텔 연결을 해제해주세요. 예: ${hotelNames}${moreText}` 
+    }
+  }
+
+  // 연결된 호텔이 없으면 브랜드 삭제
   const { error } = await supabase
     .from('hotel_brands')
     .delete()
     .eq('brand_id', brandId)
 
   if (error) {
-    console.error('Error deleting brand:', error)
+    console.error('[chain-brand] deleteBrand error:', error)
     return { success: false, error: error.message }
   }
 

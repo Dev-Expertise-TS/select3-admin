@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus, Save, X, Trash2, Link2, Edit, GripVertical, PlusCircle, List } from 'lucide-react'
-import { saveChain, createChain, saveBrand, createBrand, updateChainSortOrder, updateBrandSortOrder } from '@/features/chain-brand/actions'
+import { saveChain, createChain, saveBrand, createBrand, updateChainSortOrder, updateBrandSortOrder, deleteChain, deleteBrand } from '@/features/chain-brand/actions'
 import ConnectedHotelsModal from './ConnectedHotelsModal'
 import {
   DndContext,
@@ -707,13 +707,41 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
   // 브랜드 삭제
   const handleDeleteBrand = async (brandId: number) => {
     if (!confirm('이 브랜드를 삭제하시겠습니까?')) return
-    window.location.href = `/api/chain-brand/brand/delete?id=${brandId}`
+    setLoading(true)
+    try {
+      const result = await deleteBrand(brandId)
+      if (result.success) {
+        setBrands(prev => prev.filter(b => b.brand_id !== brandId))
+        alert('브랜드가 삭제되었습니다.')
+      } else {
+        alert(result.error || '삭제에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('[ChainBrandTabs] handleDeleteBrand error:', error)
+      alert('삭제 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   // 체인 삭제
   const handleDeleteChain = async (chainId: number) => {
     if (!confirm('이 체인을 삭제하시겠습니까?')) return
-    window.location.href = `/api/chain-brand/chain/delete?chain_id=${chainId}`
+    setLoading(true)
+    try {
+      const result = await deleteChain(chainId)
+      if (result.success) {
+        setChains(prev => prev.filter(c => c.chain_id !== chainId))
+        alert('체인이 삭제되었습니다.')
+      } else {
+        alert(result.error || '삭제에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('[ChainBrandTabs] handleDeleteChain error:', error)
+      alert('삭제 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   // 호텔 연결
