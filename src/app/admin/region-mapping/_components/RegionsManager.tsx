@@ -2,10 +2,27 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, Save, X, Trash2, Link2, Eye, Loader2, PlusCircle, Edit } from 'lucide-react'
+import { Plus, Save, X, Trash2, Link2, Eye, Loader2, PlusCircle, Edit, GripVertical } from 'lucide-react'
 import type { SelectRegion, RegionFormInput, RegionType, MappedHotel, RegionStatus } from '@/types/regions'
 import { upsertRegion, deleteRegion, upsertCitiesFromHotels, upsertCountriesFromHotels, upsertContinentsFromHotels, fillRegionSlugsAndCodes, fillCityCodesAndSlugs, fillCountryCodesAndSlugs, fillContinentCodesAndSlugs, forceUpdateAllCityCodes, getMappedHotels, bulkUpdateHotelRegionCodes } from '@/features/regions/actions'
 import { HotelSearchSelector } from '@/components/shared/hotel-search-selector'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 type Props = {
   initialItems: SelectRegion[]
@@ -13,6 +30,144 @@ type Props = {
 
 type EditingRow = SelectRegion & {
   isNew?: boolean
+}
+
+// Sortable Row 컴포넌트
+type SortableRowProps = {
+  row: SelectRegion
+  isEditing: boolean
+  columns: Array<{ key: string; label: string; width?: string; isParent?: boolean }>
+  selectedType: RegionType
+  editingRowId: number | 'new' | null
+  renderCell: (row: SelectRegion, columnKey: string, isParent?: boolean) => React.ReactNode
+  onRowClick: (row: SelectRegion) => void
+  onMapToHotels: (row: SelectRegion) => void
+  onEdit: (row: SelectRegion) => void
+  onSaveRow: (row: SelectRegion) => void
+  onDelete: (row: SelectRegion) => void
+  loading: boolean
+}
+
+function SortableRow({
+  row,
+  isEditing,
+  columns,
+  selectedType,
+  editingRowId,
+  renderCell,
+  onRowClick,
+  onMapToHotels,
+  onEdit,
+  onSaveRow,
+  onDelete,
+  loading,
+}: SortableRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: row.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    backgroundColor: isDragging ? '#f0f9ff' : undefined,
+  }
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`hover:bg-gray-50 ${isEditing ? 'bg-blue-50 border-2 border-blue-400' : ''} ${!isEditing && !editingRowId ? 'cursor-pointer' : ''}`}
+      onClick={() => !isEditing && !editingRowId && onRowClick(row)}
+    >
+      {/* 드래그 핸들 */}
+      <td className="border p-2 text-center" style={{ width: '40px' }}>
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center hover:bg-gray-200 rounded p-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-4 w-4 text-gray-400" />
+        </div>
+      </td>
+
+      {/* 데이터 컬럼 */}
+      {columns.map((col) => (
+        <td key={col.key} className={`border p-2 ${(col as any).isParent ? 'bg-gray-50' : ''}`}>
+          {renderCell(row, col.key, (col as any).isParent)}
+        </td>
+      ))}
+
+      {/* 작업 컬럼 */}
+      <td className="border p-2" onClick={(e) => e.stopPropagation()}>
+        {isEditing ? (
+          <div className="flex gap-1">
+            {/* 편집 모드에서는 드래그 비활성화 */}
+          </div>
+        ) : (
+          <div className="flex gap-1">
+            <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                onMapToHotels(row)
+              }}
+              size="sm"
+              variant="outline"
+              className="bg-blue-50 text-blue-600 hover:bg-blue-100"
+              disabled={editingRowId !== null}
+              title="호텔 매핑"
+            >
+              <Link2 className="h-3 w-3" />
+            </Button>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(row)
+              }}
+              size="sm"
+              variant="outline"
+              disabled={editingRowId !== null}
+              title="수정"
+            >
+              <Edit className="h-3 w-3" />
+            </Button>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                onSaveRow(row)
+              }}
+              size="sm"
+              variant="outline"
+              className="bg-green-50 text-green-600 hover:bg-green-100"
+              disabled={editingRowId !== null || loading}
+              title="저장"
+            >
+              <Save className="h-3 w-3" />
+            </Button>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(row)
+              }}
+              size="sm"
+              variant="outline"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+              disabled={editingRowId !== null}
+              title="삭제"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+      </td>
+    </tr>
+  )
 }
 
 export function RegionsManager({ initialItems }: Props) {
@@ -29,11 +184,24 @@ export function RegionsManager({ initialItems }: Props) {
   const [selectedHotels, setSelectedHotels] = useState<Set<string>>(new Set())
   const [editingRowId, setEditingRowId] = useState<number | 'new' | null>(null)
   const [editingData, setEditingData] = useState<Partial<EditingRow>>({})
+  const [isSavingOrder, setIsSavingOrder] = useState(false)
   
   // 콤보박스용 데이터
   const [countryOptions, setCountryOptions] = useState<SelectRegion[]>([])
   const [continentOptions, setContinentOptions] = useState<SelectRegion[]>([])
   const [regionOptions, setRegionOptions] = useState<SelectRegion[]>([])
+  
+  // 드래그앤 드롭 센서
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px 이동 후 드래그 시작
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   function isSelectRegion(value: unknown): value is SelectRegion {
     if (!value || typeof value !== 'object') return false
@@ -52,6 +220,7 @@ export function RegionsManager({ initialItems }: Props) {
     if (selectedType === 'city') {
       return [
         ...base,
+        { key: 'city_sort_order', label: '순서', width: '70px' },
         { key: 'city_ko', label: '도시(한)', width: '100px' },
         { key: 'city_en', label: '도시(영)', width: '100px' },
         { key: 'city_code', label: '도시코드', width: '80px' },
@@ -70,6 +239,7 @@ export function RegionsManager({ initialItems }: Props) {
     if (selectedType === 'country') {
       return [
         ...base,
+        { key: 'country_sort_order', label: '순서', width: '70px' },
         { key: 'country_ko', label: '국가(한)', width: '120px' },
         { key: 'country_en', label: '국가(영)', width: '120px' },
         { key: 'country_code', label: '국가 코드', width: '100px' },
@@ -85,11 +255,10 @@ export function RegionsManager({ initialItems }: Props) {
     if (selectedType === 'continent') {
       return [
         ...base,
+        { key: 'continent_sort_order', label: '순서', width: '70px' },
         { key: 'continent_ko', label: '대륙(한)', width: '120px' },
         { key: 'continent_en', label: '대륙(영)', width: '120px' },
         { key: 'continent_code', label: '대륙 코드', width: '100px' },
-        { key: 'continent_slug', label: '대륙 슬러그', width: '120px' },
-        { key: 'continent_sort_order', label: '정렬', width: '80px' },
         { key: 'region_name_ko', label: '지역(한)', width: '100px', isParent: true },
         { key: 'region_name_en', label: '지역(영)', width: '100px', isParent: true },
         { key: 'region_code', label: '지역코드', width: '80px', isParent: true },
@@ -99,6 +268,7 @@ export function RegionsManager({ initialItems }: Props) {
     // region
     return [
       ...base,
+      { key: 'region_name_sort_order', label: '순서', width: '70px' },
       { key: 'region_name_ko', label: '지역(한)', width: '100px' },
       { key: 'region_name_en', label: '지역(영)', width: '100px' },
       { key: 'region_code', label: '지역코드', width: '80px' },
@@ -162,14 +332,41 @@ export function RegionsManager({ initialItems }: Props) {
             city_ko: r.city_ko
           })))
           
-          // 상태별 정렬: active 우선, 그 다음 inactive
-          // 그 다음 최신 순 (id 역순)
+          // 정렬: 1) status (active 우선) → 2) sort_order (오름차순) → 3) id (최신순)
           const sorted = regionData.sort((a, b) => {
             const statusA = a.status || 'active'
             const statusB = b.status || 'active'
+            
+            // 1순위: status
             if (statusA === 'active' && statusB !== 'active') return -1
             if (statusA !== 'active' && statusB === 'active') return 1
-            // 같은 status면 최신 순 (id 역순)
+            
+            // 2순위: sort_order (타입별로 다른 컬럼 사용)
+            let sortOrderA: number | null = null
+            let sortOrderB: number | null = null
+            
+            if (selectedType === 'city') {
+              sortOrderA = a.city_sort_order
+              sortOrderB = b.city_sort_order
+            } else if (selectedType === 'country') {
+              sortOrderA = a.country_sort_order
+              sortOrderB = b.country_sort_order
+            } else if (selectedType === 'continent') {
+              sortOrderA = a.continent_sort_order
+              sortOrderB = b.continent_sort_order
+            } else if (selectedType === 'region') {
+              sortOrderA = a.region_name_sort_order
+              sortOrderB = b.region_name_sort_order
+            }
+            
+            // null은 맨 뒤로
+            if (sortOrderA != null && sortOrderB == null) return -1
+            if (sortOrderA == null && sortOrderB != null) return 1
+            if (sortOrderA != null && sortOrderB != null) {
+              if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB
+            }
+            
+            // 3순위: id 역순 (최신순)
             return b.id - a.id
           })
           setItems(sorted)
@@ -232,6 +429,162 @@ export function RegionsManager({ initialItems }: Props) {
     
     return filtered
   }, [items, statusFilter])
+
+  // 드래그 종료 핸들러
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      console.log('[RegionsManager] Drag ended:', { activeId: active.id, overId: over.id })
+      
+      let updatedItems: SelectRegion[] = []
+      
+      setItems((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over.id)
+
+        const newItems = arrayMove(items, oldIndex, newIndex)
+        
+        // 순서 재정렬 후 sort_order 업데이트
+        const reorderedItems = newItems.map((item, index) => {
+          const sortOrderKey = getSortOrderKey(selectedType)
+          return {
+            ...item,
+            [sortOrderKey]: index + 1
+          }
+        })
+        
+        updatedItems = reorderedItems
+        return reorderedItems
+      })
+      
+      // 순서 자동 저장
+      console.log('[RegionsManager] Auto-saving order after drag...')
+      await handleAutoSaveOrder(updatedItems)
+    }
+  }
+
+  // 자동 순서 저장 (드래그 후)
+  const handleAutoSaveOrder = async (itemsToSave: SelectRegion[]) => {
+    setIsSavingOrder(true)
+    let successCount = 0
+    let errorCount = 0
+
+    // 필터링된 아이템만 저장 (filteredItems에 있는 것만)
+    const itemsToUpdate = itemsToSave.filter(item => {
+      if (statusFilter === 'all') return true
+      if (statusFilter === 'active') return item.status === 'active'
+      if (statusFilter === 'inactive') return item.status !== 'active'
+      return true
+    })
+
+    console.log(`[RegionsManager] Auto-saving ${itemsToUpdate.length} items...`)
+
+    for (const item of itemsToUpdate) {
+      const input: RegionFormInput & { id?: number } = {
+        id: item.id,
+        region_type: item.region_type,
+        status: item.status,
+        city_ko: item.city_ko,
+        city_en: item.city_en,
+        city_code: item.city_code,
+        city_slug: item.city_slug,
+        city_sort_order: item.city_sort_order,
+        country_ko: item.country_ko,
+        country_en: item.country_en,
+        country_code: item.country_code,
+        country_slug: item.country_slug,
+        country_sort_order: item.country_sort_order,
+        continent_ko: item.continent_ko,
+        continent_en: item.continent_en,
+        continent_code: item.continent_code,
+        continent_slug: item.continent_slug,
+        continent_sort_order: item.continent_sort_order,
+        region_name_ko: item.region_name_ko,
+        region_name_en: item.region_name_en,
+        region_code: item.region_code,
+        region_slug: item.region_slug,
+        region_name_sort_order: item.region_name_sort_order,
+      }
+
+      const res = await upsertRegion(input)
+      if (res.success) {
+        successCount++
+      } else {
+        errorCount++
+        console.error(`[RegionsManager] Failed to save order for item ${item.id}:`, res.error)
+      }
+    }
+
+    setIsSavingOrder(false)
+    console.log(`[RegionsManager] Auto-save complete: ${successCount} success, ${errorCount} errors`)
+    
+    // 성공/실패 피드백 (토스트 알림처럼)
+    if (errorCount === 0) {
+      console.log(`✅ 순서가 자동 저장되었습니다 (${successCount}개)`)
+    } else {
+      console.warn(`⚠️ 순서 저장 완료: ${successCount}개 성공, ${errorCount}개 실패`)
+    }
+  }
+
+  // 타입별 sort_order 키 가져오기
+  const getSortOrderKey = (type: RegionType): string => {
+    switch (type) {
+      case 'city': return 'city_sort_order'
+      case 'country': return 'country_sort_order'
+      case 'continent': return 'continent_sort_order'
+      case 'region': return 'region_name_sort_order'
+    }
+  }
+
+  // 순서 일괄 저장
+  const handleSaveOrder = async () => {
+    if (!confirm('현재 순서로 저장하시겠습니까?\n\n모든 항목의 순서가 업데이트됩니다.')) return
+
+    setIsSavingOrder(true)
+    let successCount = 0
+    let errorCount = 0
+
+    for (const item of filteredItems) {
+      const input: RegionFormInput & { id?: number } = {
+        id: item.id,
+        region_type: item.region_type,
+        status: item.status,
+        city_ko: item.city_ko,
+        city_en: item.city_en,
+        city_code: item.city_code,
+        city_slug: item.city_slug,
+        city_sort_order: item.city_sort_order,
+        country_ko: item.country_ko,
+        country_en: item.country_en,
+        country_code: item.country_code,
+        country_slug: item.country_slug,
+        country_sort_order: item.country_sort_order,
+        continent_ko: item.continent_ko,
+        continent_en: item.continent_en,
+        continent_code: item.continent_code,
+        continent_slug: item.continent_slug,
+        continent_sort_order: item.continent_sort_order,
+        region_name_ko: item.region_name_ko,
+        region_name_en: item.region_name_en,
+        region_code: item.region_code,
+        region_slug: item.region_slug,
+        region_name_sort_order: item.region_name_sort_order,
+      }
+
+      const res = await upsertRegion(input)
+      if (res.success) {
+        successCount++
+      } else {
+        errorCount++
+      }
+    }
+
+    setIsSavingOrder(false)
+    await refreshData()
+    
+    alert(`순서 저장 완료!\n\n성공: ${successCount}개\n실패: ${errorCount}개`)
+  }
 
   const handleAdd = async () => {
     if (!confirm('호텔 테이블의 도시명을 수집하여 지역(city)으로 upsert 하시겠습니까?')) return
@@ -449,8 +802,29 @@ export function RegionsManager({ initialItems }: Props) {
   }
 
   const handleMapToHotels = async (row: SelectRegion) => {
-    setSelectedRegion(row)
+    console.log('[RegionsManager] === OPENING MAP MODAL ===')
+    console.log('[RegionsManager] Selected row:', {
+      id: row.id,
+      region_type: row.region_type,
+      city_code: row.city_code,
+      city_ko: row.city_ko,
+      city_en: row.city_en,
+      country_code: row.country_code,
+      country_ko: row.country_ko,
+      country_en: row.country_en
+    })
+    
+    // 명시적으로 새 객체로 복사하여 상태 업데이트
+    setSelectedRegion({ ...row })
     setShowMapModal(true)
+    setSelectedHotels(new Set())
+  }
+  
+  const handleCloseMapModal = () => {
+    console.log('[RegionsManager] === CLOSING MAP MODAL ===')
+    console.log('[RegionsManager] Clearing selectedRegion and selectedHotels')
+    setShowMapModal(false)
+    setSelectedRegion(null)
     setSelectedHotels(new Set())
   }
 
@@ -461,13 +835,41 @@ export function RegionsManager({ initialItems }: Props) {
       const data = await response.json()
       if (data.success && Array.isArray(data.data)) {
         const regionData = data.data as SelectRegion[]
-        // 상태별 정렬: active 우선, 그 다음 inactive, 그 다음 최신 순
+        // 정렬: 1) status (active 우선) → 2) sort_order (오름차순) → 3) id (최신순)
         const sorted = regionData.sort((a, b) => {
           const statusA = a.status || 'active'
           const statusB = b.status || 'active'
+          
+          // 1순위: status
           if (statusA === 'active' && statusB !== 'active') return -1
           if (statusA !== 'active' && statusB === 'active') return 1
-          // 같은 status면 최신 순 (id 역순)
+          
+          // 2순위: sort_order (타입별로 다른 컬럼 사용)
+          let sortOrderA: number | null = null
+          let sortOrderB: number | null = null
+          
+          if (selectedType === 'city') {
+            sortOrderA = a.city_sort_order
+            sortOrderB = b.city_sort_order
+          } else if (selectedType === 'country') {
+            sortOrderA = a.country_sort_order
+            sortOrderB = b.country_sort_order
+          } else if (selectedType === 'continent') {
+            sortOrderA = a.continent_sort_order
+            sortOrderB = b.continent_sort_order
+          } else if (selectedType === 'region') {
+            sortOrderA = a.region_name_sort_order
+            sortOrderB = b.region_name_sort_order
+          }
+          
+          // null은 맨 뒤로
+          if (sortOrderA != null && sortOrderB == null) return -1
+          if (sortOrderA == null && sortOrderB != null) return 1
+          if (sortOrderA != null && sortOrderB != null) {
+            if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB
+          }
+          
+          // 3순위: id 역순 (최신순)
           return b.id - a.id
         })
         setItems(sorted)
@@ -482,6 +884,10 @@ export function RegionsManager({ initialItems }: Props) {
       alert('호텔을 선택해주세요.')
       return
     }
+
+    console.log('[RegionsManager] === SAVE MAPPING DEBUG START ===')
+    console.log('[RegionsManager] Selected Region:', selectedRegion)
+    console.log('[RegionsManager] Selected Hotels:', Array.from(selectedHotels))
 
     if (!confirm(`선택한 ${selectedHotels.size}개 호텔에 지역 정보를 매핑하시겠습니까?`)) return
 
@@ -507,6 +913,8 @@ export function RegionsManager({ initialItems }: Props) {
       updateData.region_code = selectedRegion.region_code ?? null
       updateData.region_ko = selectedRegion.region_name_ko ?? null
       updateData.region_en = selectedRegion.region_name_en ?? null
+      
+      console.log('[RegionsManager] City mapping - updateData:', updateData)
     } else if (selectedRegion.region_type === 'country') {
       // 국가 정보 매핑
       updateData.country_code = selectedRegion.country_code ?? null
@@ -521,6 +929,8 @@ export function RegionsManager({ initialItems }: Props) {
       updateData.region_code = selectedRegion.region_code ?? null
       updateData.region_ko = selectedRegion.region_name_ko ?? null
       updateData.region_en = selectedRegion.region_name_en ?? null
+      
+      console.log('[RegionsManager] Country mapping - updateData:', updateData)
     } else if (selectedRegion.region_type === 'continent') {
       // 대륙 정보 매핑
       updateData.continent_code = selectedRegion.continent_code ?? null
@@ -531,12 +941,18 @@ export function RegionsManager({ initialItems }: Props) {
       updateData.region_code = selectedRegion.region_code ?? null
       updateData.region_ko = selectedRegion.region_name_ko ?? null
       updateData.region_en = selectedRegion.region_name_en ?? null
+      
+      console.log('[RegionsManager] Continent mapping - updateData:', updateData)
     } else if (selectedRegion.region_type === 'region') {
       // 지역 정보 매핑
       updateData.region_code = selectedRegion.region_code ?? null
       updateData.region_ko = selectedRegion.region_name_ko ?? null
       updateData.region_en = selectedRegion.region_name_en ?? null
+      
+      console.log('[RegionsManager] Region mapping - updateData:', updateData)
     }
+    
+    console.log('[RegionsManager] Final updateData to be sent:', updateData)
 
     const codeField = `${selectedRegion.region_type}_code`
     const hasCode = selectedRegion.region_type === 'city' ? selectedRegion.city_code
@@ -555,6 +971,8 @@ export function RegionsManager({ initialItems }: Props) {
       const errors: string[] = []
       
       for (const sabreId of selectedHotels) {
+        console.log(`[RegionsManager] Updating hotel ${sabreId} with:`, updateData)
+        
         const response = await fetch('/api/hotel/update-region-data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -565,6 +983,8 @@ export function RegionsManager({ initialItems }: Props) {
         })
         
         const result = await response.json()
+        console.log(`[RegionsManager] Result for ${sabreId}:`, result)
+        
         if (result.success) {
           updated++
         } else {
@@ -573,7 +993,16 @@ export function RegionsManager({ initialItems }: Props) {
       }
 
       setLoading(false)
+      
+      console.log('[RegionsManager] Mapping complete. Refreshing data...')
+      await refreshData()
+      
+      // 모달 닫고 상태 초기화
       setShowMapModal(false)
+      setSelectedRegion(null)
+      setSelectedHotels(new Set())
+      
+      console.log('[RegionsManager] === SAVE MAPPING DEBUG END ===')
       
       if (errors.length > 0) {
         alert(`호텔 매핑 완료: ${updated}/${selectedHotels.size}개 성공\n\n오류:\n${errors.slice(0, 3).join('\n')}${errors.length > 3 ? `\n... 외 ${errors.length - 3}건` : ''}`)
@@ -581,7 +1010,11 @@ export function RegionsManager({ initialItems }: Props) {
         alert(`호텔 매핑 완료: ${updated}/${selectedHotels.size}개 호텔 업데이트됨`)
       }
     } catch (error) {
+      console.error('[RegionsManager] Mapping error:', error)
       setLoading(false)
+      setShowMapModal(false)
+      setSelectedRegion(null)
+      setSelectedHotels(new Set())
       alert('호텔 매핑 중 오류가 발생했습니다.')
     }
   }
@@ -775,8 +1208,13 @@ export function RegionsManager({ initialItems }: Props) {
         <input
           type="number"
           value={String((editingData as any)[columnKey] ?? '')}
-          onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: parseInt(e.target.value) || 0 }))}
+          onChange={(e) => {
+            const val = e.target.value === '' ? null : parseInt(e.target.value)
+            setEditingData(prev => ({ ...prev, [columnKey]: val }))
+          }}
           className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="순서"
+          min="0"
         />
       )
     }
@@ -1151,6 +1589,10 @@ export function RegionsManager({ initialItems }: Props) {
 
     return (
       <tr className="bg-yellow-50 border-2 border-yellow-400">
+        {/* 드래그 핸들 (신규 행에는 비활성화) */}
+        <td className="border p-2 text-center">
+          <GripVertical className="h-4 w-4 text-gray-300 mx-auto" />
+        </td>
         <td className="border p-2">
           <span className="text-xs text-gray-500">NEW</span>
         </td>
@@ -1633,6 +2075,30 @@ export function RegionsManager({ initialItems }: Props) {
           <span className="ml-2">신규 행 추가</span>
         </Button>
 
+        <Button 
+          onClick={handleSaveOrder} 
+          className="ml-2 bg-indigo-600 hover:bg-indigo-700" 
+          disabled={editingRowId !== null || loading || isSavingOrder || filteredItems.length === 0}
+        >
+          {isSavingOrder ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="ml-2">저장 중...</span>
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4" />
+              <span className="ml-2">순서 수동 저장</span>
+            </>
+          )}
+        </Button>
+        
+        {isSavingOrder && (
+          <span className="ml-2 text-sm text-indigo-600 animate-pulse">
+            순서 저장 중...
+          </span>
+        )}
+
         {selectedType === 'city' && (
           <>
             <Button onClick={handleAdd} className="ml-2" disabled={editingRowId !== null}>
@@ -1787,6 +2253,9 @@ export function RegionsManager({ initialItems }: Props) {
           <table className="w-full border-collapse text-sm">
             <thead className="bg-gray-100 border-b">
               <tr>
+                <th className="border p-2 text-center font-medium text-gray-700" style={{ width: '40px' }}>
+                  <GripVertical className="h-4 w-4 text-gray-400 mx-auto" />
+                </th>
                 {columns.map((col) => (
                   <th 
                     key={col.key} 
@@ -1801,37 +2270,51 @@ export function RegionsManager({ initialItems }: Props) {
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={filteredItems.map(item => item.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <tbody>
               {renderNewRow()}
               {loading && filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + 1} className="p-8 text-center text-gray-500">
+                  <td colSpan={columns.length + 2} className="p-8 text-center text-gray-500">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                     로딩 중...
                   </td>
                 </tr>
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + 1} className="p-8 text-center text-gray-500">
+                  <td colSpan={columns.length + 2} className="p-8 text-center text-gray-500">
                     데이터가 없습니다.
                   </td>
                 </tr>
               ) : (
                 filteredItems.map((row) => {
                   const isEditing = editingRowId === row.id
-                  return (
-                    <tr 
-                      key={row.id} 
-                      className={`hover:bg-gray-50 ${isEditing ? 'bg-blue-50 border-2 border-blue-400' : ''} ${!isEditing && !editingRowId ? 'cursor-pointer' : ''}`}
-                      onClick={() => !isEditing && !editingRowId && handleRowClick(row)}
-                    >
-                      {columns.map((col) => (
-                        <td key={col.key} className={`border p-2 ${(col as any).isParent ? 'bg-gray-50' : ''}`}>
-                          {renderCell(row, col.key, (col as any).isParent)}
+                  
+                  // 편집 모드일 때는 일반 tr, 아니면 SortableRow
+                  if (isEditing) {
+                    return (
+                      <tr 
+                        key={row.id} 
+                        className="bg-blue-50 border-2 border-blue-400"
+                      >
+                        {/* 드래그 핸들 (편집 중에는 비활성화) */}
+                        <td className="border p-2 text-center">
+                          <GripVertical className="h-4 w-4 text-gray-300 mx-auto" />
                         </td>
-                      ))}
-                      <td className="border p-2">
-                        {isEditing ? (
+                        {columns.map((col) => (
+                          <td key={col.key} className={`border p-2 ${(col as any).isParent ? 'bg-gray-50' : ''}`}>
+                            {renderCell(row, col.key, (col as any).isParent)}
+                          </td>
+                        ))}
+                        <td className="border p-2">
                           <div className="flex gap-1">
                             <Button onClick={handleSaveEdit} size="sm" className="bg-green-600 hover:bg-green-700" disabled={loading}>
                               <Save className="h-3 w-3" />
@@ -1840,58 +2323,33 @@ export function RegionsManager({ initialItems }: Props) {
                               <X className="h-3 w-3" />
                             </Button>
                           </div>
-                        ) : (
-                          <div className="flex gap-1">
-                            <Button 
-                              onClick={(e) => { e.stopPropagation(); handleMapToHotels(row); }} 
-                              size="sm" 
-                              variant="outline" 
-                              className="bg-blue-50 text-blue-600 hover:bg-blue-100"
-                              disabled={editingRowId !== null}
-                              title="호텔 매핑"
-                            >
-                              <Link2 className="h-3 w-3" />
-                            </Button>
-                            <Button 
-                              onClick={(e) => { e.stopPropagation(); handleEdit(row); }} 
-                              size="sm" 
-                              variant="outline"
-                              disabled={editingRowId !== null}
-                              title="수정"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button 
-                              onClick={(e) => { 
-                                e.stopPropagation();
-                                handleSaveRow(row);
-                              }} 
-                              size="sm" 
-                              variant="outline"
-                              className="bg-green-50 text-green-600 hover:bg-green-100"
-                              disabled={editingRowId !== null || loading}
-                              title="저장"
-                            >
-                              <Save className="h-3 w-3" />
-                            </Button>
-                            <Button 
-                              onClick={(e) => { e.stopPropagation(); handleDelete(row); }} 
-                              size="sm" 
-                              variant="outline"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                              disabled={editingRowId !== null}
-                              title="삭제"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+                    )
+                  }
+                  
+                  return (
+                    <SortableRow
+                      key={row.id}
+                      row={row}
+                      isEditing={isEditing}
+        columns={columns}
+                      selectedType={selectedType}
+                      editingRowId={editingRowId}
+                      renderCell={renderCell}
+        onRowClick={handleRowClick}
+                      onMapToHotels={handleMapToHotels}
+                      onEdit={handleEdit}
+                      onSaveRow={handleSaveRow}
+                      onDelete={handleDelete}
+                      loading={loading}
+                    />
                   )
                 })
               )}
-            </tbody>
+                </tbody>
+              </SortableContext>
+            </DndContext>
           </table>
         </div>
         <div className="p-3 border-t bg-gray-50 text-sm text-gray-600 flex justify-between items-center">
@@ -1913,19 +2371,19 @@ export function RegionsManager({ initialItems }: Props) {
 
       {/* 호텔 매핑 모달 (검색 및 선택) */}
       {showMapModal && selectedRegion && (
-        <div className="fixed inset-0 flex items-center justify-center z-50" onClick={() => setShowMapModal(false)}>
+        <div className="fixed inset-0 flex items-center justify-center z-50" onClick={handleCloseMapModal}>
           <div className="bg-white rounded-lg shadow-2xl border-2 border-gray-300 max-w-4xl w-full mx-4 max-h-[85vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b flex justify-between items-center bg-blue-50">
               <div>
                 <h2 className="text-xl font-bold text-blue-900">호텔 매핑</h2>
                 <p className="text-sm text-blue-700 mt-1">
-                  {selectedRegion.region_type === 'city' && `도시: ${selectedRegion.city_ko || selectedRegion.city_en} (${selectedRegion.city_code})`}
-                  {selectedRegion.region_type === 'country' && `국가: ${selectedRegion.country_ko || selectedRegion.country_en} (${selectedRegion.country_code})`}
-                  {selectedRegion.region_type === 'continent' && `대륙: ${selectedRegion.continent_ko || selectedRegion.continent_en} (${selectedRegion.continent_code})`}
-                  {selectedRegion.region_type === 'region' && `지역: ${selectedRegion.region_name_ko || selectedRegion.region_name_en} (${selectedRegion.region_code})`}
+                  {selectedRegion.region_type === 'city' && `도시: ${selectedRegion.city_ko || selectedRegion.city_en} (${selectedRegion.city_code || '코드없음'})`}
+                  {selectedRegion.region_type === 'country' && `국가: ${selectedRegion.country_ko || selectedRegion.country_en} (${selectedRegion.country_code || '코드없음'})`}
+                  {selectedRegion.region_type === 'continent' && `대륙: ${selectedRegion.continent_ko || selectedRegion.continent_en} (${selectedRegion.continent_code || '코드없음'})`}
+                  {selectedRegion.region_type === 'region' && `지역: ${selectedRegion.region_name_ko || selectedRegion.region_name_en} (${selectedRegion.region_code || '코드없음'})`}
                 </p>
               </div>
-              <button onClick={() => setShowMapModal(false)} className="text-gray-500 hover:text-gray-700 text-2xl">
+              <button onClick={handleCloseMapModal} className="text-gray-500 hover:text-gray-700 text-2xl">
                 ✕
               </button>
             </div>
@@ -1937,7 +2395,7 @@ export function RegionsManager({ initialItems }: Props) {
             />
 
             <div className="p-4 border-t bg-gray-50 flex justify-end items-center gap-2">
-              <Button onClick={() => setShowMapModal(false)} variant="outline">
+              <Button onClick={handleCloseMapModal} variant="outline">
                 취소
               </Button>
               <Button 
