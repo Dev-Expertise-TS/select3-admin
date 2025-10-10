@@ -6,14 +6,270 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { highlightRowFields } from '@/components/shared/field-highlight'
 import HotelSearchWidget from '@/components/shared/hotel-search-widget'
-import { saveChain, createChain, saveBrand, createBrand } from '@/features/chain-brand/actions'
+import { saveChain, createChain, saveBrand, createBrand, updateChainSortOrder, updateBrandSortOrder } from '@/features/chain-brand/actions'
+import { GripVertical } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
-export type Chain = { chain_id: number; name_kr: string | null; name_en: string | null; slug: string | null }
-export type Brand = { brand_id: number; name_kr: string | null; name_en: string | null; chain_id: number | null }
+export type Chain = { 
+  chain_id: number
+  name_kr: string | null
+  name_en: string | null
+  slug: string | null
+  chain_sort_order?: number | null
+  status?: string | null
+}
+export type Brand = { 
+  brand_id: number
+  name_kr: string | null
+  name_en: string | null
+  chain_id: number | null
+  brand_sort_order?: number | null
+  status?: string | null
+}
 
 interface Props {
   chains: Chain[]
   brands: Brand[]
+}
+
+// Sortable Chain Row 컴포넌트
+function SortableChainRow({ 
+  chain, 
+  isActive, 
+  formId, 
+  preventEnter,
+  onSelect,
+  onSave,
+  startTransition
+}: {
+  chain: Chain
+  isActive: boolean
+  formId: string
+  preventEnter: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onSelect: () => void
+  onSave: () => void
+  startTransition: React.TransitionStartFunction
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: chain.chain_id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    backgroundColor: isDragging ? '#f0f9ff' : undefined,
+  }
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={cn('border-t hover:bg-gray-50', isActive && 'bg-primary/10')}
+    >
+      <td className="px-1 py-2 text-center" style={{ width: '30px' }}>
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center hover:bg-gray-200 rounded p-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-4 w-4 text-gray-400" />
+        </div>
+      </td>
+      <td className="px-2 py-2 text-center text-gray-600 text-xs font-medium" style={{ width: '50px' }}>
+        {chain.chain_sort_order ?? '-'}
+      </td>
+      <td className="px-2 py-2" style={{ width: '100px' }}>
+        <form id={formId} action="/api/chain-brand/chain/save" method="post" className="hidden">
+          <input type="hidden" name="chain_id" value={String(chain.chain_id)} />
+        </form>
+        <select
+          form={formId}
+          name="status"
+          defaultValue={String(chain.status ?? 'active')}
+          onKeyDown={preventEnter}
+          className="w-full rounded border px-2 py-1 text-xs"
+        >
+          <option value="active">활성</option>
+          <option value="inactive">비활성</option>
+        </select>
+      </td>
+      <td className="px-3 py-2 cursor-pointer" onClick={onSelect}>
+        <input 
+          form={formId} 
+          name="name_kr" 
+          defaultValue={String(chain.name_kr ?? '')} 
+          onKeyDown={preventEnter} 
+          placeholder="체인(한글)" 
+          className="w-full rounded border px-2 py-1 text-xs" 
+        />
+      </td>
+      <td className="px-3 py-2 cursor-pointer" onClick={onSelect}>
+        <input 
+          form={formId} 
+          name="name_en" 
+          defaultValue={String(chain.name_en ?? '')} 
+          onKeyDown={preventEnter} 
+          placeholder="체인(영문)" 
+          className="w-full rounded border px-2 py-1 text-xs" 
+        />
+      </td>
+      <td className="px-3 py-2 cursor-pointer" onClick={onSelect}>
+        <input 
+          form={formId} 
+          name="slug" 
+          defaultValue={String(chain.slug ?? '')} 
+          onKeyDown={preventEnter} 
+          placeholder="slug" 
+          className="w-full rounded border px-2 py-1 text-xs" 
+        />
+      </td>
+      <td className="px-3 py-2 text-right">
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            type="button"
+            size="xs"
+            variant="teal"
+            onClick={onSave}
+          >
+            저장
+          </Button>
+          <form action="/api/chain-brand/chain/delete" method="post" className="inline">
+            <input type="hidden" name="chain_id" value={String(chain.chain_id)} />
+            <Button type="submit" size="xs" variant="destructive">삭제</Button>
+          </form>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+// Sortable Brand Row 컴포넌트
+function SortableBrandRow({ 
+  brand, 
+  formId, 
+  hasNameEn,
+  preventEnter,
+  onSave,
+  onConnect,
+  startTransition
+}: {
+  brand: Brand
+  formId: string
+  hasNameEn: boolean
+  preventEnter: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onSave: () => void
+  onConnect: () => void
+  startTransition: React.TransitionStartFunction
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: brand.brand_id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    backgroundColor: isDragging ? '#f0f9ff' : undefined,
+  }
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      data-brand-id={brand.brand_id}
+      className="border-t hover:bg-gray-50"
+    >
+      <td className="px-1 py-2 text-center" style={{ width: '30px' }}>
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing inline-flex items-center justify-center hover:bg-gray-200 rounded p-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-4 w-4 text-gray-400" />
+        </div>
+      </td>
+      <td className="px-2 py-2 text-center text-gray-600 text-xs font-medium" style={{ width: '50px' }}>
+        {brand.brand_sort_order ?? '-'}
+      </td>
+      <td className="px-2 py-2" style={{ width: '100px' }}>
+        <form id={formId} action="/api/chain-brand/brand/save" method="post" className="hidden">
+          <input type="hidden" name="brand_id" value={String(brand.brand_id)} />
+          <input type="hidden" name="chain_id" value={String(brand.chain_id ?? '')} />
+        </form>
+        <select
+          form={formId}
+          name="status"
+          defaultValue={String(brand.status ?? 'active')}
+          onKeyDown={preventEnter}
+          className="w-full rounded border px-2 py-1 text-xs"
+        >
+          <option value="active">활성</option>
+          <option value="inactive">비활성</option>
+        </select>
+      </td>
+      <td className="px-1 py-2">
+        <div className="flex items-center gap-1">
+          <input form={formId} name="name_kr" defaultValue={String(brand.name_kr ?? '')} onKeyDown={preventEnter} placeholder="브랜드(한글)" className="w-24 sm:w-28 md:w-32 lg:w-36 rounded border px-2 py-1 text-xs" />
+          {hasNameEn && (
+            <input form={formId} name="name_en" defaultValue={String(brand.name_en ?? '')} onKeyDown={preventEnter} placeholder="브랜드(영문)" className="w-24 sm:w-28 md:w-32 lg:w-36 rounded border px-2 py-1 text-xs" />
+          )}
+        </div>
+      </td>
+      <td className="px-1 py-2 text-right">
+        <div className="flex items-center justify-end gap-0.5">
+          <Button
+            type="button"
+            size="xs"
+            className="bg-orange-500 text-white hover:bg-orange-600"
+            onClick={onConnect}
+          >
+            호텔 연결
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            variant="teal"
+            onClick={onSave}
+          >
+            저장
+          </Button>
+          <form action="/api/chain-brand/brand/delete" method="post" className="inline">
+            <input type="hidden" name="id" value={String(brand.brand_id)} />
+            <Button type="submit" size="xs" variant="destructive">삭제</Button>
+          </form>
+        </div>
+      </td>
+    </tr>
+  )
 }
 
 export function ChainBrandManager({ chains, brands }: Props) {
@@ -28,11 +284,36 @@ export function ChainBrandManager({ chains, brands }: Props) {
   const [showHotelConnectModal, setShowHotelConnectModal] = React.useState(false)
   const [selectedBrandForConnect, setSelectedBrandForConnect] = React.useState<Brand | null>(null)
   const [showSchemaInfo, setShowSchemaInfo] = React.useState(false)
+  const [isSavingChainOrder, setIsSavingChainOrder] = React.useState(false)
+  const [isSavingBrandOrder, setIsSavingBrandOrder] = React.useState(false)
   const createFormId = React.useId()
   const createChainFormId = React.useId()
   
   // Server Actions을 위한 transition
   const [_isPending, startTransition] = React.useTransition()
+  
+  // 드래그앤 드롭 센서
+  const chainSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+  
+  const brandSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
   
   // 실제 존재하는 컬럼 확인
   const hasNameEn = React.useMemo(() => {
@@ -44,6 +325,116 @@ export function ChainBrandManager({ chains, brands }: Props) {
       e.preventDefault()
       e.stopPropagation()
     }
+  }
+  
+  // 체인 드래그 종료 핸들러
+  const handleChainDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      console.log('[ChainBrandManager] Chain drag ended:', { activeId: active.id, overId: over.id })
+      
+      let updatedChains: Chain[] = []
+      
+      setChainsState((chains) => {
+        const oldIndex = chains.findIndex((item) => item.chain_id === active.id)
+        const newIndex = chains.findIndex((item) => item.chain_id === over.id)
+
+        const newChains = arrayMove(chains, oldIndex, newIndex)
+        
+        // 순서 재정렬 후 chain_sort_order 업데이트
+        const reorderedChains = newChains.map((item, index) => ({
+          ...item,
+          chain_sort_order: index + 1
+        }))
+        
+        updatedChains = reorderedChains
+        return reorderedChains
+      })
+      
+      // 순서 자동 저장
+      console.log('[ChainBrandManager] Auto-saving chain order...')
+      await handleAutoSaveChainOrder(updatedChains)
+    }
+  }
+  
+  // 브랜드 드래그 종료 핸들러
+  const handleBrandDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      console.log('[ChainBrandManager] Brand drag ended:', { activeId: active.id, overId: over.id })
+      
+      let updatedBrands: Brand[] = []
+      
+      setBrandsState((brands) => {
+        const oldIndex = brands.findIndex((item) => item.brand_id === active.id)
+        const newIndex = brands.findIndex((item) => item.brand_id === over.id)
+
+        const newBrands = arrayMove(brands, oldIndex, newIndex)
+        
+        // 순서 재정렬 후 brand_sort_order 업데이트
+        const reorderedBrands = newBrands.map((item, index) => ({
+          ...item,
+          brand_sort_order: index + 1
+        }))
+        
+        updatedBrands = reorderedBrands
+        return reorderedBrands
+      })
+      
+      // 순서 자동 저장 (현재 선택된 체인의 브랜드만)
+      console.log('[ChainBrandManager] Auto-saving brand order...')
+      await handleAutoSaveBrandOrder(updatedBrands.filter(b => b.chain_id === selectedChainId))
+    }
+  }
+  
+  // 자동 체인 순서 저장
+  const handleAutoSaveChainOrder = async (chainsToSave: Chain[]) => {
+    setIsSavingChainOrder(true)
+    let successCount = 0
+    let errorCount = 0
+
+    console.log(`[ChainBrandManager] Saving ${chainsToSave.length} chains...`)
+
+    for (const chain of chainsToSave) {
+      if (chain.chain_sort_order != null) {
+        const res = await updateChainSortOrder(chain.chain_id, chain.chain_sort_order)
+        if (res.success) {
+          successCount++
+        } else {
+          errorCount++
+          console.error(`[ChainBrandManager] Failed to save order for chain ${chain.chain_id}:`, res.error)
+        }
+      }
+    }
+
+    setIsSavingChainOrder(false)
+    console.log(`✅ 체인 순서 자동 저장 완료: ${successCount}개 성공, ${errorCount}개 실패`)
+  }
+  
+  // 자동 브랜드 순서 저장
+  const handleAutoSaveBrandOrder = async (brandsToSave: Brand[]) => {
+    setIsSavingBrandOrder(true)
+    let successCount = 0
+    let errorCount = 0
+
+    console.log(`[ChainBrandManager] Saving ${brandsToSave.length} brands...`)
+
+    for (const brand of brandsToSave) {
+      if (brand.brand_sort_order != null) {
+        const res = await updateBrandSortOrder(brand.brand_id, brand.brand_sort_order)
+        if (res.success) {
+          successCount++
+        } else {
+          errorCount++
+          console.error(`[ChainBrandManager] Failed to save order for brand ${brand.brand_id}:`, res.error)
+        }
+      }
+    }
+
+    setIsSavingBrandOrder(false)
+    console.log(`✅ 브랜드 순서 자동 저장 완료: ${successCount}개 성공, ${errorCount}개 실패`)
   }
 
   React.useEffect(() => {
@@ -195,21 +586,51 @@ export function ChainBrandManager({ chains, brands }: Props) {
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="min-w-[520px] w-full text-sm">
-            <thead>
-              <tr className="bg-muted/60">
-                <th className="px-3 py-2 text-left">호텔 체인(한글)</th>
-                <th className="px-3 py-2 text-left">호텔 체인(영문)</th>
-                <th className="px-3 py-2 text-left">Slug</th>
-                <th className="px-3 py-2 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <DndContext
+            sensors={chainSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleChainDragEnd}
+          >
+            <table className="min-w-[520px] w-full text-sm">
+              <thead>
+                <tr className="bg-muted/60">
+                  <th className="px-1 py-2 text-center" style={{ width: '30px' }}>
+                    <GripVertical className="h-4 w-4 text-gray-400 mx-auto" />
+                  </th>
+                  <th className="px-2 py-2 text-center" style={{ width: '50px' }}>순서</th>
+                  <th className="px-2 py-2 text-center" style={{ width: '100px' }}>상태</th>
+                  <th className="px-3 py-2 text-left">호텔 체인(한글)</th>
+                  <th className="px-3 py-2 text-left">호텔 체인(영문)</th>
+                  <th className="px-3 py-2 text-left">Slug</th>
+                  <th className="px-3 py-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <SortableContext
+                items={chainsState.map(c => c.chain_id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <tbody>
               {addingChain && (
                 <tr className="border-t bg-teal-50/40">
-                  <td className="px-3 py-2">
+                  <td className="px-1 py-2 text-center">
+                    <GripVertical className="h-4 w-4 text-gray-300 mx-auto" />
+                  </td>
+                  <td className="px-2 py-2 text-center text-xs text-gray-400">-</td>
+                  <td className="px-2 py-2">
                     <form id={createChainFormId} action="/api/chain-brand/chain/create" method="post" className="hidden" onSubmit={(e) => { e.preventDefault(); e.stopPropagation() }}>
                     </form>
+                    <select
+                      form={createChainFormId}
+                      name="status"
+                      defaultValue="active"
+                      onKeyDown={preventEnter}
+                      className="w-full rounded border px-2 py-1 text-xs"
+                    >
+                      <option value="active">활성</option>
+                      <option value="inactive">비활성</option>
+                    </select>
+                  </td>
+                  <td className="px-3 py-2">
                     <input 
                       form={createChainFormId} 
                       name="name_kr" 
@@ -246,9 +667,11 @@ export function ChainBrandManager({ chains, brands }: Props) {
                           const nameKrInput = document.querySelector(`input[form="${createChainFormId}"][name="name_kr"]`) as HTMLInputElement | null
                           const nameEnInput = document.querySelector(`input[form="${createChainFormId}"][name="name_en"]`) as HTMLInputElement | null
                           const slugInput = document.querySelector(`input[form="${createChainFormId}"][name="slug"]`) as HTMLInputElement | null
+                          const statusSelect = document.querySelector(`select[form="${createChainFormId}"][name="status"]`) as HTMLSelectElement | null
                           const nkr = (nameKrInput?.value ?? '').trim()
                           const nen = (nameEnInput?.value ?? '').trim()
                           const slug = (slugInput?.value ?? '').trim()
+                          const status = statusSelect?.value ?? 'active'
                           
                           if (!nkr && !nen) {
                             setDialogMessage('체인(한글) 또는 체인(영문) 중 하나는 입력해야 합니다.')
@@ -263,6 +686,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
                               fd.append('name_kr', nkr)
                               fd.append('name_en', nen)
                               fd.append('slug', slug)
+                              fd.append('status', status)
                               
                               const result = await createChain(fd)
                               
@@ -297,115 +721,73 @@ export function ChainBrandManager({ chains, brands }: Props) {
                 const active = c.chain_id === selectedChainId
                 const formId = `chain-form-${c.chain_id}`
                 return (
-                  <tr
+                  <SortableChainRow
                     key={c.chain_id}
-                    data-chain-id={c.chain_id}
-                    className={cn('border-t hover:bg-gray-50', active && 'bg-primary/10')}
-                  >
-                    <td className="px-3 py-2 cursor-pointer" onClick={() => setSelectedChainId(c.chain_id)}>
-                      <form id={formId} action="/api/chain-brand/chain/save" method="post" className="hidden">
-                        <input type="hidden" name="chain_id" value={String(c.chain_id)} />
-                      </form>
-                      <input 
-                        form={formId} 
-                        name="name_kr" 
-                        defaultValue={String(c.name_kr ?? '')} 
-                        onKeyDown={preventEnter} 
-                        placeholder="체인(한글)" 
-                        className="w-full rounded border px-2 py-1 text-xs" 
-                      />
-                    </td>
-                    <td className="px-3 py-2 cursor-pointer" onClick={() => setSelectedChainId(c.chain_id)}>
-                      <input 
-                        form={formId} 
-                        name="name_en" 
-                        defaultValue={String(c.name_en ?? '')} 
-                        onKeyDown={preventEnter} 
-                        placeholder="체인(영문)" 
-                        className="w-full rounded border px-2 py-1 text-xs" 
-                      />
-                    </td>
-                    <td className="px-3 py-2 cursor-pointer" onClick={() => setSelectedChainId(c.chain_id)}>
-                      <input 
-                        form={formId} 
-                        name="slug" 
-                        defaultValue={String(c.slug ?? '')} 
-                        onKeyDown={preventEnter} 
-                        placeholder="slug" 
-                        className="w-full rounded border px-2 py-1 text-xs" 
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant="teal"
-                          onClick={async () => {
-                            try {
-                              const nameKrInput = document.querySelector(`input[form="${formId}"][name="name_kr"]`) as HTMLInputElement | null
-                              const nameEnInput = document.querySelector(`input[form="${formId}"][name="name_en"]`) as HTMLInputElement | null
-                              const slugInput = document.querySelector(`input[form="${formId}"][name="slug"]`) as HTMLInputElement | null
-                              const nkr = (nameKrInput?.value ?? '').trim()
-                              const nen = (nameEnInput?.value ?? '').trim()
-                              const slug = (slugInput?.value ?? '').trim()
-                              
-                              if (!nkr && !nen) {
-                                setDialogMessage('체인(한글) 또는 체인(영문) 중 하나는 입력해야 합니다.')
-                                setOnConfirmFn(() => () => {})
-                                setDialogOpen(true)
-                                return
-                              }
-                              
-                              startTransition(async () => {
-                                try {
-                                  const fd = new FormData()
-                                  fd.append('chain_id', String(c.chain_id))
-                                  fd.append('name_kr', nkr)
-                                  fd.append('name_en', nen)
-                                  fd.append('slug', slug)
-                                  
-                                  const result = await saveChain(fd)
-                                  
-                                  if (result.success) {
-                                    // 로컬 상태 업데이트
-                                    setChainsState((prev) => prev.map((x) => (x.chain_id === c.chain_id ? { ...x, name_kr: nkr, name_en: nen, slug: slug } : x)))
-                                    // 공통 하이라이트 적용
-                                    const row = nameKrInput?.closest('tr') ?? null
-                                    highlightRowFields(row, 'input[name="name_kr"], input[name="name_en"], input[name="slug"]')
-                                  } else {
-                                    const errMsg = result.error || '저장 중 오류가 발생했습니다.'
-                                    setDialogMessage(errMsg)
-                                    setOnConfirmFn(() => () => {})
-                                    setDialogOpen(true)
-                                  }
-                                } catch {
-                                  setDialogMessage('저장 중 오류가 발생했습니다.')
-                                  setOnConfirmFn(() => () => {})
-                                  setDialogOpen(true)
-                                }
-                              })
-                            } catch {
-                              setDialogMessage('저장 중 오류가 발생했습니다.')
+                    chain={c}
+                    isActive={active}
+                    formId={formId}
+                    preventEnter={preventEnter}
+                    onSelect={() => setSelectedChainId(c.chain_id)}
+                    startTransition={startTransition}
+                    onSave={async () => {
+                      try {
+                        const nameKrInput = document.querySelector(`input[form="${formId}"][name="name_kr"]`) as HTMLInputElement | null
+                        const nameEnInput = document.querySelector(`input[form="${formId}"][name="name_en"]`) as HTMLInputElement | null
+                        const slugInput = document.querySelector(`input[form="${formId}"][name="slug"]`) as HTMLInputElement | null
+                        const statusSelect = document.querySelector(`select[form="${formId}"][name="status"]`) as HTMLSelectElement | null
+                        const nkr = (nameKrInput?.value ?? '').trim()
+                        const nen = (nameEnInput?.value ?? '').trim()
+                        const slug = (slugInput?.value ?? '').trim()
+                        const status = statusSelect?.value ?? 'active'
+                        
+                        if (!nkr && !nen) {
+                          setDialogMessage('체인(한글) 또는 체인(영문) 중 하나는 입력해야 합니다.')
+                          setOnConfirmFn(() => () => {})
+                          setDialogOpen(true)
+                          return
+                        }
+                        
+                        startTransition(async () => {
+                          try {
+                            const fd = new FormData()
+                            fd.append('chain_id', String(c.chain_id))
+                            fd.append('name_kr', nkr)
+                            fd.append('name_en', nen)
+                            fd.append('slug', slug)
+                            fd.append('status', status)
+                            
+                            const result = await saveChain(fd)
+                            
+                            if (result.success) {
+                              // 로컬 상태 업데이트
+                              setChainsState((prev) => prev.map((x) => (x.chain_id === c.chain_id ? { ...x, name_kr: nkr, name_en: nen, slug: slug } : x)))
+                              // 공통 하이라이트 적용
+                              const row = nameKrInput?.closest('tr') ?? null
+                              highlightRowFields(row, 'input[name="name_kr"], input[name="name_en"], input[name="slug"]')
+                            } else {
+                              const errMsg = result.error || '저장 중 오류가 발생했습니다.'
+                              setDialogMessage(errMsg)
                               setOnConfirmFn(() => () => {})
                               setDialogOpen(true)
                             }
-                          }}
-                        >
-                          저장
-                        </Button>
-                        <form action="/api/chain-brand/chain/delete" method="post" className="inline">
-                          <input type="hidden" name="chain_id" value={String(c.chain_id)} />
-                          <Button type="submit" size="xs" variant="destructive">삭제</Button>
-                        </form>
-                      </div>
-                    </td>
-                  </tr>
+                          } catch {
+                            setDialogMessage('저장 중 오류가 발생했습니다.')
+                            setOnConfirmFn(() => () => {})
+                            setDialogOpen(true)
+                          }
+                        })
+                      } catch {
+                        setDialogMessage('저장 중 오류가 발생했습니다.')
+                        setOnConfirmFn(() => () => {})
+                        setDialogOpen(true)
+                      }
+                    }}
+                  />
                 )
               })}
               {chainsState.length === 0 && !addingChain && (
                 <tr>
-                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={2}>
+                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={7}>
                     <div className="space-y-2">
                       <p>체인 데이터가 없습니다.</p>
                       <p className="text-blue-600">&quot;체인 추가&quot; 버튼을 클릭하여 첫 번째 체인을 생성하세요.</p>
@@ -413,8 +795,10 @@ export function ChainBrandManager({ chains, brands }: Props) {
                   </td>
                 </tr>
               )}
-            </tbody>
-          </table>
+                </tbody>
+              </SortableContext>
+            </table>
+          </DndContext>
         </div>
       </section>
 
@@ -436,17 +820,31 @@ export function ChainBrandManager({ chains, brands }: Props) {
           </Button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm table-fixed">
-            <thead>
-              <tr className="bg-muted/60">
-                <th className="px-1 py-2 text-left w-2/3">브랜드</th>
-                <th className="px-1 py-2 text-right w-1/3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <DndContext
+            sensors={brandSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleBrandDragEnd}
+          >
+            <table className="w-full text-sm table-fixed">
+              <thead>
+                <tr className="bg-muted/60">
+                  <th className="px-1 py-2 text-center" style={{ width: '30px' }}>
+                    <GripVertical className="h-4 w-4 text-gray-400 mx-auto" />
+                  </th>
+                  <th className="px-2 py-2 text-center" style={{ width: '50px' }}>순서</th>
+                  <th className="px-2 py-2 text-center" style={{ width: '100px' }}>상태</th>
+                  <th className="px-1 py-2 text-left">브랜드</th>
+                  <th className="px-1 py-2 text-right" style={{ width: '200px' }}>Actions</th>
+                </tr>
+              </thead>
+              <SortableContext
+                items={filteredBrands.map(b => b.brand_id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <tbody>
               {selectedChainId == null && (
                 <tr>
-                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={2}>
+                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={5}>
                     <div className="space-y-2">
                       <p>왼쪽 테이블에서 체인을 선택하세요.</p>
                       <p className="text-blue-600">체인을 선택한 후 브랜드를 추가할 수 있습니다.</p>
@@ -456,7 +854,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
               )}
               {selectedChainId != null && filteredBrands.length === 0 && !addingBrand && (
                 <tr>
-                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={2}>
+                  <td className="px-3 py-4 text-center text-xs text-muted-foreground" colSpan={5}>
                     <div className="space-y-2">
                       <p>선택한 체인의 브랜드가 없습니다.</p>
                       <p className="text-blue-600">&quot;브랜드 추가&quot; 버튼을 클릭하여 첫 번째 브랜드를 생성하세요.</p>
@@ -466,10 +864,26 @@ export function ChainBrandManager({ chains, brands }: Props) {
               )}
               {addingBrand && (
                 <tr className="border-t bg-violet-50/40">
-                  <td className="px-1 py-2">
+                  <td className="px-1 py-2 text-center">
+                    <GripVertical className="h-4 w-4 text-gray-300 mx-auto" />
+                  </td>
+                  <td className="px-2 py-2 text-center text-xs text-gray-400">-</td>
+                  <td className="px-2 py-2">
                     <form id={createFormId} action="/api/chain-brand/brand/save" method="post" className="hidden" onSubmit={(e) => { e.preventDefault(); e.stopPropagation() }}>
                       <input type="hidden" name="chain_id" value={String(selectedChainId ?? '')} />
                     </form>
+                    <select
+                      form={createFormId}
+                      name="status"
+                      defaultValue="active"
+                      onKeyDown={preventEnter}
+                      className="w-full rounded border px-2 py-1 text-xs"
+                    >
+                      <option value="active">활성</option>
+                      <option value="inactive">비활성</option>
+                    </select>
+                  </td>
+                  <td className="px-1 py-2">
                     <div className="flex items-center gap-1">
                       <input form={createFormId} name="name_kr" placeholder="브랜드(한글)" onKeyDown={preventEnter} className="w-24 sm:w-28 md:w-32 lg:w-36 rounded border px-2 py-1 text-xs" />
                       {hasNameEn && (
@@ -498,6 +912,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
                           // form 속성으로 연결된 input들을 직접 찾기
                           const nameKrInput = document.querySelector(`input[form="${createFormId}"][name="name_kr"]`) as HTMLInputElement | null
                           const nameEnInput = hasNameEn ? document.querySelector(`input[form="${createFormId}"][name="name_en"]`) as HTMLInputElement | null : null
+                          const statusSelect = document.querySelector(`select[form="${createFormId}"][name="status"]`) as HTMLSelectElement | null
                           
                           if (!nameKrInput) {
                             setDialogMessage('입력 필드를 찾을 수 없습니다.')
@@ -508,11 +923,13 @@ export function ChainBrandManager({ chains, brands }: Props) {
                           
                           const nkr = (nameKrInput.value ?? '').trim()
                           const nen = hasNameEn ? (nameEnInput?.value ?? '').trim() : ''
+                          const status = statusSelect?.value ?? 'active'
                           
                           console.log('[brand][client] new brand values:', { 
                             chain_id: selectedChainId,
                             name_kr: nkr, 
                             name_en: nen,
+                            status,
                             hasNameEn
                           })
                           
@@ -530,6 +947,7 @@ export function ChainBrandManager({ chains, brands }: Props) {
                           if (hasNameEn) {
                             fd.append('name_en', nen)
                           }
+                          fd.append('status', status)
                           
                           // FormData 내용 검증
                           const formDataObj = {
@@ -611,101 +1029,77 @@ export function ChainBrandManager({ chains, brands }: Props) {
               {filteredBrands.map((b) => {
                 const formId = `brand-form-${b.brand_id}`
                 return (
-                  <tr key={b.brand_id} data-brand-id={b.brand_id} className="border-t">
-                    <td className="px-1 py-2">
-                      {/* 숨김 폼: 다른 셀의 입력들도 form 속성으로 묶음 */}
-                      <form id={formId} action="/api/chain-brand/brand/save" method="post" className="hidden">
-                        <input type="hidden" name="brand_id" value={String(b.brand_id)} />
-                        <input type="hidden" name="chain_id" value={String(selectedChainId ?? '')} />
-                      </form>
-                      <div className="flex items-center gap-1">
-                        <input form={formId} name="name_kr" defaultValue={String(b.name_kr ?? '')} onKeyDown={preventEnter} placeholder="브랜드(한글)" className="w-24 sm:w-28 md:w-32 lg:w-36 rounded border px-2 py-1 text-xs" />
-                        {hasNameEn && (
-                          <input form={formId} name="name_en" defaultValue={String(b.name_en ?? '')} onKeyDown={preventEnter} placeholder="브랜드(영문)" className="w-24 sm:w-28 md:w-32 lg:w-36 rounded border px-2 py-1 text-xs" />
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-1 py-2 text-right">
-                      <div className="flex items-center justify-end gap-0.5">
-                        <Button
-                          type="button"
-                          size="xs"
-                          className="bg-orange-500 text-white hover:bg-orange-600"
-                          onClick={() => {
-                            setSelectedBrandForConnect(b)
-                            setShowHotelConnectModal(true)
-                          }}
-                        >
-                          호텔 연결
-                        </Button>
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant="teal"
-                          onClick={async () => {
-                            try {
-                              // form 속성으로 연결된 input들을 직접 찾기
-                              const nameKrInput = document.querySelector(`input[form="${formId}"][name="name_kr"]`) as HTMLInputElement | null
-                              const nameEnInput = document.querySelector(`input[form="${formId}"][name="name_en"]`) as HTMLInputElement | null
-                              const nkr = (nameKrInput?.value ?? '').trim()
-                              const nen = (nameEnInput?.value ?? '').trim()
-                              console.log('[brand][client] updating existing:', { brand_id: b.brand_id, chain_id: selectedChainId, name_kr: nkr, name_en: nen })
-                              
-                              if (!nkr && !nen) {
-                                setDialogMessage('브랜드(한글) 또는 브랜드(영문) 중 하나는 입력해야 합니다.')
-                                setOnConfirmFn(() => () => {})
-                                setDialogOpen(true)
-                                return
-                              }
-                              
-                              startTransition(async () => {
-                                try {
-                                  const fd = new FormData()
-                                  fd.append('brand_id', String(b.brand_id))
-                                  fd.append('chain_id', String(selectedChainId ?? ''))
-                                  fd.append('name_kr', nkr)
-                                  fd.append('name_en', nen)
-                                  
-                                  const result = await saveBrand(fd)
-                                  
-                                  if (result.success && result.data) {
-                                    // 로컬 상태 업데이트
-                                    setBrandsState((prev) => prev.map((x) => (x.brand_id === result.data?.brand_id ? (result.data as Brand) : x)))
-                                    // 공통 하이라이트 적용
-                                    const row = nameKrInput?.closest('tr') ?? null
-                                    highlightRowFields(row, 'input[name="name_kr"], input[name="name_en"]')
-                                  } else {
-                                    const errMsg = result.error || '저장 중 오류가 발생했습니다.'
-                                    setDialogMessage(errMsg)
-                                    setOnConfirmFn(() => () => {})
-                                    setDialogOpen(true)
-                                  }
-                                } catch {
-                                  setDialogMessage('저장 중 오류가 발생했습니다.')
-                                  setOnConfirmFn(() => () => {})
-                                  setDialogOpen(true)
-                                }
-                              })
-                            } catch {
-                              setDialogMessage('저장 중 오류가 발생했습니다.')
+                  <SortableBrandRow
+                    key={b.brand_id}
+                    brand={b}
+                    formId={formId}
+                    hasNameEn={hasNameEn}
+                    preventEnter={preventEnter}
+                    startTransition={startTransition}
+                    onConnect={() => {
+                      setSelectedBrandForConnect(b)
+                      setShowHotelConnectModal(true)
+                    }}
+                    onSave={async () => {
+                      try {
+                        // form 속성으로 연결된 input들을 직접 찾기
+                        const nameKrInput = document.querySelector(`input[form="${formId}"][name="name_kr"]`) as HTMLInputElement | null
+                        const nameEnInput = document.querySelector(`input[form="${formId}"][name="name_en"]`) as HTMLInputElement | null
+                        const statusSelect = document.querySelector(`select[form="${formId}"][name="status"]`) as HTMLSelectElement | null
+                        const nkr = (nameKrInput?.value ?? '').trim()
+                        const nen = (nameEnInput?.value ?? '').trim()
+                        const status = statusSelect?.value ?? 'active'
+                        console.log('[brand][client] updating existing:', { brand_id: b.brand_id, chain_id: selectedChainId, name_kr: nkr, name_en: nen, status })
+                        
+                        if (!nkr && !nen) {
+                          setDialogMessage('브랜드(한글) 또는 브랜드(영문) 중 하나는 입력해야 합니다.')
+                          setOnConfirmFn(() => () => {})
+                          setDialogOpen(true)
+                          return
+                        }
+                        
+                        startTransition(async () => {
+                          try {
+                            const fd = new FormData()
+                            fd.append('brand_id', String(b.brand_id))
+                            fd.append('chain_id', String(selectedChainId ?? ''))
+                            fd.append('name_kr', nkr)
+                            fd.append('name_en', nen)
+                            fd.append('status', status)
+                            
+                            const result = await saveBrand(fd)
+                            
+                            if (result.success && result.data) {
+                              // 로컬 상태 업데이트
+                              setBrandsState((prev) => prev.map((x) => (x.brand_id === result.data?.brand_id ? (result.data as Brand) : x)))
+                              // 공통 하이라이트 적용
+                              const row = nameKrInput?.closest('tr') ?? null
+                              highlightRowFields(row, 'input[name="name_kr"], input[name="name_en"]')
+                            } else {
+                              const errMsg = result.error || '저장 중 오류가 발생했습니다.'
+                              setDialogMessage(errMsg)
                               setOnConfirmFn(() => () => {})
                               setDialogOpen(true)
                             }
-                          }}
-                        >
-                          저장
-                        </Button>
-                        <form action="/api/chain-brand/brand/delete" method="post" className="inline">
-                          <input type="hidden" name="id" value={String(b.brand_id)} />
-                          <Button type="submit" size="xs" variant="destructive">삭제</Button>
-                        </form>
-                      </div>
-                    </td>
-                  </tr>
+                          } catch {
+                            setDialogMessage('저장 중 오류가 발생했습니다.')
+                            setOnConfirmFn(() => () => {})
+                            setDialogOpen(true)
+                          }
+                        })
+                      } catch {
+                        setDialogMessage('저장 중 오류가 발생했습니다.')
+                        setOnConfirmFn(() => () => {})
+                        setDialogOpen(true)
+                      }
+                    }}
+                  />
                 )
               })}
-            </tbody>
-          </table>
+                </tbody>
+              </SortableContext>
+            </table>
+          </DndContext>
         </div>
       </section>
       </div>

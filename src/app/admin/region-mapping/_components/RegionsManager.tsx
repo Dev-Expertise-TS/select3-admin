@@ -1210,11 +1210,17 @@ export function RegionsManager({ initialItems }: Props) {
           value={String((editingData as any)[columnKey] ?? '')}
           onChange={(e) => {
             const val = e.target.value === '' ? null : parseInt(e.target.value)
+            // smallint 범위 제한: -32768 ~ 32767
+            if (val !== null && (val < -32768 || val > 32767)) {
+              return // 범위 초과 시 무시
+            }
             setEditingData(prev => ({ ...prev, [columnKey]: val }))
           }}
           className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="순서"
           min="0"
+          max="32767"
+          title="0 ~ 32767 범위 내 숫자만 입력 가능"
         />
       )
     }

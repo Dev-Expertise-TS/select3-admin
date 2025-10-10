@@ -1,8 +1,22 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { ChainBrandManager } from './_components/ChainBrandManager'
+import { ChainBrandTabs } from './_components/ChainBrandTabs'
 
-type Chain = { chain_id: number; name_kr: string | null; name_en: string | null; slug: string | null }
-type Brand = { brand_id: number; name_kr: string | null; name_en: string | null; chain_id: number | null }
+type Chain = { 
+  chain_id: number
+  name_kr: string | null
+  name_en: string | null
+  slug: string | null
+  chain_sort_order?: number | null
+  status?: string | null
+}
+type Brand = { 
+  brand_id: number
+  name_kr: string | null
+  name_en: string | null
+  chain_id: number | null
+  brand_sort_order?: number | null
+  status?: string | null
+}
 
 async function getData() {
   const supabase = createServiceRoleClient()
@@ -15,53 +29,37 @@ async function getData() {
   }
 
   try {
-    // 먼저 테이블이 존재하는지 확인
-    const { error: tableCheckError } = await supabase
-      .from('hotel_chains')
-      .select('chain_id')
-      .limit(1)
-    
-    if (tableCheckError) {
-      if (tableCheckError.message.includes('does not exist')) {
-        throw new Error('hotel_chains 테이블이 존재하지 않습니다. Supabase에서 테이블을 생성해주세요.')
-      }
-      throw new Error(`테이블 접근 오류: ${tableCheckError.message}`)
-    }
-
-    // 실제 테이블 구조 확인을 위해 샘플 데이터 조회
-    const { data: chainsSample, error: chainsSampleError } = await supabase
-      .from('hotel_chains')
-      .select('*')
-      .limit(1)
-    
-    if (chainsSampleError) {
-      throw new Error(`체인 샘플 데이터 조회 오류: ${chainsSampleError.message}`)
-    }
-
-    const { data: brandsSample, error: brandsSampleError } = await supabase
-      .from('hotel_brands')
-      .select('*')
-      .limit(1)
-    
-    if (brandsSampleError) {
-      throw new Error(`브랜드 샘플 데이터 조회 오류: ${brandsSampleError.message}`)
-    }
-
-    // 실제 컬럼명 확인
-    const chainsColumns = chainsSample && chainsSample.length > 0 ? Object.keys(chainsSample[0]) : []
-    const brandsColumns = brandsSample && brandsSample.length > 0 ? Object.keys(brandsSample[0]) : []
-
     // 체인 데이터 조회 - 최신 레코드가 맨 위에 오도록 내림차순 정렬
+    console.log('[chain-brand] Fetching chains data...')
     const chainsRes = await supabase.from('hotel_chains').select('*').order('chain_id', { ascending: false })
     if (chainsRes.error) {
+      console.error('[chain-brand] chains query error:', chainsRes.error)
       throw new Error(`체인 목록 조회 중 오류가 발생했습니다: ${chainsRes.error.message}`)
     }
+    console.log(`[chain-brand] Fetched ${chainsRes.data?.length || 0} chains`)
 
     // 브랜드 데이터 조회 - 최신 레코드가 맨 위에 오도록 내림차순 정렬
+    console.log('[chain-brand] Fetching brands data...')
     const brandsRes = await supabase.from('hotel_brands').select('*').order('brand_id', { ascending: false })
     if (brandsRes.error) {
+      console.error('[chain-brand] brands query error:', brandsRes.error)
+      console.error('[chain-brand] brands query error details:', {
+        code: brandsRes.error.code,
+        details: brandsRes.error.details,
+        hint: brandsRes.error.hint,
+        message: brandsRes.error.message
+      })
       throw new Error(`브랜드 목록 조회 중 오류가 발생했습니다: ${brandsRes.error.message}`)
     }
+    console.log(`[chain-brand] Fetched ${brandsRes.data?.length || 0} brands`)
+
+    // 실제 컬럼명 확인 (데이터가 있을 때만)
+    const chainsColumns = chainsRes.data && chainsRes.data.length > 0 ? Object.keys(chainsRes.data[0]) : []
+    const brandsColumns = brandsRes.data && brandsRes.data.length > 0 ? Object.keys(brandsRes.data[0]) : []
+    
+    console.log('[chain-brand] Available chains columns:', chainsColumns)
+    console.log('[chain-brand] Available brands columns:', brandsColumns)
+
 
 
     // 타입 안전한 값 추출 헬퍼 함수
@@ -92,13 +90,28 @@ async function getData() {
       const slugKey = chainsColumns.find(key => 
         key.toLowerCase() === 'slug'
       ) || 'slug'
+      
+      // chain_sort_order 컬럼 찾기
+      const sortOrderKey = chainsColumns.find(key => 
+        key.toLowerCase().includes('sort') && key.toLowerCase().includes('order')
+      ) || 'chain_sort_order'
+      
+      // status 컬럼 찾기
+      const statusKey = chainsColumns.find(key => 
+        key.toLowerCase() === 'status'
+      ) || 'status'
 
-      return {
+      const mappedChain = {
         chain_id: Number(r[chainIdKey] ?? 0),
         name_kr: safeString(r[nameKrKey]),
         name_en: safeString(r[nameEnKey]),
         slug: safeString(r[slugKey]),
+        chain_sort_order: r[sortOrderKey] ? Number(r[sortOrderKey]) : null,
+        status: safeString(r[statusKey]) || 'active',
       }
+      
+      console.log('[chain-brand] Mapped chain:', mappedChain)
+      return mappedChain
     })
 
     const brands: Brand[] = (brandsRes.data ?? []).map((r: Record<string, unknown>) => {
@@ -121,18 +134,42 @@ async function getData() {
       const nameEnKey = brandsColumns.find(key => 
         key.toLowerCase().includes('name') && key.toLowerCase().includes('en')
       ) || 'name_en'
+      
+      // brand_sort_order 컬럼 찾기
+      const sortOrderKey = brandsColumns.find(key => 
+        key.toLowerCase().includes('sort') && key.toLowerCase().includes('order')
+      ) || 'brand_sort_order'
+      
+      // status 컬럼 찾기
+      const statusKey = brandsColumns.find(key => 
+        key.toLowerCase() === 'status'
+      ) || 'status'
 
-      return {
+      const mappedBrand = {
         brand_id: Number(r[brandIdKey] ?? 0),
         chain_id: r[chainIdKey] ? Number(r[chainIdKey]) : null,
         name_kr: safeString(r[nameKrKey]),
         name_en: safeString(r[nameEnKey]),
+        brand_sort_order: r[sortOrderKey] ? Number(r[sortOrderKey]) : null,
+        status: safeString(r[statusKey]) || 'active',
       }
+      
+      console.log('[chain-brand] Mapped brand:', mappedBrand)
+      return mappedBrand
     })
 
 
     return { chains, brands }
   } catch (error) {
+    console.error('[chain-brand] getData exception:', error)
+    
+    // 더 자세한 에러 정보 출력
+    if (error instanceof Error) {
+      console.error('[chain-brand] Error name:', error.name)
+      console.error('[chain-brand] Error message:', error.message)
+      console.error('[chain-brand] Error stack:', error.stack)
+    }
+    
     throw error
   }
 }
@@ -174,7 +211,7 @@ export default async function ChainBrandPage() {
           </div>
         </div>
 
-        <ChainBrandManager chains={chains} brands={brands} />
+        <ChainBrandTabs initialChains={chains} initialBrands={brands} />
       </div>
     )
   } catch (error) {

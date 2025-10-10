@@ -8,6 +8,8 @@ export type ChainFormData = {
   name_kr?: string | null
   name_en?: string | null
   slug?: string | null
+  chain_sort_order?: number | null
+  status?: string | null
 }
 
 export type BrandFormData = {
@@ -15,6 +17,8 @@ export type BrandFormData = {
   name_kr?: string | null
   name_en?: string | null
   chain_id?: number | null
+  brand_sort_order?: number | null
+  status?: string | null
 }
 
 export type ActionResult<T = unknown> = {
@@ -31,13 +35,19 @@ export async function saveChain(formData: FormData): Promise<ActionResult<ChainF
   const nameKr = formData.get('name_kr') as string || null
   const nameEn = formData.get('name_en') as string || null
   const slug = formData.get('slug') as string || null
+  const status = ((formData.get('status') as string) || 'active').trim()
+  
+  console.log('[chain-brand] saveChain input:', { chainId, nameKr, nameEn, slug, status })
   
   // hotel_chains 테이블의 실제 컬럼명 사용
   const chainData: Record<string, unknown> = {
     chain_name_ko: nameKr,
     chain_name_en: nameEn,
     slug: slug,
+    status: status,
   }
+
+  console.log('[chain-brand] saveChain payload:', chainData)
 
   let query;
   if (chainId) {
@@ -52,12 +62,24 @@ export async function saveChain(formData: FormData): Promise<ActionResult<ChainF
   const { data, error } = await query.select().single()
 
   if (error) {
-    console.error('Error saving chain:', error)
+    console.error('[chain-brand] saveChain error:', error)
     return { success: false, error: error.message }
   }
 
+  console.log('[chain-brand] saveChain success, returned data:', data)
+
+  // DB 컬럼명을 클라이언트 형식으로 변환
+  const mappedData: ChainFormData = {
+    chain_id: (data as any).chain_id,
+    name_kr: (data as any).chain_name_ko || null,
+    name_en: (data as any).chain_name_en || null,
+    slug: (data as any).slug || null,
+    chain_sort_order: (data as any).chain_sort_order || null,
+    status: ((data as any).status || 'active').trim()
+  }
+
   revalidatePath('/admin/chain-brand')
-  return { success: true, data: data as ChainFormData }
+  return { success: true, data: mappedData }
 }
 
 export async function createChain(formData: FormData): Promise<ActionResult<ChainFormData>> {
@@ -66,12 +88,14 @@ export async function createChain(formData: FormData): Promise<ActionResult<Chai
   const nameKr = formData.get('name_kr') as string || null
   const nameEn = formData.get('name_en') as string || null
   const slug = formData.get('slug') as string || null
+  const status = ((formData.get('status') as string) || 'active').trim()
   
   // hotel_chains 테이블의 실제 컬럼명 사용
   const chainData: Record<string, unknown> = {
     chain_name_ko: nameKr,
     chain_name_en: nameEn,
     slug: slug,
+    status: status,
   }
 
   const { data, error } = await supabase
@@ -85,8 +109,18 @@ export async function createChain(formData: FormData): Promise<ActionResult<Chai
     return { success: false, error: error.message }
   }
 
+  // DB 컬럼명을 클라이언트 형식으로 변환
+  const mappedData: ChainFormData = {
+    chain_id: (data as any).chain_id,
+    name_kr: (data as any).chain_name_ko || null,
+    name_en: (data as any).chain_name_en || null,
+    slug: (data as any).slug || null,
+    chain_sort_order: (data as any).chain_sort_order || null,
+    status: ((data as any).status || 'active').trim()
+  }
+
   revalidatePath('/admin/chain-brand')
-  return { success: true, data: data as ChainFormData }
+  return { success: true, data: mappedData }
 }
 
 export async function deleteChain(chainId: number): Promise<ActionResult> {
@@ -114,11 +148,19 @@ export async function saveBrand(formData: FormData): Promise<ActionResult<BrandF
   // Prefer canonical columns; fallback to legacy brand_name_* if DB schema differs
   const nameKo = (formData.get('name_kr') as string) ?? (formData.get('brand_name_ko') as string) ?? null
   const nameEn = (formData.get('name_en') as string) ?? (formData.get('brand_name_en') as string) ?? null
+  const status = ((formData.get('status') as string) || 'active').trim()
+  const chainId = formData.get('chain_id') ? Number(formData.get('chain_id')) : null
+  
+  console.log('[chain-brand] saveBrand input:', { brandId, nameKo, nameEn, chainId, status })
+  
   const brandData: Record<string, unknown> = {
     brand_name_ko: nameKo || null,
     brand_name_en: nameEn || null,
-    chain_id: formData.get('chain_id') ? Number(formData.get('chain_id')) : null,
+    chain_id: chainId,
+    status: status,
   }
+
+  console.log('[chain-brand] saveBrand payload:', brandData)
 
   let query;
   if (brandId) {
@@ -168,13 +210,25 @@ export async function saveBrand(formData: FormData): Promise<ActionResult<BrandF
         data = retryResult.data
       }
     } else {
-      console.error('Error saving brand:', error)
+      console.error('[chain-brand] saveBrand final error:', error)
       return { success: false, error: error.message }
     }
   }
 
+  console.log('[chain-brand] saveBrand success, returned data:', data)
+
+  // DB 컬럼명을 클라이언트 형식으로 변환
+  const mappedData: BrandFormData = {
+    brand_id: (data as any).brand_id,
+    name_kr: (data as any).brand_name_ko || null,
+    name_en: (data as any).brand_name_en || null,
+    chain_id: (data as any).chain_id || null,
+    brand_sort_order: (data as any).brand_sort_order || null,
+    status: ((data as any).status || 'active').trim()
+  }
+
   revalidatePath('/admin/chain-brand')
-  return { success: true, data: data as BrandFormData }
+  return { success: true, data: mappedData }
 }
 
 export async function createBrand(formData: FormData): Promise<ActionResult<BrandFormData>> {
@@ -182,10 +236,12 @@ export async function createBrand(formData: FormData): Promise<ActionResult<Bran
 
   const nameKo = (formData.get('name_kr') as string) ?? (formData.get('brand_name_ko') as string) ?? null
   const nameEn = (formData.get('name_en') as string) ?? (formData.get('brand_name_en') as string) ?? null
+  const status = ((formData.get('status') as string) || 'active').trim()
   const brandData: Record<string, unknown> = {
     brand_name_ko: nameKo || null,
     brand_name_en: nameEn || null,
     chain_id: formData.get('chain_id') ? Number(formData.get('chain_id')) : null,
+    status: status,
   }
 
   const { data: initialData, error } = await supabase
@@ -203,6 +259,7 @@ export async function createBrand(formData: FormData): Promise<ActionResult<Bran
         name_kr: nameKo || null,
         name_en: nameEn || null,
         chain_id: formData.get('chain_id') ? Number(formData.get('chain_id')) : null,
+        status: status,
       }
       const retryResult = await supabase
         .from('hotel_brands')
@@ -220,8 +277,18 @@ export async function createBrand(formData: FormData): Promise<ActionResult<Bran
     }
   }
 
+  // DB 컬럼명을 클라이언트 형식으로 변환
+  const mappedData: BrandFormData = {
+    brand_id: (data as any).brand_id,
+    name_kr: (data as any).brand_name_ko || null,
+    name_en: (data as any).brand_name_en || null,
+    chain_id: (data as any).chain_id || null,
+    brand_sort_order: (data as any).brand_sort_order || null,
+    status: ((data as any).status || 'active').trim()
+  }
+
   revalidatePath('/admin/chain-brand')
-  return { success: true, data: data as BrandFormData }
+  return { success: true, data: mappedData }
 }
 
 export async function deleteBrand(brandId: number): Promise<ActionResult> {
@@ -239,5 +306,177 @@ export async function deleteBrand(brandId: number): Promise<ActionResult> {
 
   revalidatePath('/admin/chain-brand')
   return { success: true }
+}
+
+/**
+ * 체인 순서 업데이트
+ */
+export async function updateChainSortOrder(chainId: number, sortOrder: number): Promise<ActionResult> {
+  try {
+    const supabase = createServiceRoleClient()
+
+    const { error } = await supabase
+      .from('hotel_chains')
+      .update({ chain_sort_order: sortOrder })
+      .eq('chain_id', chainId)
+
+    if (error) {
+      console.error('[chain-brand] updateChainSortOrder error:', error)
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath('/admin/chain-brand')
+    return { success: true }
+  } catch (e) {
+    console.error('[chain-brand] updateChainSortOrder exception:', e)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+/**
+ * 브랜드 순서 업데이트
+ */
+export async function updateBrandSortOrder(brandId: number, sortOrder: number): Promise<ActionResult> {
+  try {
+    const supabase = createServiceRoleClient()
+
+    const { error } = await supabase
+      .from('hotel_brands')
+      .update({ brand_sort_order: sortOrder })
+      .eq('brand_id', brandId)
+
+    if (error) {
+      console.error('[chain-brand] updateBrandSortOrder error:', error)
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath('/admin/chain-brand')
+    return { success: true }
+  } catch (e) {
+    console.error('[chain-brand] updateBrandSortOrder exception:', e)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+/**
+ * 브랜드에 연결된 호텔 목록 조회
+ */
+export async function getBrandHotels(brandId: number): Promise<ActionResult<{
+  hotels: Array<{
+    sabre_id: string
+    property_name_ko: string | null
+    property_name_en: string | null
+    property_address: string | null
+    city_ko: string | null
+    country_ko: string | null
+  }>
+}>> {
+  try {
+    const supabase = createServiceRoleClient()
+
+    const { data, error } = await supabase
+      .from('select_hotels')
+      .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko')
+      .eq('brand_id', brandId)
+      .order('property_name_ko', { ascending: true, nullsFirst: false })
+
+    if (error) {
+      console.error('[chain-brand] getBrandHotels error:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { 
+      success: true, 
+      data: { 
+        hotels: data || [] 
+      } 
+    }
+  } catch (e) {
+    console.error('[chain-brand] getBrandHotels exception:', e)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+/**
+ * 호텔의 브랜드 연결 해제
+ */
+export async function disconnectHotelFromBrand(sabreId: string): Promise<ActionResult> {
+  try {
+    const supabase = createServiceRoleClient()
+
+    const { error } = await supabase
+      .from('select_hotels')
+      .update({ brand_id: null, updated_at: new Date().toISOString() })
+      .eq('sabre_id', sabreId)
+
+    if (error) {
+      console.error('[chain-brand] disconnectHotelFromBrand error:', error)
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath('/admin/chain-brand')
+    return { success: true }
+  } catch (e) {
+    console.error('[chain-brand] disconnectHotelFromBrand exception:', e)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+/**
+ * 체인에 연결된 호텔 목록 조회
+ */
+export async function getChainHotels(chainId: number): Promise<ActionResult<{
+  hotels: Array<{
+    sabre_id: string
+    property_name_ko: string | null
+    property_name_en: string | null
+    property_address: string | null
+    city_ko: string | null
+    country_ko: string | null
+    brand_id: number | null
+  }>
+}>> {
+  try {
+    const supabase = createServiceRoleClient()
+
+    // 체인에 속한 브랜드들의 ID를 먼저 가져옴
+    const { data: brands, error: brandsError } = await supabase
+      .from('hotel_brands')
+      .select('brand_id')
+      .eq('chain_id', chainId)
+
+    if (brandsError) {
+      console.error('[chain-brand] getChainHotels brands error:', brandsError)
+      return { success: false, error: brandsError.message }
+    }
+
+    const brandIds = (brands || []).map(b => b.brand_id)
+
+    if (brandIds.length === 0) {
+      return { success: true, data: { hotels: [] } }
+    }
+
+    // 해당 브랜드들에 연결된 호텔들을 가져옴
+    const { data, error } = await supabase
+      .from('select_hotels')
+      .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko, brand_id')
+      .in('brand_id', brandIds)
+      .order('property_name_ko', { ascending: true, nullsFirst: false })
+
+    if (error) {
+      console.error('[chain-brand] getChainHotels error:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { 
+      success: true, 
+      data: { 
+        hotels: data || [] 
+      } 
+    }
+  } catch (e) {
+    console.error('[chain-brand] getChainHotels exception:', e)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
 }
 
