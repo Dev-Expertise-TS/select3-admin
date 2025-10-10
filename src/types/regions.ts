@@ -1,8 +1,10 @@
 export type RegionType = 'city' | 'country' | 'continent' | 'region'
+export type RegionStatus = 'active' | 'inactive'
 
 export interface SelectRegion {
   id: number
   region_type: RegionType
+  status: RegionStatus
   city_ko: string | null
   city_en: string | null
   city_code?: string | null
@@ -28,6 +30,7 @@ export interface SelectRegion {
 
 export interface RegionFormInput {
   region_type: RegionType
+  status?: RegionStatus
   city_ko?: string | null
   city_en?: string | null
   city_code?: string | null

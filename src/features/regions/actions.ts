@@ -370,6 +370,7 @@ export async function createRegion(input: RegionFormInput): Promise<ActionResult
 
     const payload: Record<string, unknown> = {
       region_type: input.region_type,
+      status: input.status || 'active',
       city_ko: normalizeString(input.city_ko),
       city_en: normalizeString(input.city_en),
       city_code: normalizeString((input as any).city_code),
@@ -424,6 +425,7 @@ export async function updateRegion(id: number, input: RegionFormInput): Promise<
 
     const payload: Record<string, unknown> = {
       region_type: input.region_type,
+      status: input.status || 'active',
       city_ko: normalizeString(input.city_ko),
       city_en: normalizeString(input.city_en),
       city_code: normalizeString((input as any).city_code),
@@ -466,6 +468,66 @@ export async function updateRegion(id: number, input: RegionFormInput): Promise<
     return { success: true, data: data as SelectRegion }
   } catch (e) {
     console.error('[regions] update exception:', e)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+export async function upsertRegion(input: RegionFormInput & { id?: number }): Promise<ActionResult<SelectRegion>> {
+  try {
+    const supabase = createServiceRoleClient()
+
+    if (!input.region_type) {
+      return { success: false, error: 'region_type은 필수입니다.' }
+    }
+
+    const payload: Record<string, unknown> = {
+      region_type: input.region_type,
+      status: input.status || 'active',
+      city_ko: normalizeString(input.city_ko),
+      city_en: normalizeString(input.city_en),
+      city_code: normalizeString((input as any).city_code),
+      city_slug: normalizeString((input as any).city_slug),
+      city_sort_order: normalizeNumber(input.city_sort_order),
+      country_ko: normalizeString(input.country_ko),
+      country_en: normalizeString(input.country_en),
+      country_code: normalizeString((input as any).country_code),
+      country_slug: normalizeString((input as any).country_slug),
+      country_sort_order: normalizeNumber(input.country_sort_order),
+      continent_ko: normalizeString(input.continent_ko),
+      continent_en: normalizeString(input.continent_en),
+      continent_code: normalizeString((input as any).continent_code),
+      continent_slug: normalizeString((input as any).continent_slug),
+      continent_sort_order: normalizeNumber(input.continent_sort_order),
+      region_name_ko: normalizeString(input.region_name_ko),
+      region_name_en: normalizeString(input.region_name_en),
+      region_code: normalizeString((input as any).region_code),
+      region_slug: normalizeString((input as any).region_slug),
+      region_name_sort_order: normalizeNumber(input.region_name_sort_order),
+      updated_at: new Date().toISOString(),
+    }
+
+    if (input.id) {
+      payload.id = input.id
+    }
+
+    console.log('[regions] upsertRegion input:', input)
+    console.log('[regions] upsertRegion payload:', payload)
+
+    const { data, error } = await supabase
+      .from(TABLE)
+      .upsert(payload)
+      .select('*')
+      .single()
+
+    if (error) {
+      console.error('[regions] upsert error:', error)
+      return { success: false, error: `저장에 실패했습니다: ${error.message}` }
+    }
+
+    revalidatePath('/admin/region-mapping')
+    return { success: true, data: data as SelectRegion }
+  } catch (e) {
+    console.error('[regions] upsert exception:', e)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
