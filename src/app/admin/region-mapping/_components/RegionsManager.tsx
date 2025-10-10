@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus, Save, X, Trash2, Link2, Eye, Loader2, PlusCircle, Edit } from 'lucide-react'
 import type { SelectRegion, RegionFormInput, RegionType, MappedHotel, RegionStatus } from '@/types/regions'
-import { upsertRegion, deleteRegion, upsertCitiesFromHotels, upsertCountriesFromHotels, upsertContinentsFromHotels, fillRegionSlugsAndCodes, fillCityCodesAndSlugs, fillCountryCodesAndSlugs, fillContinentCodesAndSlugs, forceUpdateAllCityCodes, getMappedHotels } from '@/features/regions/actions'
+import { upsertRegion, deleteRegion, upsertCitiesFromHotels, upsertCountriesFromHotels, upsertContinentsFromHotels, fillRegionSlugsAndCodes, fillCityCodesAndSlugs, fillCountryCodesAndSlugs, fillContinentCodesAndSlugs, forceUpdateAllCityCodes, getMappedHotels, bulkUpdateHotelRegionCodes } from '@/features/regions/actions'
 import { HotelSearchSelector } from '@/components/shared/hotel-search-selector'
 
 type Props = {
@@ -19,6 +19,8 @@ export function RegionsManager({ initialItems }: Props) {
   const [items, setItems] = useState<SelectRegion[]>(initialItems)
   const [loading, setLoading] = useState(false)
   const [selectedType, setSelectedType] = useState<RegionType>('city')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active') // 기본값: active
+  const [pageSize, setPageSize] = useState<number>(100)
   const [showHotelModal, setShowHotelModal] = useState(false)
   const [mappedHotels, setMappedHotels] = useState<MappedHotel[]>([])
   const [modalTitle, setModalTitle] = useState('')
@@ -27,6 +29,11 @@ export function RegionsManager({ initialItems }: Props) {
   const [selectedHotels, setSelectedHotels] = useState<Set<string>>(new Set())
   const [editingRowId, setEditingRowId] = useState<number | 'new' | null>(null)
   const [editingData, setEditingData] = useState<Partial<EditingRow>>({})
+  
+  // 콤보박스용 데이터
+  const [countryOptions, setCountryOptions] = useState<SelectRegion[]>([])
+  const [continentOptions, setContinentOptions] = useState<SelectRegion[]>([])
+  const [regionOptions, setRegionOptions] = useState<SelectRegion[]>([])
 
   function isSelectRegion(value: unknown): value is SelectRegion {
     if (!value || typeof value !== 'object') return false
@@ -52,7 +59,11 @@ export function RegionsManager({ initialItems }: Props) {
         { key: 'country_en', label: '국가(영)', width: '90px', isParent: true },
         { key: 'country_code', label: '국가코드', width: '70px', isParent: true },
         { key: 'continent_ko', label: '대륙(한)', width: '80px', isParent: true },
+        { key: 'continent_en', label: '대륙(영)', width: '80px', isParent: true },
         { key: 'continent_code', label: '대륙코드', width: '70px', isParent: true },
+        { key: 'region_name_ko', label: '지역(한)', width: '90px', isParent: true },
+        { key: 'region_name_en', label: '지역(영)', width: '90px', isParent: true },
+        { key: 'region_code', label: '지역코드', width: '70px', isParent: true },
         { key: 'status', label: '상태', width: '90px' },
       ]
     }
@@ -65,6 +76,9 @@ export function RegionsManager({ initialItems }: Props) {
         { key: 'continent_ko', label: '대륙(한)', width: '100px', isParent: true },
         { key: 'continent_en', label: '대륙(영)', width: '100px', isParent: true },
         { key: 'continent_code', label: '대륙코드', width: '80px', isParent: true },
+        { key: 'region_name_ko', label: '지역(한)', width: '100px', isParent: true },
+        { key: 'region_name_en', label: '지역(영)', width: '100px', isParent: true },
+        { key: 'region_code', label: '지역코드', width: '80px', isParent: true },
         { key: 'status', label: '상태', width: '100px' },
       ]
     }
@@ -76,20 +90,59 @@ export function RegionsManager({ initialItems }: Props) {
         { key: 'continent_code', label: '대륙 코드', width: '100px' },
         { key: 'continent_slug', label: '대륙 슬러그', width: '120px' },
         { key: 'continent_sort_order', label: '정렬', width: '80px' },
+        { key: 'region_name_ko', label: '지역(한)', width: '100px', isParent: true },
+        { key: 'region_name_en', label: '지역(영)', width: '100px', isParent: true },
+        { key: 'region_code', label: '지역코드', width: '80px', isParent: true },
         { key: 'status', label: '상태', width: '100px' },
       ]
     }
     // region
     return [
       ...base,
-      { key: 'region_name_ko', label: '지역(한)', width: '120px' },
-      { key: 'region_name_en', label: '지역(영)', width: '120px' },
-      { key: 'region_code', label: '지역 코드', width: '100px' },
-      { key: 'region_slug', label: '지역 슬러그', width: '120px' },
-      { key: 'region_name_sort_order', label: '정렬', width: '80px' },
-      { key: 'status', label: '상태', width: '100px' },
+      { key: 'region_name_ko', label: '지역(한)', width: '100px' },
+      { key: 'region_name_en', label: '지역(영)', width: '100px' },
+      { key: 'region_code', label: '지역코드', width: '80px' },
+      { key: 'country_ko', label: '국가(한)', width: '90px', isParent: true },
+      { key: 'country_en', label: '국가(영)', width: '90px', isParent: true },
+      { key: 'country_code', label: '국가코드', width: '70px', isParent: true },
+      { key: 'continent_ko', label: '대륙(한)', width: '80px', isParent: true },
+      { key: 'continent_en', label: '대륙(영)', width: '80px', isParent: true },
+      { key: 'continent_code', label: '대륙코드', width: '70px', isParent: true },
+      { key: 'status', label: '상태', width: '90px' },
     ]
   }, [selectedType])
+
+  // 콤보박스 옵션 로드
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        // 국가 옵션
+        const countryRes = await fetch('/api/regions?page=1&pageSize=500&type=country', { cache: 'no-store' })
+        const countryData = await countryRes.json()
+        if (countryData?.success && Array.isArray(countryData.data)) {
+          setCountryOptions(countryData.data as SelectRegion[])
+        }
+        
+        // 대륙 옵션
+        const continentRes = await fetch('/api/regions?page=1&pageSize=500&type=continent', { cache: 'no-store' })
+        const continentData = await continentRes.json()
+        if (continentData?.success && Array.isArray(continentData.data)) {
+          setContinentOptions(continentData.data as SelectRegion[])
+        }
+        
+        // 지역 옵션
+        const regionRes = await fetch('/api/regions?page=1&pageSize=500&type=region', { cache: 'no-store' })
+        const regionData = await regionRes.json()
+        if (regionData?.success && Array.isArray(regionData.data)) {
+          setRegionOptions(regionData.data as SelectRegion[])
+        }
+      } catch (error) {
+        console.error('Failed to fetch options:', error)
+      }
+    }
+    
+    fetchOptions()
+  }, [])
 
   useEffect(() => {
     let canceled = false
@@ -98,10 +151,28 @@ export function RegionsManager({ initialItems }: Props) {
       setEditingRowId(null)
       setEditingData({})
       try {
-        const res = await fetch(`/api/regions?page=1&pageSize=100&type=${selectedType}`, { cache: 'no-store' })
+        const res = await fetch(`/api/regions?page=1&pageSize=${pageSize}&type=${selectedType}`, { cache: 'no-store' })
         const data = await res.json()
         if (!canceled && data?.success && Array.isArray(data.data)) {
-          setItems(data.data as unknown as SelectRegion[])
+          const regionData = data.data as unknown as SelectRegion[]
+          
+          console.log('[RegionsManager] Fetched data sample:', regionData.slice(0, 3).map(r => ({
+            id: r.id,
+            status: r.status,
+            city_ko: r.city_ko
+          })))
+          
+          // 상태별 정렬: active 우선, 그 다음 inactive
+          // 그 다음 최신 순 (id 역순)
+          const sorted = regionData.sort((a, b) => {
+            const statusA = a.status || 'active'
+            const statusB = b.status || 'active'
+            if (statusA === 'active' && statusB !== 'active') return -1
+            if (statusA !== 'active' && statusB === 'active') return 1
+            // 같은 status면 최신 순 (id 역순)
+            return b.id - a.id
+          })
+          setItems(sorted)
         }
       } catch {
         // ignore
@@ -113,7 +184,54 @@ export function RegionsManager({ initialItems }: Props) {
     return () => {
       canceled = true
     }
-  }, [selectedType])
+  }, [selectedType, pageSize])
+  
+  // 상태 필터링된 아이템
+  const filteredItems = useMemo(() => {
+    console.log('[RegionsManager] === FILTER DEBUG START ===')
+    console.log('[RegionsManager] Total items:', items.length)
+    console.log('[RegionsManager] Status filter:', statusFilter)
+    console.log('[RegionsManager] Sample items (first 10):', items.slice(0, 10).map(i => ({ 
+      id: i.id, 
+      status: i.status,
+      city_ko: i.city_ko,
+      country_ko: i.country_ko 
+    })))
+    
+    if (statusFilter === 'all') {
+      console.log('[RegionsManager] Filter is "all", returning all items:', items.length)
+      return items
+    }
+    
+    const filtered = items.filter(item => {
+      let matches = false
+      
+      if (statusFilter === 'active') {
+        // 활성: status가 정확히 'active'인 것만
+        matches = item.status === 'active'
+      } else if (statusFilter === 'inactive') {
+        // 비활성: status가 'active'가 아닌 모든 것 (null, undefined, 'inactive' 등)
+        matches = item.status !== 'active'
+      }
+      
+      // 처음 5개만 상세 로그
+      if (items.indexOf(item) < 5) {
+        console.log(`[RegionsManager] Item ${item.id}: status="${item.status}", filter="${statusFilter}", matches=${matches}`)
+      }
+      
+      return matches
+    })
+    
+    console.log('[RegionsManager] Filtered result:', filtered.length, 'items')
+    console.log('[RegionsManager] Filtered items (first 5):', filtered.slice(0, 5).map(i => ({ 
+      id: i.id, 
+      status: i.status,
+      city_ko: i.city_ko 
+    })))
+    console.log('[RegionsManager] === FILTER DEBUG END ===')
+    
+    return filtered
+  }, [items, statusFilter])
 
   const handleAdd = async () => {
     if (!confirm('호텔 테이블의 도시명을 수집하여 지역(city)으로 upsert 하시겠습니까?')) return
@@ -232,6 +350,38 @@ export function RegionsManager({ initialItems }: Props) {
       return
     }
 
+    // city 타입 필수 필드 검증
+    if (editingData.region_type === 'city') {
+      if (!editingData.city_ko && !editingData.city_en) {
+        alert('도시명(한글 또는 영문)을 입력해주세요.')
+        return
+      }
+    }
+
+    // country 타입 필수 필드 검증
+    if (editingData.region_type === 'country') {
+      if (!editingData.country_ko && !editingData.country_en) {
+        alert('국가명(한글 또는 영문)을 입력해주세요.')
+        return
+      }
+    }
+
+    // continent 타입 필수 필드 검증
+    if (editingData.region_type === 'continent') {
+      if (!editingData.continent_ko && !editingData.continent_en) {
+        alert('대륙명(한글 또는 영문)을 입력해주세요.')
+        return
+      }
+    }
+
+    // region 타입 필수 필드 검증
+    if (editingData.region_type === 'region') {
+      if (!editingData.region_name_ko && !editingData.region_name_en) {
+        alert('지역명(한글 또는 영문)을 입력해주세요.')
+        return
+      }
+    }
+
     setLoading(true)
     const input: RegionFormInput & { id?: number } = {
       region_type: editingData.region_type,
@@ -262,15 +412,38 @@ export function RegionsManager({ initialItems }: Props) {
       input.id = editingRowId
     }
 
+    console.log('[RegionsManager] editingRowId:', editingRowId)
+    console.log('[RegionsManager] Saving with input:', input)
+    console.log('[RegionsManager] Region type:', input.region_type)
+    
+    if (input.region_type === 'city') {
+      console.log('[RegionsManager] City fields:', {
+        city_ko: input.city_ko,
+        city_en: input.city_en,
+        city_code: input.city_code,
+        country_ko: input.country_ko,
+        country_en: input.country_en,
+        country_code: input.country_code,
+        continent_ko: input.continent_ko,
+        continent_en: input.continent_en,
+        continent_code: input.continent_code,
+        region_name_ko: input.region_name_ko,
+        region_name_en: input.region_name_en,
+        region_code: input.region_code
+      })
+    }
+
     const res = await upsertRegion(input)
-    setLoading(false)
+      setLoading(false)
 
     if (res.success) {
+      console.log('[RegionsManager] Save successful:', res.data)
       await refreshData()
       setEditingRowId(null)
       setEditingData({})
       alert('저장되었습니다.')
     } else {
+      console.error('[RegionsManager] Save failed:', res.error)
       alert(res.error || '저장 실패')
     }
   }
@@ -284,10 +457,20 @@ export function RegionsManager({ initialItems }: Props) {
   const refreshData = async () => {
     try {
       const typeParam = selectedType === 'city' || selectedType === 'country' || selectedType === 'continent' || selectedType === 'region' ? `&type=${selectedType}` : ''
-      const response = await fetch(`/api/regions?page=1&pageSize=100${typeParam}`, { cache: 'no-store' })
+      const response = await fetch(`/api/regions?page=1&pageSize=${pageSize}${typeParam}`, { cache: 'no-store' })
       const data = await response.json()
       if (data.success && Array.isArray(data.data)) {
-        setItems(data.data as SelectRegion[])
+        const regionData = data.data as SelectRegion[]
+        // 상태별 정렬: active 우선, 그 다음 inactive, 그 다음 최신 순
+        const sorted = regionData.sort((a, b) => {
+          const statusA = a.status || 'active'
+          const statusB = b.status || 'active'
+          if (statusA === 'active' && statusB !== 'active') return -1
+          if (statusA !== 'active' && statusB === 'active') return 1
+          // 같은 status면 최신 순 (id 역순)
+          return b.id - a.id
+        })
+        setItems(sorted)
       }
     } catch (error) {
       console.error('Failed to refresh data:', error)
@@ -312,7 +495,7 @@ export function RegionsManager({ initialItems }: Props) {
       updateData.city_ko = selectedRegion.city_ko ?? null
       updateData.city_en = selectedRegion.city_en ?? null
       
-      // 도시 매핑 시 상위 지역(국가, 대륙)도 함께 매핑 (값이 없어도 null로 저장)
+      // 도시 매핑 시 상위 지역(국가, 대륙, 지역)도 함께 매핑
       updateData.country_code = selectedRegion.country_code ?? null
       updateData.country_ko = selectedRegion.country_ko ?? null
       updateData.country_en = selectedRegion.country_en ?? null
@@ -320,21 +503,34 @@ export function RegionsManager({ initialItems }: Props) {
       updateData.continent_code = selectedRegion.continent_code ?? null
       updateData.continent_ko = selectedRegion.continent_ko ?? null
       updateData.continent_en = selectedRegion.continent_en ?? null
+      
+      updateData.region_code = selectedRegion.region_code ?? null
+      updateData.region_ko = selectedRegion.region_name_ko ?? null
+      updateData.region_en = selectedRegion.region_name_en ?? null
     } else if (selectedRegion.region_type === 'country') {
       // 국가 정보 매핑
       updateData.country_code = selectedRegion.country_code ?? null
       updateData.country_ko = selectedRegion.country_ko ?? null
       updateData.country_en = selectedRegion.country_en ?? null
       
-      // 국가 매핑 시 상위 지역(대륙)도 함께 매핑 (값이 없어도 null로 저장)
+      // 국가 매핑 시 상위 지역(대륙, 지역)도 함께 매핑
       updateData.continent_code = selectedRegion.continent_code ?? null
       updateData.continent_ko = selectedRegion.continent_ko ?? null
       updateData.continent_en = selectedRegion.continent_en ?? null
+      
+      updateData.region_code = selectedRegion.region_code ?? null
+      updateData.region_ko = selectedRegion.region_name_ko ?? null
+      updateData.region_en = selectedRegion.region_name_en ?? null
     } else if (selectedRegion.region_type === 'continent') {
       // 대륙 정보 매핑
       updateData.continent_code = selectedRegion.continent_code ?? null
       updateData.continent_ko = selectedRegion.continent_ko ?? null
       updateData.continent_en = selectedRegion.continent_en ?? null
+      
+      // 대륙 매핑 시 지역 정보도 함께 매핑
+      updateData.region_code = selectedRegion.region_code ?? null
+      updateData.region_ko = selectedRegion.region_name_ko ?? null
+      updateData.region_en = selectedRegion.region_name_en ?? null
     } else if (selectedRegion.region_type === 'region') {
       // 지역 정보 매핑
       updateData.region_code = selectedRegion.region_code ?? null
@@ -457,6 +653,84 @@ export function RegionsManager({ initialItems }: Props) {
     }
   }
 
+  // 국가(한) 직접 입력 시 매칭되는 레코드 자동 선택
+  const handleCountryKoInput = (value: string) => {
+    setEditingData(prev => ({ ...prev, country_ko: value }))
+    const matchedCountry = countryOptions.find(c => c.country_ko === value)
+    if (matchedCountry) {
+      setEditingData(prev => ({
+        ...prev,
+        country_ko: matchedCountry.country_ko,
+        country_en: matchedCountry.country_en,
+        country_code: matchedCountry.country_code,
+      }))
+    }
+  }
+
+  const handleCountrySelect = (countryId: string) => {
+    const country = countryOptions.find(c => String(c.id) === countryId)
+    if (country) {
+      setEditingData(prev => ({
+        ...prev,
+        country_code: country.country_code,
+        country_ko: country.country_ko,
+        country_en: country.country_en,
+      }))
+    }
+  }
+
+  // 대륙(한) 직접 입력 시 매칭되는 레코드 자동 선택
+  const handleContinentKoInput = (value: string) => {
+    setEditingData(prev => ({ ...prev, continent_ko: value }))
+    const matchedContinent = continentOptions.find(c => c.continent_ko === value)
+    if (matchedContinent) {
+      setEditingData(prev => ({
+        ...prev,
+        continent_ko: matchedContinent.continent_ko,
+        continent_en: matchedContinent.continent_en,
+        continent_code: matchedContinent.continent_code,
+      }))
+    }
+  }
+
+  const handleContinentSelect = (continentId: string) => {
+    const continent = continentOptions.find(c => String(c.id) === continentId)
+    if (continent) {
+      setEditingData(prev => ({
+        ...prev,
+        continent_code: continent.continent_code,
+        continent_ko: continent.continent_ko,
+        continent_en: continent.continent_en,
+      }))
+    }
+  }
+
+  // 지역(한) 직접 입력 시 매칭되는 레코드 자동 선택
+  const handleRegionKoInput = (value: string) => {
+    setEditingData(prev => ({ ...prev, region_name_ko: value }))
+    const matchedRegion = regionOptions.find(r => r.region_name_ko === value)
+    if (matchedRegion) {
+      setEditingData(prev => ({
+        ...prev,
+        region_name_ko: matchedRegion.region_name_ko,
+        region_name_en: matchedRegion.region_name_en,
+        region_code: matchedRegion.region_code,
+      }))
+    }
+  }
+
+  const handleRegionSelect = (regionId: string) => {
+    const region = regionOptions.find(r => String(r.id) === regionId)
+    if (region) {
+      setEditingData(prev => ({
+        ...prev,
+        region_code: region.region_code,
+        region_name_ko: region.region_name_ko,
+        region_name_en: region.region_name_en,
+      }))
+    }
+  }
+
   const renderCell = (row: SelectRegion, columnKey: string, isParent?: boolean) => {
     const isEditing = editingRowId === row.id
     const value = (row as any)[columnKey]
@@ -507,8 +781,358 @@ export function RegionsManager({ initialItems }: Props) {
       )
     }
 
-    // 상위 지역 필드는 배경색 다르게
-    const isParentField = isParent || columnKey.startsWith('country_') || columnKey.startsWith('continent_')
+    // 국가 관련 필드
+    // country 타입에서는 자기 자신의 필드이므로 텍스트 입력, 다른 타입에서는 콤보박스
+    if (columnKey === 'country_ko') {
+      if (selectedType === 'country') {
+        // country 타입: 텍스트 입력
+        return (
+          <input
+            type="text"
+            value={String(editingData.country_ko ?? '')}
+            onChange={(e) => setEditingData(prev => ({ ...prev, country_ko: e.target.value }))}
+            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )
+      }
+      // 다른 타입: 콤보박스
+      const currentCountry = countryOptions.find(c => 
+        c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
+      )
+      return (
+        <select
+          value={currentCountry ? String(currentCountry.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, country_ko: null, country_en: null, country_code: null }))
+            } else {
+              handleCountrySelect(e.target.value)
+            }
+          }}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+        >
+          <option value="">선택</option>
+          {countryOptions.map(country => (
+            <option key={country.id} value={country.id}>
+              {country.country_ko || '(이름 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    if (columnKey === 'country_en') {
+      if (selectedType === 'country') {
+        // country 타입: 텍스트 입력
+        return (
+          <input
+            type="text"
+            value={String(editingData.country_en ?? '')}
+            onChange={(e) => setEditingData(prev => ({ ...prev, country_en: e.target.value }))}
+            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )
+      }
+      // 다른 타입: 콤보박스
+      const currentCountry = countryOptions.find(c => 
+        c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
+      )
+      return (
+        <select
+          value={currentCountry ? String(currentCountry.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, country_ko: null, country_en: null, country_code: null }))
+            } else {
+              handleCountrySelect(e.target.value)
+            }
+          }}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+        >
+          <option value="">선택</option>
+          {countryOptions.map(country => (
+            <option key={country.id} value={country.id}>
+              {country.country_en || '(이름 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    if (columnKey === 'country_code') {
+      if (selectedType === 'country') {
+        // country 타입: 텍스트 입력
+        return (
+          <input
+            type="text"
+            value={String(editingData.country_code ?? '')}
+            onChange={(e) => setEditingData(prev => ({ ...prev, country_code: e.target.value.toUpperCase() }))}
+            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+            maxLength={3}
+          />
+        )
+      }
+      // 다른 타입: 콤보박스
+      const currentCountry = countryOptions.find(c => 
+        c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
+      )
+      return (
+        <select
+          value={currentCountry ? String(currentCountry.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, country_ko: null, country_en: null, country_code: null }))
+            } else {
+              handleCountrySelect(e.target.value)
+            }
+          }}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+        >
+          <option value="">선택</option>
+          {countryOptions.map(country => (
+            <option key={country.id} value={country.id}>
+              {country.country_code || '(코드 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    // 대륙 관련 필드
+    // continent 타입에서는 자기 자신의 필드이므로 텍스트 입력, 다른 타입에서는 콤보박스
+    if (columnKey === 'continent_ko') {
+      if (selectedType === 'continent') {
+        // continent 타입: 텍스트 입력
+        return (
+          <input
+            type="text"
+            value={String(editingData.continent_ko ?? '')}
+            onChange={(e) => setEditingData(prev => ({ ...prev, continent_ko: e.target.value }))}
+            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )
+      }
+      // 다른 타입: 콤보박스
+      const currentContinent = continentOptions.find(c => 
+        c.continent_ko === editingData.continent_ko && c.continent_en === editingData.continent_en && c.continent_code === editingData.continent_code
+      )
+      return (
+        <select
+          value={currentContinent ? String(currentContinent.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, continent_ko: null, continent_en: null, continent_code: null }))
+            } else {
+              handleContinentSelect(e.target.value)
+            }
+          }}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+        >
+          <option value="">선택</option>
+          {continentOptions.map(continent => (
+            <option key={continent.id} value={continent.id}>
+              {continent.continent_ko || '(이름 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    if (columnKey === 'continent_en') {
+      if (selectedType === 'continent') {
+        // continent 타입: 텍스트 입력
+        return (
+          <input
+            type="text"
+            value={String(editingData.continent_en ?? '')}
+            onChange={(e) => setEditingData(prev => ({ ...prev, continent_en: e.target.value }))}
+            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )
+      }
+      // 다른 타입: 콤보박스
+      const currentContinent = continentOptions.find(c => 
+        c.continent_ko === editingData.continent_ko && c.continent_en === editingData.continent_en && c.continent_code === editingData.continent_code
+      )
+      return (
+        <select
+          value={currentContinent ? String(currentContinent.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, continent_ko: null, continent_en: null, continent_code: null }))
+            } else {
+              handleContinentSelect(e.target.value)
+            }
+          }}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+        >
+          <option value="">선택</option>
+          {continentOptions.map(continent => (
+            <option key={continent.id} value={continent.id}>
+              {continent.continent_en || '(이름 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    if (columnKey === 'continent_code') {
+      if (selectedType === 'continent') {
+        // continent 타입: 텍스트 입력
+        return (
+          <input
+            type="text"
+            value={String(editingData.continent_code ?? '')}
+            onChange={(e) => setEditingData(prev => ({ ...prev, continent_code: e.target.value.toUpperCase() }))}
+            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+            maxLength={3}
+          />
+        )
+      }
+      // 다른 타입: 콤보박스
+      const currentContinent = continentOptions.find(c => 
+        c.continent_ko === editingData.continent_ko && c.continent_en === editingData.continent_en && c.continent_code === editingData.continent_code
+      )
+      return (
+        <select
+          value={currentContinent ? String(currentContinent.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, continent_ko: null, continent_en: null, continent_code: null }))
+            } else {
+              handleContinentSelect(e.target.value)
+            }
+          }}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+        >
+          <option value="">선택</option>
+          {continentOptions.map(continent => (
+            <option key={continent.id} value={continent.id}>
+              {continent.continent_code || '(코드 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    // 지역 관련 필드
+    // region 타입에서는 자기 자신의 필드이므로 텍스트 입력, 다른 타입에서는 콤보박스
+    if (columnKey === 'region_name_ko') {
+      if (selectedType === 'region') {
+        // region 타입: 텍스트 입력
+        return (
+          <input
+            type="text"
+            value={String(editingData.region_name_ko ?? '')}
+            onChange={(e) => setEditingData(prev => ({ ...prev, region_name_ko: e.target.value }))}
+            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )
+      }
+      // 다른 타입: 콤보박스
+      const currentRegion = regionOptions.find(r => 
+        r.region_name_ko === editingData.region_name_ko && r.region_name_en === editingData.region_name_en && r.region_code === editingData.region_code
+      )
+      return (
+        <select
+          value={currentRegion ? String(currentRegion.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, region_name_ko: null, region_name_en: null, region_code: null }))
+            } else {
+              handleRegionSelect(e.target.value)
+            }
+          }}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+        >
+          <option value="">선택</option>
+          {regionOptions.map(region => (
+            <option key={region.id} value={region.id}>
+              {region.region_name_ko || '(이름 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    if (columnKey === 'region_name_en') {
+      if (selectedType === 'region') {
+        // region 타입: 텍스트 입력
+        return (
+          <input
+            type="text"
+            value={String(editingData.region_name_en ?? '')}
+            onChange={(e) => setEditingData(prev => ({ ...prev, region_name_en: e.target.value }))}
+            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )
+      }
+      // 다른 타입: 콤보박스
+      const currentRegion = regionOptions.find(r => 
+        r.region_name_ko === editingData.region_name_ko && r.region_name_en === editingData.region_name_en && r.region_code === editingData.region_code
+      )
+      return (
+        <select
+          value={currentRegion ? String(currentRegion.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, region_name_ko: null, region_name_en: null, region_code: null }))
+            } else {
+              handleRegionSelect(e.target.value)
+            }
+          }}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+        >
+          <option value="">선택</option>
+          {regionOptions.map(region => (
+            <option key={region.id} value={region.id}>
+              {region.region_name_en || '(이름 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    if (columnKey === 'region_code') {
+      if (selectedType === 'region') {
+        // region 타입: 텍스트 입력
+        return (
+          <input
+            type="text"
+            value={String(editingData.region_code ?? '')}
+            onChange={(e) => setEditingData(prev => ({ ...prev, region_code: e.target.value.toUpperCase() }))}
+            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+          />
+        )
+      }
+      // 다른 타입: 콤보박스
+      const currentRegion = regionOptions.find(r => 
+        r.region_name_ko === editingData.region_name_ko && r.region_name_en === editingData.region_name_en && r.region_code === editingData.region_code
+      )
+      return (
+        <select
+          value={currentRegion ? String(currentRegion.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, region_name_ko: null, region_name_en: null, region_code: null }))
+            } else {
+              handleRegionSelect(e.target.value)
+            }
+          }}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+        >
+          <option value="">선택</option>
+          {regionOptions.map(region => (
+            <option key={region.id} value={region.id}>
+              {region.region_code || '(코드 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    // 기타 일반 필드
+    const isParentField = isParent || columnKey.startsWith('country_') || columnKey.startsWith('continent_') || columnKey.startsWith('region_')
     const bgClass = isParentField && selectedType === 'city' ? 'bg-blue-50' : ''
     
     return (
@@ -536,9 +1160,11 @@ export function RegionsManager({ initialItems }: Props) {
         {columns.slice(2).map((col) => {
           const isParentField = (col as any).isParent
           const bgClass = isParentField ? 'bg-blue-50' : ''
+          const columnKey = col.key
+          
           return (
             <td key={col.key} className={`border p-2 ${isParentField ? 'bg-gray-50' : ''}`}>
-              {col.key === 'status' ? (
+              {columnKey === 'status' ? (
                 <select
                   value={String(editingData.status ?? 'active')}
                   onChange={(e) => setEditingData(prev => ({ ...prev, status: e.target.value as RegionStatus }))}
@@ -547,19 +1173,394 @@ export function RegionsManager({ initialItems }: Props) {
                   <option value="active">활성</option>
                   <option value="inactive">비활성</option>
                 </select>
-              ) : col.key.includes('sort_order') ? (
+              ) : columnKey.includes('sort_order') ? (
                 <input
                   type="number"
-                  value={String((editingData as any)[col.key] ?? '')}
-                  onChange={(e) => setEditingData(prev => ({ ...prev, [col.key]: parseInt(e.target.value) || 0 }))}
+                  value={String((editingData as any)[columnKey] ?? '')}
+                  onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: parseInt(e.target.value) || 0 }))}
                   className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder={col.label}
                 />
+              ) : columnKey === 'country_ko' ? (
+                selectedType === 'country' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={col.label}
+                  />
+                ) : (
+                  <select
+                    value={countryOptions.find(c => 
+                      c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, country_ko: null, country_en: null, country_code: null }))
+                      } else {
+                        handleCountrySelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {countryOptions.map(country => (
+                      <option key={country.id} value={country.id}>
+                        {country.country_ko || '-'}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'country_en' ? (
+                selectedType === 'country' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={col.label}
+                  />
+                ) : (
+                  <select
+                    value={countryOptions.find(c => 
+                      c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, country_ko: null, country_en: null, country_code: null }))
+                      } else {
+                        handleCountrySelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {countryOptions.map(country => (
+                      <option key={country.id} value={country.id}>
+                        {country.country_en || '-'}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'country_code' ? (
+                selectedType === 'country' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value.toUpperCase() }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                    placeholder={col.label}
+                    maxLength={3}
+                  />
+                ) : (
+                  <select
+                    value={countryOptions.find(c => 
+                      c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, country_ko: null, country_en: null, country_code: null }))
+                      } else {
+                        handleCountrySelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {countryOptions.map(country => (
+                      <option key={country.id} value={country.id}>
+                        {country.country_code || '-'}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'country_ko' ? (
+                selectedType === 'country' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={col.label}
+                  />
+                ) : (
+                  <select
+                    value={countryOptions.find(c => 
+                      c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, country_ko: null, country_en: null, country_code: null }))
+                      } else {
+                        handleCountrySelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {countryOptions.map(country => (
+                      <option key={country.id} value={country.id}>
+                        {country.country_ko || '-'}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'country_en' ? (
+                selectedType === 'country' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={col.label}
+                  />
+                ) : (
+                  <select
+                    value={countryOptions.find(c => 
+                      c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, country_ko: null, country_en: null, country_code: null }))
+                      } else {
+                        handleCountrySelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {countryOptions.map(country => (
+                      <option key={country.id} value={country.id}>
+                        {country.country_en || '-'}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'country_code' ? (
+                selectedType === 'country' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value.toUpperCase() }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                    placeholder={col.label}
+                    maxLength={3}
+                  />
+                ) : (
+                  <select
+                    value={countryOptions.find(c => 
+                      c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, country_ko: null, country_en: null, country_code: null }))
+                      } else {
+                        handleCountrySelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {countryOptions.map(country => (
+                      <option key={country.id} value={country.id}>
+                        {country.country_code || '-'}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'continent_ko' ? (
+                selectedType === 'continent' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={col.label}
+                  />
+                ) : (
+                  <select
+                    value={continentOptions.find(c => 
+                      c.continent_ko === editingData.continent_ko && c.continent_en === editingData.continent_en && c.continent_code === editingData.continent_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, continent_ko: null, continent_en: null, continent_code: null }))
+                      } else {
+                        handleContinentSelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {continentOptions.filter(c => c.continent_ko).map(continent => (
+                      <option key={continent.id} value={continent.id}>
+                        {continent.continent_ko}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'continent_en' ? (
+                selectedType === 'continent' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={col.label}
+                  />
+                ) : (
+                  <select
+                    value={continentOptions.find(c => 
+                      c.continent_ko === editingData.continent_ko && c.continent_en === editingData.continent_en && c.continent_code === editingData.continent_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, continent_ko: null, continent_en: null, continent_code: null }))
+                      } else {
+                        handleContinentSelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {continentOptions.filter(c => c.continent_en).map(continent => (
+                      <option key={continent.id} value={continent.id}>
+                        {continent.continent_en}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'continent_code' ? (
+                selectedType === 'continent' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value.toUpperCase() }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                    placeholder={col.label}
+                    maxLength={3}
+                  />
+                ) : (
+                  <select
+                    value={continentOptions.find(c => 
+                      c.continent_ko === editingData.continent_ko && c.continent_en === editingData.continent_en && c.continent_code === editingData.continent_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, continent_ko: null, continent_en: null, continent_code: null }))
+                      } else {
+                        handleContinentSelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {continentOptions.filter(c => c.continent_code).map(continent => (
+                      <option key={continent.id} value={continent.id}>
+                        {continent.continent_code}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'region_name_ko' ? (
+                selectedType === 'region' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={col.label}
+                  />
+                ) : (
+                  <select
+                    value={regionOptions.find(r => 
+                      r.region_name_ko === editingData.region_name_ko && r.region_name_en === editingData.region_name_en && r.region_code === editingData.region_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, region_name_ko: null, region_name_en: null, region_code: null }))
+                      } else {
+                        handleRegionSelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {regionOptions.filter(r => r.region_name_ko).map(region => (
+                      <option key={region.id} value={region.id}>
+                        {region.region_name_ko}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'region_name_en' ? (
+                selectedType === 'region' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={col.label}
+                  />
+                ) : (
+                  <select
+                    value={regionOptions.find(r => 
+                      r.region_name_ko === editingData.region_name_ko && r.region_name_en === editingData.region_name_en && r.region_code === editingData.region_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, region_name_ko: null, region_name_en: null, region_code: null }))
+                      } else {
+                        handleRegionSelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {regionOptions.filter(r => r.region_name_en).map(region => (
+                      <option key={region.id} value={region.id}>
+                        {region.region_name_en}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : columnKey === 'region_code' ? (
+                selectedType === 'region' ? (
+                  <input
+                    type="text"
+                    value={String((editingData as any)[columnKey] ?? '')}
+                    onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value.toUpperCase() }))}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                    placeholder={col.label}
+                  />
+                ) : (
+                  <select
+                    value={regionOptions.find(r => 
+                      r.region_name_ko === editingData.region_name_ko && r.region_name_en === editingData.region_name_en && r.region_code === editingData.region_code
+                    )?.id || ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        setEditingData(prev => ({ ...prev, region_name_ko: null, region_name_en: null, region_code: null }))
+                      } else {
+                        handleRegionSelect(e.target.value)
+                      }
+                    }}
+                    className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                  >
+                    <option value="">선택</option>
+                    {regionOptions.filter(r => r.region_code).map(region => (
+                      <option key={region.id} value={region.id}>
+                        {region.region_code}
+                      </option>
+                    ))}
+                  </select>
+                )
               ) : (
                 <input
                   type="text"
-                  value={String((editingData as any)[col.key] ?? '')}
-                  onChange={(e) => setEditingData(prev => ({ ...prev, [col.key]: e.target.value }))}
+                  value={String((editingData as any)[columnKey] ?? '')}
+                  onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))}
                   className={`w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 ${bgClass}`}
                   placeholder={isParentField ? '선택사항' : col.label}
                 />
@@ -597,6 +1598,36 @@ export function RegionsManager({ initialItems }: Props) {
           <option value="region">region</option>
         </select>
 
+        <label className="text-sm text-gray-600 ml-4">상태:</label>
+        <select
+          className="border rounded px-2 py-1 text-sm font-medium"
+          value={statusFilter}
+          onChange={(e) => {
+            const newFilter = e.target.value as 'all' | 'active' | 'inactive'
+            console.log('[RegionsManager] Status filter changed:', statusFilter, '→', newFilter)
+            setStatusFilter(newFilter)
+          }}
+          disabled={loading || editingRowId !== null}
+        >
+          <option value="all">전체 (All)</option>
+          <option value="active">✓ 활성 (Active)</option>
+          <option value="inactive">✗ 비활성 (Inactive)</option>
+        </select>
+
+        <label className="text-sm text-gray-600 ml-4">표시 개수:</label>
+        <select
+          className="border rounded px-2 py-1 text-sm"
+          value={pageSize}
+          onChange={(e) => setPageSize(Number(e.target.value))}
+          disabled={loading || editingRowId !== null}
+        >
+          <option value="50">50개</option>
+          <option value="100">100개</option>
+          <option value="200">200개</option>
+          <option value="500">500개</option>
+          <option value="1000">1000개</option>
+        </select>
+
         <Button onClick={handleCreateNew} className="bg-green-600 hover:bg-green-700" disabled={editingRowId !== null}>
           <PlusCircle className="h-4 w-4" />
           <span className="ml-2">신규 행 추가</span>
@@ -605,86 +1636,131 @@ export function RegionsManager({ initialItems }: Props) {
         {selectedType === 'city' && (
           <>
             <Button onClick={handleAdd} className="ml-2" disabled={editingRowId !== null}>
-              <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4" />
               <span className="ml-1">도시 업서트</span>
-            </Button>
-            <Button onClick={async () => {
-              setLoading(true)
-              const res = await fillCityCodesAndSlugs()
-              if (res.success) {
+          </Button>
+          <Button onClick={async () => {
+            setLoading(true)
+            const res = await fillCityCodesAndSlugs()
+            if (res.success) {
                 await refreshData()
-                alert(`도시 코드/슬러그 보정: ${res.data?.updated ?? 0}건`)
-              } else {
-                alert(res.error || '도시 보정 실패')
-              }
-              setLoading(false)
+              alert(`도시 코드/슬러그 보정: ${res.data?.updated ?? 0}건`)
+            } else {
+              alert(res.error || '도시 보정 실패')
+            }
+            setLoading(false)
             }} className="ml-2" disabled={editingRowId !== null}>
-              <Plus className="h-4 w-4" />
-              <span className="ml-1">도시 코드/슬러그 보정</span>
-            </Button>
-            <Button 
-              onClick={async () => {
+            <Plus className="h-4 w-4" />
+            <span className="ml-1">도시 코드/슬러그 보정</span>
+          </Button>
+          <Button 
+            onClick={async () => {
                 if (!confirm('모든 도시의 IATA 코드를 재조회합니다. 시간이 걸릴 수 있습니다. 계속하시겠습니까?')) return
-                setLoading(true)
-                const res = await forceUpdateAllCityCodes()
-                if (res.success) {
+              setLoading(true)
+              const res = await forceUpdateAllCityCodes()
+              if (res.success) {
                   await refreshData()
                   alert(`도시 코드 강제 업데이트 완료: ${res.data?.updated ?? 0}/${res.data?.total ?? 0}건`)
-                } else {
-                  alert(res.error || '강제 업데이트 실패')
-                }
-                setLoading(false)
-              }} 
-              className="ml-2 bg-orange-600 hover:bg-orange-700"
+              } else {
+                alert(res.error || '강제 업데이트 실패')
+              }
+              setLoading(false)
+            }} 
+            className="ml-2 bg-orange-600 hover:bg-orange-700"
               disabled={editingRowId !== null}
+          >
+            <Edit className="h-4 w-4" />
+            <span className="ml-1">🔥 모든 도시 코드 강제 업데이트</span>
+          </Button>
+            <Button 
+              onClick={async () => {
+                if (!confirm('모든 지역 타입의 호텔 코드를 일괄 업데이트하시겠습니까?\n\n• 코드/한글명/영문명 중 하나라도 일치하는 호텔을 찾아 업데이트합니다.\n• city, country, continent, region 모든 타입을 처리합니다.\n• 계층적 지역 정보도 함께 업데이트됩니다.\n\n시간이 다소 걸릴 수 있습니다.')) return
+                
+                setLoading(true)
+                const res = await bulkUpdateHotelRegionCodes()
+                setLoading(false)
+                
+                if (res.success && res.data) {
+                  await refreshData()
+                  const { updated, total, errors, details } = res.data
+                  
+                  const detailsText = details ? `\n\n타입별 업데이트:\n• City: ${details.city || 0}개\n• Country: ${details.country || 0}개\n• Continent: ${details.continent || 0}개\n• Region: ${details.region || 0}개` : ''
+                  
+                  let message = `맵핑 호텔 코드 일괄 업데이트 완료! ✅\n\n`
+                  message += `총 ${total}개 지역 처리\n`
+                  message += `${updated}개 호텔 업데이트 완료`
+                  message += detailsText
+                  
+                  if (errors && errors.length > 0) {
+                    message += `\n\n오류 ${errors.length}건:\n${errors.slice(0, 3).join('\n')}`
+                    if (errors.length > 3) {
+                      message += `\n... 외 ${errors.length - 3}건`
+                    }
+                  }
+                  alert(message)
+                } else {
+                  alert(res.error || '일괄 업데이트 실패')
+                }
+              }} 
+              className="ml-2 bg-purple-600 hover:bg-purple-700"
+              disabled={editingRowId !== null || loading}
             >
-              <Edit className="h-4 w-4" />
-              <span className="ml-1">🔥 모든 도시 코드 강제 업데이트</span>
-            </Button>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="ml-1">진행 중...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span className="ml-1">🔄 맵핑 호텔 코드 일괄 업데이트</span>
+                </>
+              )}
+          </Button>
           </>
         )}
         {selectedType === 'country' && (
           <>
             <Button onClick={handleUpsertCountries} className="ml-2" disabled={editingRowId !== null}>
-              <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4" />
               <span className="ml-1">국가 업서트</span>
-            </Button>
-            <Button onClick={async () => {
-              setLoading(true)
-              const res = await fillCountryCodesAndSlugs()
-              if (res.success) {
+          </Button>
+          <Button onClick={async () => {
+            setLoading(true)
+            const res = await fillCountryCodesAndSlugs()
+            if (res.success) {
                 await refreshData()
-                alert(`국가 코드/슬러그 보정: ${res.data?.updated ?? 0}건`)
-              } else {
-                alert(res.error || '국가 보정 실패')
-              }
-              setLoading(false)
+              alert(`국가 코드/슬러그 보정: ${res.data?.updated ?? 0}건`)
+            } else {
+              alert(res.error || '국가 보정 실패')
+            }
+            setLoading(false)
             }} className="ml-2" disabled={editingRowId !== null}>
-              <Plus className="h-4 w-4" />
-              <span className="ml-1">국가 코드/슬러그 보정</span>
-            </Button>
+            <Plus className="h-4 w-4" />
+            <span className="ml-1">국가 코드/슬러그 보정</span>
+          </Button>
           </>
         )}
         {selectedType === 'continent' && (
           <>
             <Button onClick={handleUpsertContinents} className="ml-2" disabled={editingRowId !== null}>
-              <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4" />
               <span className="ml-1">대륙 업서트</span>
-            </Button>
-            <Button onClick={async () => {
-              setLoading(true)
-              const res = await fillContinentCodesAndSlugs()
-              if (res.success) {
+          </Button>
+          <Button onClick={async () => {
+            setLoading(true)
+            const res = await fillContinentCodesAndSlugs()
+            if (res.success) {
                 await refreshData()
-                alert(`대륙 코드/슬러그 보정: ${res.data?.updated ?? 0}건`)
-              } else {
-                alert(res.error || '대륙 보정 실패')
-              }
-              setLoading(false)
+              alert(`대륙 코드/슬러그 보정: ${res.data?.updated ?? 0}건`)
+            } else {
+              alert(res.error || '대륙 보정 실패')
+            }
+            setLoading(false)
             }} className="ml-2" disabled={editingRowId !== null}>
-              <Plus className="h-4 w-4" />
-              <span className="ml-1">대륙 코드/슬러그 보정</span>
-            </Button>
+            <Plus className="h-4 w-4" />
+            <span className="ml-1">대륙 코드/슬러그 보정</span>
+          </Button>
           </>
         )}
         {selectedType === 'region' && (
@@ -727,21 +1803,21 @@ export function RegionsManager({ initialItems }: Props) {
             </thead>
             <tbody>
               {renderNewRow()}
-              {loading && items.length === 0 ? (
+              {loading && filteredItems.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length + 1} className="p-8 text-center text-gray-500">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                     로딩 중...
                   </td>
                 </tr>
-              ) : items.length === 0 ? (
+              ) : filteredItems.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length + 1} className="p-8 text-center text-gray-500">
                     데이터가 없습니다.
                   </td>
                 </tr>
               ) : (
-                items.map((row) => {
+                filteredItems.map((row) => {
                   const isEditing = editingRowId === row.id
                   return (
                     <tr 
@@ -818,8 +1894,20 @@ export function RegionsManager({ initialItems }: Props) {
             </tbody>
           </table>
         </div>
-        <div className="p-3 border-t bg-gray-50 text-sm text-gray-600">
-          총 {items.length}개 항목 | 행을 클릭하면 매핑된 호텔을 확인할 수 있습니다.
+        <div className="p-3 border-t bg-gray-50 text-sm text-gray-600 flex justify-between items-center">
+          <span>
+            표시 중: {filteredItems.length}개 항목
+            {statusFilter !== 'all' && ` (${statusFilter === 'active' ? '활성' : '비활성'})`}
+            {items.length !== filteredItems.length && ` / 전체 ${items.length}개`}
+            {items.length >= pageSize && (
+              <span className="ml-2 text-orange-600 font-medium">
+                (최대 {pageSize}개까지 표시됨 - 더 보려면 표시 개수 늘리기)
+              </span>
+            )}
+          </span>
+          <span className="text-xs text-gray-500">
+            행을 클릭하면 매핑된 호텔을 확인할 수 있습니다.
+          </span>
         </div>
       </div>
 

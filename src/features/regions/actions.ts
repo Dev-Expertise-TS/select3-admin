@@ -512,6 +512,7 @@ export async function upsertRegion(input: RegionFormInput & { id?: number }): Pr
 
     console.log('[regions] upsertRegion input:', input)
     console.log('[regions] upsertRegion payload:', payload)
+    console.log('[regions] upsertRegion has id:', !!input.id)
 
     const { data, error } = await supabase
       .from(TABLE)
@@ -521,9 +522,12 @@ export async function upsertRegion(input: RegionFormInput & { id?: number }): Pr
 
     if (error) {
       console.error('[regions] upsert error:', error)
+      console.error('[regions] upsert error code:', error.code)
+      console.error('[regions] upsert error details:', error.details)
       return { success: false, error: `저장에 실패했습니다: ${error.message}` }
     }
 
+    console.log('[regions] upsert success, inserted/updated record:', data)
     revalidatePath('/admin/region-mapping')
     return { success: true, data: data as SelectRegion }
   } catch (e) {
@@ -1224,6 +1228,208 @@ export async function mapRegionToHotels(regionId: number, regionType: RegionType
     return { success: true, data: { updated } }
   } catch (e) {
     console.error('[regions] map region to hotels exception:', e)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+/**
+ * 모든 도시 레코드를 기반으로 호텔의 지역 코드를 일괄 업데이트
+ */
+export async function bulkUpdateHotelRegionCodes(): Promise<ActionResult<{ updated: number; total: number; errors: string[]; details: Record<string, number> }>> {
+  try {
+    const supabase = createServiceRoleClient()
+    
+    // 1. 모든 region 레코드 가져오기 (city, country, continent, region 모두)
+    const { data: regions, error: regionsError } = await supabase
+      .from('select_regions')
+      .select('*')
+    
+    if (regionsError || !regions) {
+      console.error('[regions] bulkUpdate fetch regions error:', regionsError)
+      return { success: false, error: '지역 정보를 가져올 수 없습니다.' }
+    }
+    
+    console.log(`[regions] bulkUpdate: found ${regions.length} regions`)
+    
+    let updated = 0
+    const errors: string[] = []
+    const details: Record<string, number> = {
+      city: 0,
+      country: 0,
+      continent: 0,
+      region: 0
+    }
+    
+    // 2. 각 region에 대해 매칭되는 호텔 업데이트
+    for (const region of regions) {
+      try {
+        const regionType = region.region_type as 'city' | 'country' | 'continent' | 'region'
+        
+        // 타입별 컬럼 매핑
+        const columnMap = {
+          city: { code: 'city_code', nameKo: 'city_ko', nameEn: 'city_en' },
+          country: { code: 'country_code', nameKo: 'country_ko', nameEn: 'country_en' },
+          continent: { code: 'continent_code', nameKo: 'continent_ko', nameEn: 'continent_en' },
+          region: { code: 'region_code', nameKo: 'region_ko', nameEn: 'region_en' }
+        }
+        
+        const columns = columnMap[regionType]
+        
+        // 매칭할 값 추출
+        let codeValue: string | null = null
+        let nameKoValue: string | null = null
+        let nameEnValue: string | null = null
+        
+        if (regionType === 'city') {
+          codeValue = region.city_code as string | null
+          nameKoValue = region.city_ko as string | null
+          nameEnValue = region.city_en as string | null
+        } else if (regionType === 'country') {
+          codeValue = region.country_code as string | null
+          nameKoValue = region.country_ko as string | null
+          nameEnValue = region.country_en as string | null
+        } else if (regionType === 'continent') {
+          codeValue = region.continent_code as string | null
+          nameKoValue = region.continent_ko as string | null
+          nameEnValue = region.continent_en as string | null
+        } else if (regionType === 'region') {
+          codeValue = region.region_code as string | null
+          nameKoValue = region.region_name_ko as string | null
+          nameEnValue = region.region_name_en as string | null
+        }
+        
+        // 코드, 한글명, 영문명 중 하나라도 있어야 함
+        if (!codeValue && !nameKoValue && !nameEnValue) {
+          continue
+        }
+        
+        // 호텔 찾기 (코드 OR 한글명 OR 영문명)
+        let query = supabase
+          .from('select_hotels')
+          .select('sabre_id')
+        
+        const conditions: string[] = []
+        if (codeValue && codeValue.trim()) {
+          conditions.push(`${columns.code}.eq.${codeValue}`)
+        }
+        if (nameKoValue && nameKoValue.trim()) {
+          conditions.push(`${columns.nameKo}.eq.${nameKoValue}`)
+        }
+        if (nameEnValue && nameEnValue.trim()) {
+          conditions.push(`${columns.nameEn}.eq.${nameEnValue}`)
+        }
+        
+        if (conditions.length === 0) {
+          continue
+        }
+        
+        query = query.or(conditions.join(','))
+        
+        const { data: hotels, error: hotelsError } = await query
+        
+        if (hotelsError) {
+          const displayName = nameKoValue || nameEnValue || codeValue || `id:${region.id}`
+          errors.push(`${displayName}: 호텔 조회 실패 - ${hotelsError.message}`)
+          continue
+        }
+        
+        if (!hotels || hotels.length === 0) {
+          continue // 매칭되는 호텔 없음
+        }
+        
+        // 중복 제거
+        const uniqueHotels = Array.from(
+          new Map(hotels.map(h => [h.sabre_id, h])).values()
+        )
+        
+        // 각 호텔의 region 코드 업데이트
+        for (const hotel of uniqueHotels) {
+          // 업데이트할 필드 구성
+          const updatePayload: Record<string, unknown> = {}
+          
+          if (regionType === 'city') {
+            updatePayload.city_code = region.city_code || null
+            updatePayload.city_ko = region.city_ko || null
+            updatePayload.city_en = region.city_en || null
+            // city가 가지고 있는 상위 지역 정보도 함께 업데이트
+            updatePayload.country_code = region.country_code || null
+            updatePayload.country_ko = region.country_ko || null
+            updatePayload.country_en = region.country_en || null
+            updatePayload.continent_code = region.continent_code || null
+            updatePayload.continent_ko = region.continent_ko || null
+            updatePayload.continent_en = region.continent_en || null
+            updatePayload.region_code = region.region_code || null
+            updatePayload.region_ko = region.region_name_ko || null
+            updatePayload.region_en = region.region_name_en || null
+          } else if (regionType === 'country') {
+            updatePayload.country_code = region.country_code || null
+            updatePayload.country_ko = region.country_ko || null
+            updatePayload.country_en = region.country_en || null
+            // country가 가지고 있는 상위 지역 정보도 함께 업데이트
+            updatePayload.continent_code = region.continent_code || null
+            updatePayload.continent_ko = region.continent_ko || null
+            updatePayload.continent_en = region.continent_en || null
+            updatePayload.region_code = region.region_code || null
+            updatePayload.region_ko = region.region_name_ko || null
+            updatePayload.region_en = region.region_name_en || null
+          } else if (regionType === 'continent') {
+            updatePayload.continent_code = region.continent_code || null
+            updatePayload.continent_ko = region.continent_ko || null
+            updatePayload.continent_en = region.continent_en || null
+            // continent가 가지고 있는 지역 정보도 함께 업데이트
+            updatePayload.region_code = region.region_code || null
+            updatePayload.region_ko = region.region_name_ko || null
+            updatePayload.region_en = region.region_name_en || null
+          } else if (regionType === 'region') {
+            updatePayload.region_code = region.region_code || null
+            updatePayload.region_ko = region.region_name_ko || null
+            updatePayload.region_en = region.region_name_en || null
+          }
+          
+          const { error: updateError } = await supabase
+            .from('select_hotels')
+            .update(updatePayload)
+            .eq('sabre_id', hotel.sabre_id)
+          
+          if (updateError) {
+            errors.push(`${hotel.sabre_id}: 업데이트 실패 - ${updateError.message}`)
+          } else {
+            updated++
+            details[regionType]++
+          }
+        }
+      } catch (e) {
+        const displayName = 
+          (region.city_ko || region.city_en || 
+           region.country_ko || region.country_en || 
+           region.continent_ko || region.continent_en || 
+           region.region_name_ko || region.region_name_en || 
+           `id:${region.id}`) as string
+        errors.push(`${displayName}: ${e instanceof Error ? e.message : '알 수 없는 오류'}`)
+      }
+    }
+    
+    console.log(`[regions] bulkUpdate completed:`, {
+      updated,
+      total: regions.length,
+      details,
+      errors: errors.length
+    })
+    
+    revalidatePath('/admin/region-mapping')
+    revalidatePath('/admin/hotel-search')
+    
+    return {
+      success: true,
+      data: {
+        updated,
+        total: regions.length,
+        errors: errors.slice(0, 10),
+        details
+      }
+    }
+  } catch (e) {
+    console.error('[regions] bulkUpdate exception:', e)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
