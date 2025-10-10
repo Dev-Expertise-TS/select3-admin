@@ -271,29 +271,24 @@ export function RegionsManager({ initialItems }: Props) {
       updateData.city_ko = selectedRegion.city_ko ?? null
       updateData.city_en = selectedRegion.city_en ?? null
       
-      // 도시 매핑 시 상위 지역(국가, 대륙)도 함께 매핑
-      if (selectedRegion.country_code || selectedRegion.country_ko || selectedRegion.country_en) {
-        updateData.country_code = selectedRegion.country_code ?? null
-        updateData.country_ko = selectedRegion.country_ko ?? null
-        updateData.country_en = selectedRegion.country_en ?? null
-      }
-      if (selectedRegion.continent_code || selectedRegion.continent_ko || selectedRegion.continent_en) {
-        updateData.continent_code = selectedRegion.continent_code ?? null
-        updateData.continent_ko = selectedRegion.continent_ko ?? null
-        updateData.continent_en = selectedRegion.continent_en ?? null
-      }
+      // 도시 매핑 시 상위 지역(국가, 대륙)도 함께 매핑 (값이 없어도 null로 저장)
+      updateData.country_code = selectedRegion.country_code ?? null
+      updateData.country_ko = selectedRegion.country_ko ?? null
+      updateData.country_en = selectedRegion.country_en ?? null
+      
+      updateData.continent_code = selectedRegion.continent_code ?? null
+      updateData.continent_ko = selectedRegion.continent_ko ?? null
+      updateData.continent_en = selectedRegion.continent_en ?? null
     } else if (selectedRegion.region_type === 'country') {
       // 국가 정보 매핑
       updateData.country_code = selectedRegion.country_code ?? null
       updateData.country_ko = selectedRegion.country_ko ?? null
       updateData.country_en = selectedRegion.country_en ?? null
       
-      // 국가 매핑 시 상위 지역(대륙)도 함께 매핑
-      if (selectedRegion.continent_code || selectedRegion.continent_ko || selectedRegion.continent_en) {
-        updateData.continent_code = selectedRegion.continent_code ?? null
-        updateData.continent_ko = selectedRegion.continent_ko ?? null
-        updateData.continent_en = selectedRegion.continent_en ?? null
-      }
+      // 국가 매핑 시 상위 지역(대륙)도 함께 매핑 (값이 없어도 null로 저장)
+      updateData.continent_code = selectedRegion.continent_code ?? null
+      updateData.continent_ko = selectedRegion.continent_ko ?? null
+      updateData.continent_en = selectedRegion.continent_en ?? null
     } else if (selectedRegion.region_type === 'continent') {
       // 대륙 정보 매핑
       updateData.continent_code = selectedRegion.continent_code ?? null
@@ -364,33 +359,33 @@ export function RegionsManager({ initialItems }: Props) {
     let title = ''
     
     if (row.region_type === 'city') {
-      code = row.city_code
-      nameKo = row.city_ko
-      nameEn = row.city_en
+      code = (row.city_code ?? null) as string | null
+      nameKo = (row.city_ko ?? null) as string | null
+      nameEn = (row.city_en ?? null) as string | null
       codeType = 'city'
       const displayName = row.city_ko || row.city_en || '이름없음'
       const displayCode = code ? ` (${code})` : ''
       title = `도시 "${displayName}"${displayCode} 매핑된 호텔`
     } else if (row.region_type === 'country') {
-      code = row.country_code
-      nameKo = row.country_ko
-      nameEn = row.country_en
+      code = (row.country_code ?? null) as string | null
+      nameKo = (row.country_ko ?? null) as string | null
+      nameEn = (row.country_en ?? null) as string | null
       codeType = 'country'
       const displayName = row.country_ko || row.country_en || '이름없음'
       const displayCode = code ? ` (${code})` : ''
       title = `국가 "${displayName}"${displayCode} 매핑된 호텔`
     } else if (row.region_type === 'continent') {
-      code = row.continent_code
-      nameKo = row.continent_ko
-      nameEn = row.continent_en
+      code = (row.continent_code ?? null) as string | null
+      nameKo = (row.continent_ko ?? null) as string | null
+      nameEn = (row.continent_en ?? null) as string | null
       codeType = 'continent'
       const displayName = row.continent_ko || row.continent_en || '이름없음'
       const displayCode = code ? ` (${code})` : ''
       title = `대륙 "${displayName}"${displayCode} 매핑된 호텔`
     } else if (row.region_type === 'region') {
-      code = row.region_code
-      nameKo = row.region_name_ko
-      nameEn = row.region_name_en
+      code = (row.region_code ?? null) as string | null
+      nameKo = (row.region_name_ko ?? null) as string | null
+      nameEn = (row.region_name_en ?? null) as string | null
       codeType = 'region'
       const displayName = row.region_name_ko || row.region_name_en || '이름없음'
       const displayCode = code ? ` (${code})` : ''
