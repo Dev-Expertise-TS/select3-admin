@@ -1229,33 +1229,68 @@ export async function mapRegionToHotels(regionId: number, regionType: RegionType
 }
 
 /**
- * 특정 코드에 매핑된 호텔 리스트 조회
+ * 특정 지역에 매핑된 호텔 리스트 조회
+ * 코드와 이름(ko, en) 모두를 고려하여 조회
  */
-export async function getMappedHotels(code: string, codeType: 'city' | 'country' | 'continent' | 'region'): Promise<ActionResult<{ hotels: Array<{ sabre_id: string; property_name_ko: string | null; property_name_en: string | null; property_address: string | null }> }>> {
+export async function getMappedHotels(
+  code: string | null, 
+  codeType: 'city' | 'country' | 'continent' | 'region',
+  nameKo?: string | null,
+  nameEn?: string | null
+): Promise<ActionResult<{ hotels: Array<{ sabre_id: string; property_name_ko: string | null; property_name_en: string | null; property_address: string | null }> }>> {
   try {
     const supabase = createServiceRoleClient()
     
     const columnMap = {
-      city: 'city_code',
-      country: 'country_code',
-      continent: 'continent_code',
-      region: 'region_code'
+      city: { code: 'city_code', nameKo: 'city_ko', nameEn: 'city_en' },
+      country: { code: 'country_code', nameKo: 'country_ko', nameEn: 'country_en' },
+      continent: { code: 'continent_code', nameKo: 'continent_ko', nameEn: 'continent_en' },
+      region: { code: 'region_code', nameKo: 'region_name_ko', nameEn: 'region_name_en' }
     }
     
-    const column = columnMap[codeType]
+    const columns = columnMap[codeType]
     
-    const { data, error } = await supabase
+    // 쿼리 빌드: 코드 또는 이름으로 조회
+    let query = supabase
       .from('select_hotels')
       .select('sabre_id, property_name_ko, property_name_en, property_address')
-      .eq(column, code)
-      .order('property_name_en')
+    
+    const conditions: string[] = []
+    
+    // 코드가 있으면 코드로 조회
+    if (code && code.trim()) {
+      conditions.push(`${columns.code}.eq.${code}`)
+    }
+    
+    // 이름으로도 조회 (코드가 없거나 추가 매칭을 위해)
+    if (nameKo && nameKo.trim()) {
+      conditions.push(`${columns.nameKo}.eq.${nameKo}`)
+    }
+    if (nameEn && nameEn.trim()) {
+      conditions.push(`${columns.nameEn}.eq.${nameEn}`)
+    }
+    
+    if (conditions.length === 0) {
+      return { success: true, data: { hotels: [] } }
+    }
+    
+    // OR 조건으로 연결
+    query = query.or(conditions.join(','))
+    query = query.order('property_name_en')
+    
+    const { data, error } = await query
     
     if (error) {
-      console.error(`[regions] get mapped hotels error for ${code}:`, error)
+      console.error(`[regions] get mapped hotels error for ${code}/${nameKo}/${nameEn}:`, error)
       return { success: false, error: '호텔 조회 실패' }
     }
     
-    return { success: true, data: { hotels: data || [] } }
+    // 중복 제거 (code와 name으로 동시에 매칭될 수 있으므로)
+    const uniqueHotels = Array.from(
+      new Map(data?.map(h => [h.sabre_id, h]) || []).values()
+    )
+    
+    return { success: true, data: { hotels: uniqueHotels } }
   } catch (e) {
     console.error('[regions] get mapped hotels exception:', e)
     return { success: false, error: '서버 오류가 발생했습니다.' }

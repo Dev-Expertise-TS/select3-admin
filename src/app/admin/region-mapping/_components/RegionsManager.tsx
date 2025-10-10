@@ -358,34 +358,58 @@ export function RegionsManager({ initialItems }: Props) {
     if (editingRowId) return // 편집 중이면 클릭 무시
     
     let code: string | null = null
+    let nameKo: string | null = null
+    let nameEn: string | null = null
     let codeType: 'city' | 'country' | 'continent' | 'region' | null = null
     let title = ''
     
-    if (row.region_type === 'city' && row.city_code) {
+    if (row.region_type === 'city') {
       code = row.city_code
+      nameKo = row.city_ko
+      nameEn = row.city_en
       codeType = 'city'
-      title = `도시 "${row.city_ko || row.city_en}" (${code}) 매핑된 호텔`
-    } else if (row.region_type === 'country' && row.country_code) {
+      const displayName = row.city_ko || row.city_en || '이름없음'
+      const displayCode = code ? ` (${code})` : ''
+      title = `도시 "${displayName}"${displayCode} 매핑된 호텔`
+    } else if (row.region_type === 'country') {
       code = row.country_code
+      nameKo = row.country_ko
+      nameEn = row.country_en
       codeType = 'country'
-      title = `국가 "${row.country_ko || row.country_en}" (${code}) 매핑된 호텔`
-    } else if (row.region_type === 'continent' && row.continent_code) {
+      const displayName = row.country_ko || row.country_en || '이름없음'
+      const displayCode = code ? ` (${code})` : ''
+      title = `국가 "${displayName}"${displayCode} 매핑된 호텔`
+    } else if (row.region_type === 'continent') {
       code = row.continent_code
+      nameKo = row.continent_ko
+      nameEn = row.continent_en
       codeType = 'continent'
-      title = `대륙 "${row.continent_ko || row.continent_en}" (${code}) 매핑된 호텔`
-    } else if (row.region_type === 'region' && row.region_code) {
+      const displayName = row.continent_ko || row.continent_en || '이름없음'
+      const displayCode = code ? ` (${code})` : ''
+      title = `대륙 "${displayName}"${displayCode} 매핑된 호텔`
+    } else if (row.region_type === 'region') {
       code = row.region_code
+      nameKo = row.region_name_ko
+      nameEn = row.region_name_en
       codeType = 'region'
-      title = `지역 "${row.region_name_ko || row.region_name_en}" (${code}) 매핑된 호텔`
+      const displayName = row.region_name_ko || row.region_name_en || '이름없음'
+      const displayCode = code ? ` (${code})` : ''
+      title = `지역 "${displayName}"${displayCode} 매핑된 호텔`
     }
     
-    if (!code || !codeType) {
-      alert('이 레코드에는 코드가 없습니다.')
+    if (!codeType) {
+      alert('잘못된 지역 타입입니다.')
+      return
+    }
+    
+    // 코드 또는 이름이 있어야 조회 가능
+    if (!code && !nameKo && !nameEn) {
+      alert('이 레코드에는 코드나 이름이 없습니다.')
       return
     }
     
     setLoading(true)
-    const res = await getMappedHotels(code, codeType)
+    const res = await getMappedHotels(code, codeType, nameKo, nameEn)
     setLoading(false)
     
     if (res.success && res.data) {
