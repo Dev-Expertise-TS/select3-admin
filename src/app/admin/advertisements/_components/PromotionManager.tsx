@@ -553,7 +553,12 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
                       </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {slot.slot_key}
+                      <Input 
+                        type="text" 
+                        value={slot.slot_key} 
+                        onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, slot_key: e.target.value } : s))} 
+                        className="w-full"
+                      />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <Input type="date" value={slot.start_date ?? ''} onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, start_date: e.target.value || null } : s))} />

@@ -571,9 +571,17 @@ export default function BannerManager() {
           {
             key: 'slot_key',
             label: '슬롯 키',
-            render: (value) => (
-              <span className="text-sm text-gray-600">{value as string}</span>
-            )
+            render: (value, row) => {
+              const slot = row as unknown as FeatureSlot
+              return (
+                <Input 
+                  type="text" 
+                  value={slot.slot_key} 
+                  onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, slot_key: e.target.value } : s))} 
+                  className="w-full"
+                />
+              )
+            }
           },
           {
             key: 'start_date',

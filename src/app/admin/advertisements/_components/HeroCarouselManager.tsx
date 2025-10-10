@@ -75,7 +75,7 @@ export default function HeroCarouselManager() {
     setError(null)
 
     try {
-      const response = await fetch('/api/feature-slots')
+      const response = await fetch('/api/feature-slots?surface=히어로')
       const data = await response.json()
 
       if (!response.ok) {
@@ -83,7 +83,26 @@ export default function HeroCarouselManager() {
       }
 
       if (data.success) {
-        setSlots(data.data || [])
+        // 날짜 정규화 함수
+        const normalizeDate = (d?: string | null) => {
+          if (!d) return undefined
+          const dt = new Date(d)
+          if (Number.isNaN(dt.getTime())) return undefined
+          return dt.toISOString().slice(0, 10)
+        }
+        
+        const rows: FeatureSlot[] = (data.data || []).map((s: any) => ({
+          id: s.id,
+          sabre_id: s.sabre_id,
+          surface: s.surface,
+          slot_key: s.slot_key,
+          start_date: normalizeDate(s.start_date),
+          end_date: normalizeDate(s.end_date),
+          created_at: s.created_at,
+          select_hotels: { property_name_ko: s.select_hotels?.property_name_ko }
+        }))
+        
+        setSlots(rows)
       } else {
         throw new Error(data.error || '데이터를 불러올 수 없습니다.')
       }
@@ -131,36 +150,32 @@ export default function HeroCarouselManager() {
   const handleUpsert = async (slot: FeatureSlot) => {
     setError(null)
 
-    try {
-      const response = await fetch(`/api/feature-slots/${slot.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sabre_id: slot.sabre_id,
-          slot_key: slot.slot_key
-        })
-      })
+    startTransition(async () => {
+      try {
+        // FormData 생성
+        const formData = new FormData()
+        formData.append('id', String(slot.id))
+        formData.append('sabre_id', slot.sabre_id)
+        formData.append('surface', '히어로')
+        formData.append('slot_key', slot.slot_key)
+        formData.append('start_date', slot.start_date || '')
+        formData.append('end_date', slot.end_date || '')
 
-      const data = await response.json()
+        const result = await saveFeatureSlot(formData)
 
-      if (!response.ok) {
-        throw new Error(data.error || '저장 중 오류가 발생했습니다.')
-      }
+        if (!result.success) {
+          throw new Error(result.error || '저장 중 오류가 발생했습니다.')
+        }
 
-      if (data.success) {
         setSuccess('데이터가 성공적으로 저장되었습니다.')
         loadSlots()
         
         // 성공 메시지 3초 후 자동 숨김
         setTimeout(() => setSuccess(null), 3000)
-      } else {
-        throw new Error(data.error || '저장 중 오류가 발생했습니다.')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.')
-    }
+    })
   }
 
 
@@ -246,7 +261,7 @@ export default function HeroCarouselManager() {
           form.append('id', String(editingId))
         }
         form.append('sabre_id', sabreIdStr)
-        form.append('surface', '히어로캐러셀')
+        form.append('surface', '히어로')
         form.append('slot_key', slotKeyStr)
         form.append('start_date', formData.start_date || '')
         form.append('end_date', formData.end_date || '')
@@ -491,6 +506,8 @@ export default function HeroCarouselManager() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Slot Key
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">시작일</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">종료일</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     생성일
                   </th>
@@ -518,7 +535,18 @@ export default function HeroCarouselManager() {
                       </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {slot.slot_key}
+                      <Input 
+                        type="text" 
+                        value={slot.slot_key} 
+                        onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, slot_key: e.target.value } : s))} 
+                        className="w-full"
+                      />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <Input type="date" value={slot.start_date ?? ''} onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, start_date: e.target.value || undefined } : s))} />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <Input type="date" value={slot.end_date ?? ''} onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, end_date: e.target.value || undefined } : s))} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(slot.created_at).toLocaleDateString('ko-KR')}
@@ -530,7 +558,9 @@ export default function HeroCarouselManager() {
                           variant="outline"
                           onClick={() => handleUpsert(slot)}
                           className="bg-green-600 hover:bg-green-700 text-white"
+                          disabled={isPending}
                         >
+                          {isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
                           <Save className="h-3 w-3" />
                         </Button>
                         <Button
