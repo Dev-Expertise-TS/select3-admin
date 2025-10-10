@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, Save, X, Trash2, Link2, Edit, GripVertical, PlusCircle, List } from 'lucide-react'
+import { Save, X, Trash2, Link2, Edit, GripVertical, PlusCircle, List } from 'lucide-react'
 import { saveChain, createChain, saveBrand, createBrand, updateChainSortOrder, updateBrandSortOrder, deleteChain, deleteBrand } from '@/features/chain-brand/actions'
 import ConnectedHotelsModal from './ConnectedHotelsModal'
 import {
@@ -108,7 +108,7 @@ function SortableBrandRow({
   onDelete: () => void
   onConnect: () => void
   onViewConnected: () => void
-  onFieldChange: (field: string, value: any) => void
+  onFieldChange: (field: string, value: string | number | null) => void
   onSaveEdit: () => void
   onCancelEdit: () => void
   isRecentlyUpdated?: boolean
@@ -259,7 +259,7 @@ function SortableChainRow({
   onDelete: () => void
   onConnect: () => void
   onViewConnected: () => void
-  onFieldChange: (field: string, value: any) => void
+  onFieldChange: (field: string, value: string | number | null) => void
   onSaveEdit: () => void
   onCancelEdit: () => void
   isRecentlyUpdated?: boolean

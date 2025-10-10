@@ -69,13 +69,14 @@ export async function saveChain(formData: FormData): Promise<ActionResult<ChainF
   console.log('[chain-brand] saveChain success, returned data:', data)
 
   // DB 컬럼명을 클라이언트 형식으로 변환
+  const dbData = data as Record<string, unknown>
   const mappedData: ChainFormData = {
-    chain_id: (data as any).chain_id,
-    name_kr: (data as any).chain_name_ko || null,
-    name_en: (data as any).chain_name_en || null,
-    slug: (data as any).slug || null,
-    chain_sort_order: (data as any).chain_sort_order || null,
-    status: ((data as any).status || 'active').trim()
+    chain_id: dbData.chain_id as number,
+    name_kr: (dbData.chain_name_ko as string) || null,
+    name_en: (dbData.chain_name_en as string) || null,
+    slug: (dbData.slug as string) || null,
+    chain_sort_order: (dbData.chain_sort_order as number) || null,
+    status: ((dbData.status as string) || 'active').trim()
   }
 
   revalidatePath('/admin/chain-brand')
@@ -110,13 +111,14 @@ export async function createChain(formData: FormData): Promise<ActionResult<Chai
   }
 
   // DB 컬럼명을 클라이언트 형식으로 변환
+  const dbData = data as Record<string, unknown>
   const mappedData: ChainFormData = {
-    chain_id: (data as any).chain_id,
-    name_kr: (data as any).chain_name_ko || null,
-    name_en: (data as any).chain_name_en || null,
-    slug: (data as any).slug || null,
-    chain_sort_order: (data as any).chain_sort_order || null,
-    status: ((data as any).status || 'active').trim()
+    chain_id: dbData.chain_id as number,
+    name_kr: (dbData.chain_name_ko as string) || null,
+    name_en: (dbData.chain_name_en as string) || null,
+    slug: (dbData.slug as string) || null,
+    chain_sort_order: (dbData.chain_sort_order as number) || null,
+    status: ((dbData.status as string) || 'active').trim()
   }
 
   revalidatePath('/admin/chain-brand')
@@ -270,13 +272,14 @@ export async function saveBrand(formData: FormData): Promise<ActionResult<BrandF
   console.log('[chain-brand] saveBrand success, returned data:', data)
 
   // DB 컬럼명을 클라이언트 형식으로 변환
+  const dbData = data as Record<string, unknown>
   const mappedData: BrandFormData = {
-    brand_id: (data as any).brand_id,
-    name_kr: (data as any).brand_name_ko || null,
-    name_en: (data as any).brand_name_en || null,
-    chain_id: (data as any).chain_id || null,
-    brand_sort_order: (data as any).brand_sort_order || null,
-    status: ((data as any).status || 'active').trim()
+    brand_id: dbData.brand_id as number,
+    name_kr: (dbData.brand_name_ko as string) || null,
+    name_en: (dbData.brand_name_en as string) || null,
+    chain_id: (dbData.chain_id as number) || null,
+    brand_sort_order: (dbData.brand_sort_order as number) || null,
+    status: ((dbData.status as string) || 'active').trim()
   }
 
   revalidatePath('/admin/chain-brand')
@@ -330,13 +333,14 @@ export async function createBrand(formData: FormData): Promise<ActionResult<Bran
   }
 
   // DB 컬럼명을 클라이언트 형식으로 변환
+  const dbData = data as Record<string, unknown>
   const mappedData: BrandFormData = {
-    brand_id: (data as any).brand_id,
-    name_kr: (data as any).brand_name_ko || null,
-    name_en: (data as any).brand_name_en || null,
-    chain_id: (data as any).chain_id || null,
-    brand_sort_order: (data as any).brand_sort_order || null,
-    status: ((data as any).status || 'active').trim()
+    brand_id: dbData.brand_id as number,
+    name_kr: (dbData.brand_name_ko as string) || null,
+    name_en: (dbData.brand_name_en as string) || null,
+    chain_id: (dbData.chain_id as number) || null,
+    brand_sort_order: (dbData.brand_sort_order as number) || null,
+    status: ((dbData.status as string) || 'active').trim()
   }
 
   revalidatePath('/admin/chain-brand')

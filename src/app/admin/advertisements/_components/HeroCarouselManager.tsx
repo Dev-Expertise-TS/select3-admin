@@ -91,7 +91,7 @@ export default function HeroCarouselManager() {
           return dt.toISOString().slice(0, 10)
         }
         
-        const rows: FeatureSlot[] = (data.data || []).map((s: any) => ({
+        const rows: FeatureSlot[] = (data.data || []).map((s: Record<string, unknown>) => ({
           id: s.id,
           sabre_id: s.sabre_id,
           surface: s.surface,

@@ -40,6 +40,8 @@ export default function ConnectedHotelsModal({
     if (isOpen) {
       loadHotels()
     }
+  // loadHotels는 itemId와 itemType에 의존하므로 제외
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, itemId, itemType])
 
   const loadHotels = async () => {

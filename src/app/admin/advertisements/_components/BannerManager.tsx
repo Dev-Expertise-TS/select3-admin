@@ -122,7 +122,7 @@ export default function BannerManager() {
         
         // 각 슬롯에 호텔 이미지 추가 및 날짜 정규화
         const slotsWithImages = await Promise.all(
-          bannerSlots.map(async (slot: any) => {
+          bannerSlots.map(async (slot: Record<string, unknown>) => {
             const imageUrl = await fetchHotelImage(slot.sabre_id)
             return { 
               ...slot, 
