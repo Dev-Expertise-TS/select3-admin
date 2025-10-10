@@ -1,0 +1,50 @@
+---
+alwaysApply: true
+---
+## Select Admin Architecture Guide (Next.js 15, src/app, TS, Tailwind v4)
+
+Authoritative architectural guidance for the Select Admin codebase. Explains the WHY and HOW behind team standards. For enforcement checklists and MUST/NEVER rules, see project-guardrail.mdc.
+
+Scope: All contributors to this repository. Audience: engineers and reviewers.
+
+### Tech Stack (Team Standard)
+- Next.js 15 App Router under `src/app/**`
+- TypeScript (strict) with root alias `@/*` → `src/*`
+- Tailwind CSS v4; utilities via `cn(...)` from `src/lib/utils`
+- Shared UI in `src/components/**`; domain features in `src/features/**`
+
+### Routing & Components (App Router)
+- Server Components by default. Use `'use client'` only for state/effects/events.
+- API routes at `src/app/api/**/route.ts` with proper method exports.
+- Prefer Server Actions for forms; keep data fetching on the server.
+- Co-locate page-only components under their route; extract reusable parts to `src/components` or `src/features`.
+
+### Data Access (Supabase – Team Policy)
+- Create service-role client server-side only: `src/lib/supabase/server.ts`.
+- After updates, use `.single()` to avoid ordering requirements.
+- Avoid `or(...)` when terms can include commas. Run separate queries and merge.
+- Normalize data (e.g., use `null` instead of empty arrays when schema expects null).
+- Never expose service-role clients to the browser.
+
+### TypeScript & Safety (Team Baseline)
+- No `any`. Use `unknown` + narrow guards.
+- Inputs: `defaultValue` must be a string: `String(value ?? '')`.
+- Dates: Only construct from `string | number | Date`; guard before `new Date(...)`.
+- Do not mutate external package types or introduce ambient globals.
+- Replace `@ts-ignore` with proper types or `@ts-expect-error` with a reason (last resort).
+
+### Styling (Tailwind v4 – UI/UX)
+- Compose classes with `cn(...)`. Prefer utilities over inline styles.
+- Align layouts with the app shell; maintain consistent spacing, focus rings, and states.
+- Minimize globals; favor component-scoped styles.
+
+### Shared UI & Interaction Patterns
+- Reuse shared buttons/actions from `src/components/shared/` or shadcn primitives in `src/components/ui/`.
+- Destructive actions must confirm; async actions must provide pending/disabled feedback.
+- Provide accessible interactions (ARIA roles/labels, keyboard navigation where relevant).
+
+### AI Editing (Cursor) – Team Workflow
+- Read first (scan related files) and propose minimal, high-signal edits.
+- Keep imports on `@/*`. Add guards for types, JSON paths, and Dates.
+- After impactful changes, ensure `pnpm build` passes locally.
+

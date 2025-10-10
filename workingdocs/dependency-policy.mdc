@@ -1,0 +1,24 @@
+---
+alwaysApply: true
+---
+## Dependency Policy
+
+Purpose: Keep dependencies minimal, secure, and consistent.
+
+### Adding Dependencies
+- Prefer audited, actively maintained libraries
+- Avoid duplicates (one router, one date library, etc.)
+- Justify additions in PR description (why needed, alternatives considered)
+
+### Versions
+- Use caret ranges for libs; pin for tools if necessary (CI stability)
+- Avoid implicit major upgrades in unrelated PRs
+
+### Removal & Updates
+- Remove unused deps regularly
+- Group upgrades by area; run `pnpm build` and tests locally
+
+### Forbidden
+- Unmaintained or risky packages (document team blacklist if any)
+- Bundling server-only packages into client code
+
