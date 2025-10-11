@@ -1545,4 +1545,227 @@ export async function getMappedHotels(
   }
 }
 
+/**
+ * City 이미지 URL 다운로드 및 업로드
+ */
+export type UploadCityImagesFromUrlsInput = {
+  cityCode: string
+  cityKo?: string
+  cityEn?: string
+  urls: string[]
+}
+
+export type UploadCityImagesFromUrlsResult = {
+  uploaded: number
+  total: number
+  results: Array<{ url: string; path?: string; error?: string }>
+  folderPath: string
+}
+
+export async function uploadCityImagesFromUrls(input: UploadCityImagesFromUrlsInput) {
+  const supabase = createServiceRoleClient()
+
+  const cityCodeRaw = input?.cityCode
+  const urlsRaw = Array.isArray(input?.urls) ? input.urls : []
+
+  if (!cityCodeRaw || typeof cityCodeRaw !== 'string') {
+    return { success: false as const, error: 'City Code는 필수입니다.' }
+  }
+  
+  const cityCode = cityCodeRaw.trim()
+  const urls = urlsRaw.map((u) => String(u).trim()).filter((u) => u.length > 0).slice(0, 20)
+  
+  if (urls.length === 0) {
+    return { success: false as const, error: '업로드할 이미지 URL을 입력해주세요.' }
+  }
+
+  // 도시 정보 확인 (선택사항 - city_code만 있어도 OK)
+  const cityKo = input?.cityKo || null
+  const cityEn = input?.cityEn || null
+
+  const folderPath = `cities/${cityCode}`
+
+  // ✅ 먼저 테이블의 실제 컬럼 확인
+  const { data: schemaTest } = await supabase
+    .from('select_city_media')
+    .select('*')
+    .limit(1)
+
+  const availableColumns = schemaTest && schemaTest.length > 0 ? Object.keys(schemaTest[0]) : []
+  console.log('[uploadCityImagesFromUrls] Available columns in select_city_media:', availableColumns)
+
+  // 기존 파일 목록 조회 → 최대 seq 계산
+  const { data: existingList, error: listError } = await supabase.storage
+    .from('hotel-media')
+    .list(folderPath, { limit: 1000 })
+
+  if (listError) {
+    console.warn('[uploadCityImagesFromUrls] Storage list warning:', listError)
+    // 폴더가 없을 수 있으므로 경고만 출력하고 계속 진행
+  }
+
+  // 파일명에서 seq 추출: {cityCode}-{timestamp}
+  let maxSeq = 0
+  const seqRegex = new RegExp(`^${cityCode}-(\\d+)\\.(jpg|jpeg|png|webp|avif)$`, 'i')
+  for (const f of existingList || []) {
+    const m = f.name ? f.name.match(seqRegex) : null
+    if (m) {
+      const timestamp = parseInt(m[1], 10)
+      if (Number.isFinite(timestamp) && timestamp > maxSeq) maxSeq = timestamp
+    }
+  }
+
+  const results: Array<{ url: string; path?: string; error?: string }> = []
+
+  // 각 URL 다운로드 후 업로드
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i]
+    try {
+      const response = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(30000) })
+      if (!response.ok) {
+        results.push({ url, error: `원격 이미지 요청 실패(${response.status})` })
+        continue
+      }
+      const contentType = response.headers.get('content-type') || 'image/jpeg'
+      const arrayBuffer = await response.arrayBuffer()
+      const buffer = new Uint8Array(arrayBuffer)
+
+      // 파일 크기 제한 (10MB)
+      if (buffer.length > 10 * 1024 * 1024) {
+        results.push({ url, error: '파일 크기가 10MB를 초과합니다.' })
+        continue
+      }
+
+      // 타임스탬프 기반 파일명 생성
+      const timestamp = Date.now() + i
+      const inferredExt = (() => {
+        if (contentType.includes('png')) return 'png'
+        if (contentType.includes('webp')) return 'webp'
+        if (contentType.includes('avif')) return 'avif'
+        if (contentType.includes('gif')) return 'gif'
+        return 'jpg'
+      })()
+
+      const filename = `${cityCode}-${timestamp}.${inferredExt}`
+      const storagePath = `${folderPath}/${filename}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('hotel-media')
+        .upload(storagePath, buffer, {
+          contentType,
+          upsert: false,
+        })
+
+      if (uploadError) {
+        results.push({ url, error: `업로드 실패: ${uploadError.message}` })
+        continue
+      }
+
+      // Public URL 생성
+      const { data: publicUrlData } = supabase.storage
+        .from('hotel-media')
+        .getPublicUrl(storagePath)
+
+      // ✅ select_city_media 테이블에 레코드 Upsert (사용 가능한 컬럼만)
+      const mediaRecord: Record<string, unknown> = {
+        file_name: filename,
+        file_path: storagePath,
+        storage_path: storagePath,
+        public_url: publicUrlData.publicUrl,
+        file_type: contentType,
+        file_size: buffer.length,
+      }
+
+      // 선택적 컬럼 추가 (테이블에 있는 경우에만)
+      if (availableColumns.includes('city_code')) mediaRecord.city_code = cityCode
+      if (availableColumns.includes('city_ko')) mediaRecord.city_ko = cityKo
+      if (availableColumns.includes('city_en')) mediaRecord.city_en = cityEn
+      if (availableColumns.includes('image_seq')) mediaRecord.image_seq = i + 1
+      if (availableColumns.includes('original_url')) mediaRecord.original_url = url
+
+      console.log('[uploadCityImagesFromUrls] Attempting to insert media record:', mediaRecord)
+
+      // ✅ 기존 레코드 확인 (사용 가능한 컬럼으로만 조회)
+      let existingQuery = supabase
+        .from('select_city_media')
+        .select('id')
+        .eq('file_path', storagePath)
+      
+      // city_code 컬럼이 있으면 추가 조건으로 사용
+      if (availableColumns.includes('city_code')) {
+        existingQuery = existingQuery.eq('city_code', cityCode)
+      }
+      
+      const { data: existing } = await existingQuery.maybeSingle()
+
+      if (existing) {
+        // ✅ 업데이트 (사용 가능한 컬럼만)
+        console.log('[uploadCityImagesFromUrls] 기존 레코드 업데이트:', existing.id)
+        
+        const updateRecord: Record<string, unknown> = {
+          file_name: mediaRecord.file_name,
+          storage_path: mediaRecord.storage_path,
+          public_url: mediaRecord.public_url,
+          file_type: mediaRecord.file_type,
+          file_size: mediaRecord.file_size,
+        }
+        
+        if (availableColumns.includes('city_ko') && mediaRecord.city_ko !== undefined) {
+          updateRecord.city_ko = mediaRecord.city_ko
+        }
+        if (availableColumns.includes('city_en') && mediaRecord.city_en !== undefined) {
+          updateRecord.city_en = mediaRecord.city_en
+        }
+        if (availableColumns.includes('image_seq') && mediaRecord.image_seq !== undefined) {
+          updateRecord.image_seq = mediaRecord.image_seq
+        }
+        if (availableColumns.includes('original_url') && mediaRecord.original_url !== undefined) {
+          updateRecord.original_url = mediaRecord.original_url
+        }
+        
+        const { error: updateError } = await supabase
+          .from('select_city_media')
+          .update(updateRecord)
+          .eq('id', existing.id)
+
+        if (updateError) {
+          console.error('[uploadCityImagesFromUrls] DB 업데이트 오류:', updateError)
+          results.push({ url, error: `DB 업데이트 실패: ${updateError.message}` })
+          continue
+        }
+      } else {
+        // 삽입
+        console.log('[uploadCityImagesFromUrls] 새 레코드 삽입')
+        const { error: insertError } = await supabase
+          .from('select_city_media')
+          .insert(mediaRecord)
+
+        if (insertError) {
+          console.error('[uploadCityImagesFromUrls] DB 삽입 오류:', insertError)
+          results.push({ url, error: `DB 삽입 실패: ${insertError.message}` })
+          continue
+        }
+      }
+
+      results.push({ url, path: storagePath })
+    } catch (err) {
+      console.error('[uploadCityImagesFromUrls] 오류:', err)
+      const errorMessage = err instanceof Error ? err.message : '다운로드/업로드 중 오류'
+      results.push({ url, error: errorMessage })
+    }
+  }
+
+  const okCount = results.filter((r) => !r.error).length
+  
+  return {
+    success: true as const,
+    data: {
+      uploaded: okCount,
+      total: results.length,
+      results,
+      folderPath,
+    } satisfies UploadCityImagesFromUrlsResult,
+  }
+}
+
 

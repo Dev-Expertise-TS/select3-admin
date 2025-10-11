@@ -224,16 +224,29 @@ export function RegionsManager({ initialItems }: Props) {
   const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set())
   
   // 썸네일 로드 함수
-  const loadThumbnail = async (cacheKey: string, cityCode: string | null, cityKo: string | null, cityEn: string | null) => {
-    // 이미 로딩 중이거나 캐시에 있으면 스킵
-    if (loadingThumbnails.has(cacheKey) || thumbnailCache[cacheKey] !== undefined) {
+  const loadThumbnail = async (cacheKey: string, cityCode: string | null, cityKo: string | null, cityEn: string | null, forceReload = false) => {
+    // ✅ 강제 새로고침이 아니면 캐시 체크
+    if (!forceReload && thumbnailCache[cacheKey] !== undefined) {
       return
     }
     
-    if (!cityCode && !cityKo && !cityEn) return
+    // ✅ 이미 로딩 중이면 스킵 (강제 새로고침은 예외)
+    if (!forceReload && loadingThumbnails.has(cacheKey)) {
+      return
+    }
+    
+    if (!cityCode && !cityKo && !cityEn) {
+      // 검색 가능한 값이 없으면 빈 문자열로 캐시
+      setThumbnailCache(prev => ({ ...prev, [cacheKey]: '' }))
+      return
+    }
     
     // 로딩 시작
-    setLoadingThumbnails(prev => new Set(prev).add(cacheKey))
+    setLoadingThumbnails(prev => {
+      const newSet = new Set(prev)
+      newSet.add(cacheKey)
+      return newSet
+    })
     
     const searchParam = cityCode ? `cityCode=${encodeURIComponent(cityCode)}`
       : cityKo ? `cityKo=${encodeURIComponent(cityKo)}`
@@ -243,7 +256,7 @@ export function RegionsManager({ initialItems }: Props) {
       const response = await fetch(`/api/city-images/first?${searchParam}`)
       const result = await response.json()
       
-      // 결과가 있든 없든 캐시에 저장 (빈 문자열이라도)
+      // 결과가 있든 없든 캐시에 저장 (재요청 방지)
       setThumbnailCache(prev => ({ 
         ...prev, 
         [cacheKey]: result.url || '' 
@@ -497,14 +510,44 @@ export function RegionsManager({ initialItems }: Props) {
 
   // 썸네일 미리 로드 (filteredItems 변경 시)
   useEffect(() => {
-    if (selectedType === 'city') {
-      filteredItems.forEach(row => {
-        const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
-        loadThumbnail(cacheKey, row.city_code ?? null, row.city_ko, row.city_en)
-      })
+    if (selectedType !== 'city') return
+    
+    // ✅ 캐시에 없는 항목만 로드
+    const itemsToLoad = filteredItems.filter(row => {
+      const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
+      return thumbnailCache[cacheKey] === undefined && !loadingThumbnails.has(cacheKey)
+    })
+    
+    if (itemsToLoad.length === 0) {
+      console.log('[RegionsManager] All thumbnails cached, skipping load')
+      return
     }
+    
+    console.log(`[RegionsManager] Loading ${itemsToLoad.length} new thumbnails (total visible: ${filteredItems.length})`)
+    
+    itemsToLoad.forEach(row => {
+      const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
+      loadThumbnail(cacheKey, row.city_code ?? null, row.city_ko, row.city_en)
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredItems, selectedType])
+
+  // 🐛 디버깅: 캐시 상태 추적
+  useEffect(() => {
+    console.log('[RegionsManager] thumbnailCache changed:', Object.keys(thumbnailCache).length, 'items')
+  }, [thumbnailCache])
+
+  useEffect(() => {
+    console.log('[RegionsManager] loadingThumbnails changed:', loadingThumbnails.size, 'items')
+  }, [loadingThumbnails])
+
+  useEffect(() => {
+    console.log('[RegionsManager] filteredItems changed:', filteredItems.length, 'items')
+  }, [filteredItems])
+
+  useEffect(() => {
+    console.log('[RegionsManager] items changed:', items.length, 'items')
+  }, [items])
 
   // 드래그 종료 핸들러
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -898,7 +941,14 @@ export function RegionsManager({ initialItems }: Props) {
           return acc
         }, [])
         
-        setItems(uniqueData)
+        // ✅ 기존 items와 비교하여 실제로 변경된 경우에만 업데이트
+        const hasChanged = JSON.stringify(items) !== JSON.stringify(uniqueData)
+        if (hasChanged) {
+          console.log('[RegionsManager] Data changed, updating items')
+          setItems(uniqueData)
+        } else {
+          console.log('[RegionsManager] Data unchanged, skipping update')
+        }
       }
     } catch (error) {
       console.error('Failed to refresh data:', error)
@@ -2507,10 +2557,60 @@ export function RegionsManager({ initialItems }: Props) {
           isOpen={showImageModal}
         onClose={() => {
             setShowImageModal(false)
-            // 썸네일 캐시 전체 초기화 (해당 도시 관련 모든 캐시 제거)
-            // 이유: region_type-id-cityname 형식의 캐시 키를 사용하므로 정확한 매칭이 어려움
-            setThumbnailCache({})
             setImageModalCity(null)
+          }}
+          onImageChanged={() => {
+            // ✅ 이미지 변경 시 즉시 썸네일 새로고침
+            if (imageModalCity?.cityCode) {
+              console.log(`[RegionsManager] Image changed for city: ${imageModalCity.cityCode}`)
+              
+              // 1. 캐시 및 로딩 상태 제거
+              setThumbnailCache(prev => {
+                const newCache = { ...prev }
+                Object.keys(newCache).forEach(key => {
+                  if (key.includes(imageModalCity.cityCode!)) {
+                    delete newCache[key]
+                    console.log(`[RegionsManager] Removed cache key: ${key}`)
+                  }
+                })
+                return newCache
+              })
+              
+              setLoadingThumbnails(prev => {
+                const newSet = new Set(prev)
+                Array.from(newSet).forEach(key => {
+                  if (key.includes(imageModalCity.cityCode!)) {
+                    newSet.delete(key)
+                    console.log(`[RegionsManager] Removed loading key: ${key}`)
+                  }
+                })
+                return newSet
+              })
+              
+              // 2. 즉시 새로운 썸네일 로드 (강제 새로고침)
+              setTimeout(() => {
+                // items 상태에서 직접 찾기
+                const cityItems = items.filter(item => 
+                  item.region_type === 'city' && (
+                    item.city_code === imageModalCity.cityCode || 
+                    item.city_ko === imageModalCity.cityKo ||
+                    item.city_en === imageModalCity.cityEn
+                  )
+                )
+                
+                console.log(`[RegionsManager] Force reloading ${cityItems.length} thumbnails for ${imageModalCity.cityCode}`)
+                
+                if (cityItems.length === 0) {
+                  console.warn(`[RegionsManager] No city items found for ${imageModalCity.cityCode}`)
+                }
+                
+                cityItems.forEach(row => {
+                  const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
+                  console.log(`[RegionsManager] Force loading thumbnail for: ${cacheKey}`)
+                  loadThumbnail(cacheKey, row.city_code ?? null, row.city_ko, row.city_en, true) // ✅ forceReload = true
+                })
+              }, 100) // 최소한의 지연만 적용
+            }
           }}
           cityKo={imageModalCity.cityKo}
           cityEn={imageModalCity.cityEn}

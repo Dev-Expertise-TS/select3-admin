@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { X, Upload, Trash2, Image as ImageIcon } from 'lucide-react'
+import { X, Upload, Trash2, Image as ImageIcon, Download, Link } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { uploadCityImagesFromUrls } from '@/features/regions/actions'
 
 interface CityImage {
   id: number
@@ -24,6 +25,7 @@ interface CityImage {
 interface CityImageManagerModalProps {
   isOpen: boolean
   onClose: () => void
+  onImageChanged?: () => void  // 이미지 변경 시 호출될 콜백
   cityKo: string | null
   cityEn: string | null
   cityCode: string | null
@@ -33,6 +35,7 @@ interface CityImageManagerModalProps {
 export default function CityImageManagerModal({
   isOpen,
   onClose,
+  onImageChanged,
   cityKo,
   cityEn,
   cityCode,
@@ -42,6 +45,10 @@ export default function CityImageManagerModal({
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState<number | null>(null)
+  
+  // URL 입력 관련 상태
+  const [urlInput, setUrlInput] = useState('')
+  const [urlUploading, setUrlUploading] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -124,6 +131,10 @@ export default function CityImageManagerModal({
       if (result.success) {
         alert('이미지가 업로드되었습니다.')
         await loadImages()
+        // ✅ 썸네일 새로고침을 위한 콜백 호출
+        if (onImageChanged) {
+          onImageChanged()
+        }
       } else {
         alert(result.error || '업로드에 실패했습니다.')
       }
@@ -153,6 +164,10 @@ export default function CityImageManagerModal({
       if (result.success) {
         alert('이미지가 삭제되었습니다.')
         setImages(prev => prev.filter(img => img.id !== image.id))
+        // ✅ 썸네일 새로고침을 위한 콜백 호출
+        if (onImageChanged) {
+          onImageChanged()
+        }
       } else {
         alert(result.error || '삭제에 실패했습니다.')
       }
@@ -161,6 +176,82 @@ export default function CityImageManagerModal({
       alert('삭제 중 오류가 발생했습니다.')
     } finally {
       setDeleting(null)
+    }
+  }
+
+  // URL에서 이미지 다운로드 핸들러
+  const handleUploadFromUrls = async () => {
+    if (!cityCode) {
+      alert('⚠️ City Code가 없어 URL 업로드를 진행할 수 없습니다.')
+      return
+    }
+
+    const urls = urlInput
+      .split('\n')
+      .map(u => u.trim())
+      .filter(u => u.length > 0)
+    
+    if (urls.length === 0) {
+      alert('⚠️ 업로드할 이미지 URL을 입력해주세요.')
+      return
+    }
+
+    const confirmed = confirm(
+      `${urls.length}개의 URL에서 이미지를 다운로드하여 저장하시겠습니까?\n\n` +
+      `도시 코드: ${cityCode}\n` +
+      `첫 번째 URL: ${urls[0]}\n` +
+      `${urls.length > 1 ? `...외 ${urls.length - 1}개` : ''}`
+    )
+
+    if (!confirmed) return
+
+    setUrlUploading(true)
+
+    try {
+      const result = await uploadCityImagesFromUrls({
+        cityCode,
+        cityKo: cityKo || undefined,
+        cityEn: cityEn || undefined,
+        urls
+      })
+
+      if (result.success && result.data) {
+        const { uploaded, total, results } = result.data
+        
+        // 에러 메시지 수집
+        const errors = results.filter(r => r.error)
+        
+        let message = `✅ ${uploaded}/${total}개 이미지 업로드 완료!`
+        
+        if (errors.length > 0) {
+          message += `\n\n⚠️ 실패한 항목 (${errors.length}개):\n`
+          errors.slice(0, 3).forEach(e => {
+            message += `• ${e.url.substring(0, 50)}...\n  → ${e.error}\n`
+          })
+          if (errors.length > 3) {
+            message += `...외 ${errors.length - 3}개`
+          }
+        }
+        
+        alert(message)
+        
+        // 성공한 경우 입력 필드 초기화 및 이미지 목록 새로고침
+        if (uploaded > 0) {
+          setUrlInput('')
+          await loadImages()
+          // ✅ 썸네일 새로고침을 위한 콜백 호출
+          if (onImageChanged) {
+            onImageChanged()
+          }
+        }
+      } else {
+        alert(`❌ 업로드 실패:\n${result.error || '알 수 없는 오류'}`)
+      }
+    } catch (error) {
+      console.error('[CityImageManager] URL upload error:', error)
+      alert(`❌ URL 업로드 중 오류가 발생했습니다:\n${error}`)
+    } finally {
+      setUrlUploading(false)
     }
   }
 
@@ -204,26 +295,23 @@ export default function CityImageManagerModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Upload Section */}
-          <div className={`mb-6 p-4 border-2 border-dashed rounded-lg ${
-            cityCode ? 'border-gray-300 bg-gray-50' : 'border-red-300 bg-red-50'
+          {/* ✅ 파일 업로드 섹션 */}
+          <div className={`mb-4 p-4 border-2 border-dashed rounded-lg ${
+            cityCode ? 'border-blue-300 bg-blue-50' : 'border-red-300 bg-red-50'
           }`}>
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <h3 className="font-medium text-gray-900 mb-1">이미지 업로드</h3>
+                <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-blue-600" />
+                  파일 업로드
+                </h3>
                 {cityCode ? (
                   <p className="text-sm text-gray-600">
-                    도시 대표 이미지를 업로드하세요 (최대 10MB, JPG/PNG/WebP)
-                    <br />
-                    <span className="text-xs text-blue-600 font-mono mt-1 inline-block">
-                      Storage: cities/{cityCode}/ 폴더에 저장됩니다
-                    </span>
+                    로컬 파일에서 이미지를 선택하여 업로드하세요 (최대 10MB)
                   </p>
                 ) : (
                   <p className="text-sm text-red-600">
                     ⚠️ 도시 코드가 설정되지 않았습니다.
-                    <br />
-                    먼저 도시 레코드의 "도시코드" 필드를 입력하고 저장해주세요.
                   </p>
                 )}
               </div>
@@ -252,7 +340,7 @@ export default function CityImageManagerModal({
                     ) : (
                       <>
                         <Upload className="h-4 w-4 mr-2" />
-                        이미지 선택
+                        파일 선택
                       </>
                     )}
                   </span>
@@ -260,6 +348,80 @@ export default function CityImageManagerModal({
               </div>
             </div>
           </div>
+
+          {/* ✅ URL 다운로드 섹션 */}
+          <div className={`mb-6 p-4 border-2 border-dashed rounded-lg ${
+            cityCode ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'
+          }`}>
+            <div className="space-y-3">
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                  <Link className="h-5 w-5 text-green-600" />
+                  URL에서 다운로드
+                </h3>
+                {cityCode ? (
+                  <p className="text-sm text-gray-600">
+                    이미지 URL을 입력하여 원격 이미지를 다운로드하세요 (최대 20개)
+                  </p>
+                ) : (
+                  <p className="text-sm text-red-600">
+                    ⚠️ 도시 코드가 설정되지 않았습니다.
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  이미지 URL (한 줄에 하나씩)
+                </label>
+                <textarea
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg&#10;https://example.com/image3.jpg"
+                  className="w-full h-28 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono text-sm resize-none"
+                  disabled={urlUploading || !cityCode}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 여러 URL을 한 줄씩 입력하면 일괄 다운로드됩니다.
+                </p>
+              </div>
+              
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  onClick={() => setUrlInput('')}
+                  variant="outline"
+                  size="sm"
+                  disabled={urlUploading || !urlInput.trim()}
+                >
+                  지우기
+                </Button>
+                <Button
+                  onClick={handleUploadFromUrls}
+                  size="sm"
+                  disabled={urlUploading || urlInput.trim().length === 0 || !cityCode}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {urlUploading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                      다운로드 중...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-3 w-3 mr-2" />
+                      다운로드 및 저장
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {cityCode && (
+            <p className="text-xs text-blue-600 font-mono mb-4">
+              Storage: cities/{cityCode}/ 폴더에 저장됩니다
+            </p>
+          )}
 
           {/* Images Grid */}
           {loading ? (
@@ -326,16 +488,61 @@ export default function CityImageManagerModal({
                     </div>
                     
                     {/* Info */}
-                    <div className="p-3">
-                      <p className="text-xs font-medium text-gray-900 truncate" title={image.file_name}>
-                        {image.file_name}
-                      </p>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-gray-500">
+                    <div className="p-3 space-y-2">
+                      {/* 파일명 */}
+                      <div className="pb-2 border-b border-gray-100">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs text-gray-500 font-medium">파일명</p>
+                          <span className="text-xs text-gray-400">#{image.image_seq || 1}</span>
+                        </div>
+                        <p className="text-xs font-mono text-gray-900 break-all" title={image.file_name}>
+                          {image.file_name}
+                        </p>
+                      </div>
+                      
+                      {/* Storage 경로 */}
+                      <div className="pb-2 border-b border-gray-100">
+                        <p className="text-xs text-gray-500 font-medium mb-1">Storage 경로</p>
+                        <div className="bg-gray-50 px-2 py-1.5 rounded">
+                          <p className="text-xs font-mono text-gray-700 break-all" title={image.file_path}>
+                            {image.file_path}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Public URL */}
+                      <div className="pb-2 border-b border-gray-100">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs text-gray-500 font-medium">Public URL</p>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              try {
+                                await navigator.clipboard.writeText(image.public_url)
+                                alert('✅ URL이 클립보드에 복사되었습니다!')
+                              } catch {
+                                alert('❌ 복사에 실패했습니다.')
+                              }
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                          >
+                            복사
+                          </button>
+                        </div>
+                        <div className="bg-blue-50 px-2 py-1.5 rounded">
+                          <p className="text-xs font-mono text-blue-900 break-all" title={image.public_url}>
+                            {image.public_url}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* 파일 정보 */}
+                      <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
+                        <span>
                           {image.file_size ? `${(image.file_size / 1024).toFixed(1)} KB` : '-'}
                         </span>
-                        <span className="text-xs text-gray-400">
-                          #{image.image_seq || 1}
+                        <span>
+                          {image.file_type || 'unknown'}
                         </span>
                       </div>
                     </div>
