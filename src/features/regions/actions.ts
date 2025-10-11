@@ -480,7 +480,7 @@ export async function upsertRegion(input: RegionFormInput & { id?: number }): Pr
 
     const payload: Record<string, unknown> = {
       region_type: input.region_type,
-      status: input.status || 'active',
+      status: input.status, // ✅ 자동 'active' 제거, 사용자가 설정한 값만 사용
       city_ko: normalizeString(input.city_ko),
       city_en: normalizeString(input.city_en),
       city_code: normalizeString((input as Record<string, unknown>).city_code as string),
@@ -507,8 +507,12 @@ export async function upsertRegion(input: RegionFormInput & { id?: number }): Pr
     console.log('[regions] upsertRegion input:', input)
     console.log('[regions] upsertRegion payload:', payload)
 
-    // ID가 없으면 코드 기준으로 기존 레코드 찾기
-    if (!input.id) {
+    // ✅ ID가 있으면 단순 upsert (코드 검색 없이)
+    if (input.id) {
+      console.log('[regions] ID provided, direct upsert to ID:', input.id)
+      payload.id = input.id
+    } else {
+      // ✅ ID가 없을 때만 코드 기준으로 기존 레코드 찾기
       let existingRecord = null
       
       // region_type별로 해당 코드로 기존 레코드 검색
@@ -545,31 +549,53 @@ export async function upsertRegion(input: RegionFormInput & { id?: number }): Pr
           .maybeSingle()
         existingRecord = data
       }
-
+      
       if (existingRecord) {
-        console.log('[regions] Found existing record by code, updating:', existingRecord.id)
+        console.log('[regions] Found existing record by code, will update:', existingRecord.id)
         payload.id = existingRecord.id
       }
-    } else {
-      payload.id = input.id
     }
+    // payload.id가 undefined면 새로 삽입
 
     console.log('[regions] upsertRegion final payload with id:', payload.id)
 
-    const { data, error } = await supabase
-      .from(TABLE)
-      .upsert(payload)
-      .select('*')
-      .single()
+    // ✅ ID 유무에 따라 명확하게 update/insert 분기
+    let data: SelectRegion | null = null
+    let error: any = null
+
+    if (payload.id) {
+      // ✅ ID가 있으면 UPDATE만 실행
+      console.log('[regions] Executing UPDATE for id:', payload.id)
+      const result = await supabase
+        .from(TABLE)
+        .update(payload)
+        .eq('id', payload.id)
+        .select('*')
+        .single()
+      
+      data = result.data
+      error = result.error
+    } else {
+      // ✅ ID가 없으면 INSERT만 실행
+      console.log('[regions] Executing INSERT (new record)')
+      const result = await supabase
+        .from(TABLE)
+        .insert(payload)
+        .select('*')
+        .single()
+      
+      data = result.data
+      error = result.error
+    }
 
     if (error) {
-      console.error('[regions] upsert error:', error)
-      console.error('[regions] upsert error code:', error.code)
-      console.error('[regions] upsert error details:', error.details)
+      console.error('[regions] operation error:', error)
+      console.error('[regions] operation error code:', error.code)
+      console.error('[regions] operation error details:', error.details)
       return { success: false, error: `저장에 실패했습니다: ${error.message}` }
     }
 
-    console.log('[regions] upsert success, inserted/updated record:', data)
+    console.log('[regions] operation success, result:', data)
     revalidatePath('/admin/region-mapping')
     return { success: true, data: data as SelectRegion }
   } catch (e) {

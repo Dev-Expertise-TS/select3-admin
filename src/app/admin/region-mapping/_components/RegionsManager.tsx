@@ -731,37 +731,64 @@ export function RegionsManager({ initialItems }: Props) {
   const handleSaveRow = async (row: SelectRegion) => {
     if (!confirm('현재 레코드 정보를 저장하시겠습니까?')) return
     
-    setLoading(true)
-    const input: RegionFormInput & { id?: number } = {
-      id: row.id,
-      region_type: row.region_type,
-      status: row.status || 'active',
-      city_ko: row.city_ko,
-      city_en: row.city_en,
-      city_code: row.city_code,
-      city_slug: row.city_slug,
-      city_sort_order: row.city_sort_order,
-      country_ko: row.country_ko,
-      country_en: row.country_en,
-      country_code: row.country_code,
-      country_slug: row.country_slug,
-      country_sort_order: row.country_sort_order,
-      continent_ko: row.continent_ko,
-      continent_en: row.continent_en,
-      continent_code: row.continent_code,
-      continent_slug: row.continent_slug,
-      continent_sort_order: row.continent_sort_order,
-      region_name_ko: row.region_name_ko,
-      region_name_en: row.region_name_en,
-      region_code: row.region_code,
-      region_slug: row.region_slug,
-      region_name_sort_order: row.region_name_sort_order,
+    // ✅ 안전 체크: row.id가 없으면 저장 중단
+    if (!row.id || typeof row.id !== 'number') {
+      console.error('[handleSaveRow] ERROR: Invalid row.id:', row.id)
+      alert('⚠️ 레코드 ID가 유효하지 않습니다.')
+      return
     }
+    
+    setLoading(true)
+    
+    // ✅ 편집 중인 row라면 editingData의 값을 병합
+    const isEditing = editingRowId === row.id
+    const mergedData = isEditing ? { ...row, ...editingData } : row
+    
+    console.log('[handleSaveRow] ===== SAVE ROW DEBUG =====')
+    console.log('[handleSaveRow] row.id:', row.id, 'type:', typeof row.id)
+    console.log('[handleSaveRow] isEditing:', isEditing)
+    console.log('[handleSaveRow] editingData:', editingData)
+    console.log('[handleSaveRow] mergedData.id:', mergedData.id)
+    console.log('[handleSaveRow] mergedData.status:', mergedData.status)
+    console.log('[handleSaveRow] ===============================')
+    
+    const input: RegionFormInput & { id?: number } = {
+      id: row.id, // ✅ row.id를 직접 사용 (병합된 데이터 ID가 아닌 원본 row.id)
+      region_type: mergedData.region_type,
+      status: mergedData.status, // ✅ 자동 'active' 제거
+      city_ko: mergedData.city_ko,
+      city_en: mergedData.city_en,
+      city_code: mergedData.city_code,
+      city_slug: mergedData.city_slug,
+      city_sort_order: mergedData.city_sort_order,
+      country_ko: mergedData.country_ko,
+      country_en: mergedData.country_en,
+      country_code: mergedData.country_code,
+      country_slug: mergedData.country_slug,
+      country_sort_order: mergedData.country_sort_order,
+      continent_ko: mergedData.continent_ko,
+      continent_en: mergedData.continent_en,
+      continent_code: mergedData.continent_code,
+      continent_slug: mergedData.continent_slug,
+      continent_sort_order: mergedData.continent_sort_order,
+      region_name_ko: mergedData.region_name_ko,
+      region_name_en: mergedData.region_name_en,
+      region_code: mergedData.region_code,
+      region_slug: mergedData.region_slug,
+      region_name_sort_order: mergedData.region_name_sort_order,
+    }
+
+    console.log('[handleSaveRow] Saving with input.id:', input.id, 'status:', input.status)
 
     const res = await upsertRegion(input)
     setLoading(false)
 
     if (res.success) {
+      // ✅ 저장 성공 시 편집 모드 해제
+      if (isEditing) {
+        setEditingRowId(null)
+        setEditingData({})
+      }
       await refreshData()
       alert('저장되었습니다.')
     } else {
@@ -827,9 +854,30 @@ export function RegionsManager({ initialItems }: Props) {
     }
 
     setLoading(true)
+    
+    // ✅ ID 명확하게 결정 (editingData.id 또는 editingRowId)
+    let targetId: number | undefined = undefined
+    
+    if (editingRowId !== 'new' && typeof editingRowId === 'number') {
+      targetId = editingRowId
+    } else if (typeof editingData.id === 'number') {
+      targetId = editingData.id
+    }
+    
+    // ✅ 안전장치: ID가 없으면 저장 중단 (신규 생성 제외)
+    if (editingRowId !== 'new' && !targetId) {
+      console.error('[RegionsManager] ERROR: No valid ID found!')
+      console.error('[RegionsManager] editingRowId:', editingRowId)
+      console.error('[RegionsManager] editingData.id:', editingData.id)
+      alert('⚠️ 레코드 ID를 찾을 수 없습니다. 페이지를 새로고침 후 다시 시도해주세요.')
+      setLoading(false)
+      return
+    }
+    
     const input: RegionFormInput & { id?: number } = {
+      id: targetId, // ✅ ID 먼저 설정
       region_type: editingData.region_type,
-      status: editingData.status || 'active',
+      status: editingData.status, // ✅ 자동 'active' 제거
       city_ko: editingData.city_ko,
       city_en: editingData.city_en,
       city_code: editingData.city_code,
@@ -852,13 +900,14 @@ export function RegionsManager({ initialItems }: Props) {
       region_name_sort_order: editingData.region_name_sort_order,
     }
 
-    if (editingRowId !== 'new' && typeof editingRowId === 'number') {
-      input.id = editingRowId
-    }
-
-    console.log('[RegionsManager] editingRowId:', editingRowId)
-    console.log('[RegionsManager] Saving with input:', input)
-    console.log('[RegionsManager] Region type:', input.region_type)
+    console.log('[RegionsManager] ===== SAVE EDIT DEBUG =====')
+    console.log('[RegionsManager] editingRowId:', editingRowId, 'type:', typeof editingRowId)
+    console.log('[RegionsManager] editingData.id:', editingData.id, 'type:', typeof editingData.id)
+    console.log('[RegionsManager] targetId:', targetId, 'type:', typeof targetId)
+    console.log('[RegionsManager] Saving with input.id:', input.id)
+    console.log('[RegionsManager] input.status:', input.status)
+    console.log('[RegionsManager] Full input:', input)
+    console.log('[RegionsManager] =============================')
     
     if (input.region_type === 'city') {
       console.log('[RegionsManager] City fields:', {
@@ -882,11 +931,11 @@ export function RegionsManager({ initialItems }: Props) {
 
     if (res.success) {
       console.log('[RegionsManager] Save successful:', res.data)
-      await refreshData()
+          await refreshData()
       setEditingRowId(null)
       setEditingData({})
       alert('저장되었습니다.')
-    } else {
+        } else {
       console.error('[RegionsManager] Save failed:', res.error)
       alert(res.error || '저장 실패')
     }
@@ -1277,12 +1326,94 @@ export function RegionsManager({ initialItems }: Props) {
         )
       }
       if (columnKey === 'status') {
+        // ✅ 스위치 UI로 표시 (일반 모드에서도 바로 토글 가능)
+        const isActive = value === 'active'
         return (
-          <span className={`px-2 py-1 rounded text-xs font-medium ${
-            value === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-          }`}>
-            {value === 'active' ? '활성' : '비활성'}
-          </span>
+          <button
+            onClick={async (e) => {
+              e.stopPropagation()
+              
+              // ✅ 안전 체크: row.id가 없으면 실행 중단
+              if (!row.id || typeof row.id !== 'number') {
+                console.error('[Status Toggle] ERROR: Invalid row.id:', row.id)
+                alert('⚠️ 레코드 ID가 유효하지 않습니다.')
+                return
+              }
+              
+              const newStatus = isActive ? 'inactive' : 'active'
+              console.log('[Status Toggle] ===== STATUS TOGGLE DEBUG =====')
+              console.log('[Status Toggle] Row ID:', row.id, 'Type:', typeof row.id)
+              console.log('[Status Toggle] From:', value, 'To:', newStatus)
+              console.log('[Status Toggle] row.region_type:', row.region_type)
+              console.log('[Status Toggle] ===================================')
+              
+              // 즉시 상태 업데이트
+              if (!confirm(`상태를 ${isActive ? '비활성' : '활성'}으로 변경하시겠습니까?`)) return
+              
+              // ✅ 먼저 로컬 상태 즉시 업데이트
+              setItems(prev => prev.map(item => 
+                item.id === row.id && item.region_type === row.region_type
+                  ? { ...item, status: newStatus }
+                  : item
+              ))
+              
+              setLoading(true)
+              const input: RegionFormInput & { id?: number } = {
+                id: row.id, // ✅ row.id 직접 사용
+                region_type: row.region_type,
+                status: newStatus,
+                city_ko: row.city_ko,
+                city_en: row.city_en,
+                city_code: row.city_code,
+                city_slug: row.city_slug,
+                city_sort_order: row.city_sort_order,
+                country_ko: row.country_ko,
+                country_en: row.country_en,
+                country_code: row.country_code,
+                country_slug: row.country_slug,
+                country_sort_order: row.country_sort_order,
+                continent_ko: row.continent_ko,
+                continent_en: row.continent_en,
+                continent_code: row.continent_code,
+                continent_slug: row.continent_slug,
+                continent_sort_order: row.continent_sort_order,
+                region_name_ko: row.region_name_ko,
+                region_name_en: row.region_name_en,
+                region_code: row.region_code,
+                region_slug: row.region_slug,
+                region_name_sort_order: row.region_name_sort_order,
+              }
+              
+              console.log('[Status Toggle] Saving with payload:', input)
+              const res = await upsertRegion(input)
+              
+              if (res.success) {
+                console.log('[Status Toggle] Save success!')
+                // ✅ refreshData 대신 성공 메시지만 표시 (이미 로컬 상태 업데이트됨)
+                alert(`상태가 ${newStatus === 'active' ? '활성' : '비활성'}으로 변경되었습니다.`)
+              } else {
+                console.error('[Status Toggle] Save failed:', res.error)
+                alert(res.error || '상태 변경 실패')
+                // ✅ 실패 시 원래 상태로 롤백
+                setItems(prev => prev.map(item => 
+                  item.id === row.id && item.region_type === row.region_type
+                    ? { ...item, status: value }
+                    : item
+                ))
+              }
+              setLoading(false)
+            }}
+            disabled={loading}
+            className="relative inline-flex items-center h-5 w-9 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: isActive ? '#10b981' : '#d1d5db' }}
+            title={`클릭하여 ${isActive ? '비활성' : '활성'}으로 변경`}
+          >
+            <span
+              className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                isActive ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </button>
         )
       }
       // 상위 지역 필드는 회색으로 표시
@@ -1294,11 +1425,34 @@ export function RegionsManager({ initialItems }: Props) {
 
     // 편집 모드
     if (columnKey === 'id' || columnKey === 'region_type' || columnKey === 'thumbnail') {
-      // thumbnail은 편집 불가, 읽기 전용
+      // ✅ thumbnail은 편집 모드에서도 동일하게 표시 (읽기 전용)
       if (columnKey === 'thumbnail') {
+        const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
+        const thumbnailUrl = thumbnailCache[cacheKey]
+        const isLoading = loadingThumbnails.has(cacheKey)
+        
         return (
-          <div className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
-            <ImageIcon className="h-6 w-6 text-gray-300" />
+          <div 
+            className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors overflow-hidden"
+            onClick={(e) => {
+              e.stopPropagation() // 편집 모드에서도 클릭 가능
+              setImageModalCity({
+                cityKo: row.city_ko,
+                cityEn: row.city_en,
+                cityCode: row.city_code ?? null,
+                citySlug: row.city_code ?? null
+              })
+              setShowImageModal(true)
+            }}
+            title="클릭하여 이미지 관리"
+          >
+            {isLoading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400"></div>
+            ) : thumbnailUrl ? (
+              <img src={thumbnailUrl} alt={row.city_ko || row.city_en || ''} className="w-full h-full object-cover" />
+            ) : (
+              <ImageIcon className="h-6 w-6 text-gray-400" />
+            )}
           </div>
         )
       }
@@ -1306,15 +1460,29 @@ export function RegionsManager({ initialItems }: Props) {
     }
 
     if (columnKey === 'status') {
+      // ✅ 편집 모드에서도 스위치 UI 사용
+      const currentStatus = editingData.status ?? row.status ?? 'active'
+      const isActive = currentStatus === 'active'
+      
       return (
-        <select
-          value={String(editingData.status ?? 'active')}
-          onChange={(e) => setEditingData(prev => ({ ...prev, status: e.target.value as RegionStatus }))}
-          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            const newStatus = isActive ? 'inactive' : 'active'
+            console.log('[Status Edit] From:', currentStatus, 'To:', newStatus)
+            setEditingData(prev => ({ ...prev, status: newStatus }))
+          }}
+          className="relative inline-flex items-center h-5 w-9 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+          style={{ backgroundColor: isActive ? '#10b981' : '#d1d5db' }}
+          title={`클릭하여 ${isActive ? '비활성' : '활성'}으로 변경`}
         >
-          <option value="active">활성</option>
-          <option value="inactive">비활성</option>
-        </select>
+          <span
+            className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+              isActive ? 'translate-x-5' : 'translate-x-1'
+            }`}
+          />
+        </button>
       )
     }
 
