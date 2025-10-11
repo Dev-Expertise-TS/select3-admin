@@ -53,16 +53,14 @@ function guessContinentCode(continentEnOrKo: string): string | null {
   return null
 }
 
-function eqOrIsNull<T extends { eq: Function; is: Function }>(
+function eqOrIsNull<T extends { eq: (col: string, val: unknown) => T; is: (col: string, val: null) => T }>(
   q: T,
   column: string,
   value: unknown
-) {
+): T {
   if (value === null || value === undefined) {
-    // @ts-expect-error runtime chaining
     return q.is(column, null)
   }
-  // @ts-expect-error runtime chaining
   return q.eq(column, value)
 }
 
@@ -485,34 +483,78 @@ export async function upsertRegion(input: RegionFormInput & { id?: number }): Pr
       status: input.status || 'active',
       city_ko: normalizeString(input.city_ko),
       city_en: normalizeString(input.city_en),
-      city_code: normalizeString((input as any).city_code),
-      city_slug: normalizeString((input as any).city_slug),
+      city_code: normalizeString((input as Record<string, unknown>).city_code as string),
+      city_slug: normalizeString((input as Record<string, unknown>).city_slug as string),
       city_sort_order: normalizeNumber(input.city_sort_order),
       country_ko: normalizeString(input.country_ko),
       country_en: normalizeString(input.country_en),
-      country_code: normalizeString((input as any).country_code),
-      country_slug: normalizeString((input as any).country_slug),
+      country_code: normalizeString((input as Record<string, unknown>).country_code as string),
+      country_slug: normalizeString((input as Record<string, unknown>).country_slug as string),
       country_sort_order: normalizeNumber(input.country_sort_order),
       continent_ko: normalizeString(input.continent_ko),
       continent_en: normalizeString(input.continent_en),
-      continent_code: normalizeString((input as any).continent_code),
-      continent_slug: normalizeString((input as any).continent_slug),
+      continent_code: normalizeString((input as Record<string, unknown>).continent_code as string),
+      continent_slug: normalizeString((input as Record<string, unknown>).continent_slug as string),
       continent_sort_order: normalizeNumber(input.continent_sort_order),
       region_name_ko: normalizeString(input.region_name_ko),
       region_name_en: normalizeString(input.region_name_en),
-      region_code: normalizeString((input as any).region_code),
-      region_slug: normalizeString((input as any).region_slug),
+      region_code: normalizeString((input as Record<string, unknown>).region_code as string),
+      region_slug: normalizeString((input as Record<string, unknown>).region_slug as string),
       region_name_sort_order: normalizeNumber(input.region_name_sort_order),
       updated_at: new Date().toISOString(),
     }
 
-    if (input.id) {
+    console.log('[regions] upsertRegion input:', input)
+    console.log('[regions] upsertRegion payload:', payload)
+
+    // ID가 없으면 코드 기준으로 기존 레코드 찾기
+    if (!input.id) {
+      let existingRecord = null
+      
+      // region_type별로 해당 코드로 기존 레코드 검색
+      if (input.region_type === 'city' && payload.city_code) {
+        const { data } = await supabase
+          .from(TABLE)
+          .select('id')
+          .eq('region_type', 'city')
+          .eq('city_code', payload.city_code)
+          .maybeSingle()
+        existingRecord = data
+      } else if (input.region_type === 'country' && payload.country_code) {
+        const { data } = await supabase
+          .from(TABLE)
+          .select('id')
+          .eq('region_type', 'country')
+          .eq('country_code', payload.country_code)
+          .maybeSingle()
+        existingRecord = data
+      } else if (input.region_type === 'continent' && payload.continent_code) {
+        const { data } = await supabase
+          .from(TABLE)
+          .select('id')
+          .eq('region_type', 'continent')
+          .eq('continent_code', payload.continent_code)
+          .maybeSingle()
+        existingRecord = data
+      } else if (input.region_type === 'region' && payload.region_code) {
+        const { data } = await supabase
+          .from(TABLE)
+          .select('id')
+          .eq('region_type', 'region')
+          .eq('region_code', payload.region_code)
+          .maybeSingle()
+        existingRecord = data
+      }
+
+      if (existingRecord) {
+        console.log('[regions] Found existing record by code, updating:', existingRecord.id)
+        payload.id = existingRecord.id
+      }
+    } else {
       payload.id = input.id
     }
 
-    console.log('[regions] upsertRegion input:', input)
-    console.log('[regions] upsertRegion payload:', payload)
-    console.log('[regions] upsertRegion has id:', !!input.id)
+    console.log('[regions] upsertRegion final payload with id:', payload.id)
 
     const { data, error } = await supabase
       .from(TABLE)

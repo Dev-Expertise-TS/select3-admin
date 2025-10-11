@@ -38,9 +38,24 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const { data, error, count } = await query
-      .order(String(sortKey), { ascending: sortOrder === 'asc' })
-      .range(from, to)
+    // type별로 적절한 sort_order 컬럼으로 정렬 (우선순위 1)
+    // status 우선 → sort_order → id 순서로 정렬
+    query = query.order('status', { ascending: false, nullsFirst: false }) // active가 먼저
+    
+    if (type === 'city') {
+      query = query.order('city_sort_order', { ascending: true, nullsFirst: false })
+    } else if (type === 'country') {
+      query = query.order('country_sort_order', { ascending: true, nullsFirst: false })
+    } else if (type === 'continent') {
+      query = query.order('continent_sort_order', { ascending: true, nullsFirst: false })
+    } else if (type === 'region') {
+      query = query.order('region_name_sort_order', { ascending: true, nullsFirst: false })
+    }
+    
+    // 마지막 정렬: id 내림차순 (최신순)
+    query = query.order('id', { ascending: false })
+
+    const { data, error, count } = await query.range(from, to)
 
     if (error) {
       return Response.json(

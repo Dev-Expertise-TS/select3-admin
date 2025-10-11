@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, Save, X, Trash2, Link2, Eye, Loader2, PlusCircle, Edit, GripVertical } from 'lucide-react'
+import { Plus, Save, X, Trash2, Link2, Loader2, PlusCircle, Edit, GripVertical, Image as ImageIcon } from 'lucide-react'
 import type { SelectRegion, RegionFormInput, RegionType, MappedHotel, RegionStatus } from '@/types/regions'
 import { upsertRegion, deleteRegion, upsertCitiesFromHotels, upsertCountriesFromHotels, upsertContinentsFromHotels, fillRegionSlugsAndCodes, fillCityCodesAndSlugs, fillCountryCodesAndSlugs, fillContinentCodesAndSlugs, forceUpdateAllCityCodes, getMappedHotels, bulkUpdateHotelRegionCodes } from '@/features/regions/actions'
 import { HotelSearchSelector } from '@/components/shared/hotel-search-selector'
+import CityImageManagerModal from './CityImageManagerModal'
 import {
   DndContext,
   closestCenter,
@@ -45,6 +46,7 @@ type SortableRowProps = {
   onEdit: (row: SelectRegion) => void
   onSaveRow: (row: SelectRegion) => void
   onDelete: (row: SelectRegion) => void
+  onImageManage: (row: SelectRegion) => void
   loading: boolean
 }
 
@@ -60,6 +62,7 @@ function SortableRow({
   onEdit,
   onSaveRow,
   onDelete,
+  onImageManage,
   loading,
 }: SortableRowProps) {
   const {
@@ -69,7 +72,7 @@ function SortableRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: row.id })
+  } = useSortable({ id: `${row.region_type}-${row.id}` })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -111,7 +114,7 @@ function SortableRow({
             {/* 편집 모드에서는 드래그 비활성화 */}
           </div>
         ) : (
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             <Button
               onClick={(e) => {
                 e.stopPropagation()
@@ -125,6 +128,21 @@ function SortableRow({
             >
               <Link2 className="h-3 w-3" />
             </Button>
+            {selectedType === 'city' && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onImageManage(row)
+                }}
+                size="sm"
+                variant="outline"
+                className="bg-purple-50 text-purple-600 hover:bg-purple-100"
+                disabled={editingRowId !== null}
+                title="이미지 관리"
+              >
+                <ImageIcon className="h-3 w-3" />
+              </Button>
+            )}
             <Button
               onClick={(e) => {
                 e.stopPropagation()
@@ -191,6 +209,58 @@ export function RegionsManager({ initialItems }: Props) {
   const [continentOptions, setContinentOptions] = useState<SelectRegion[]>([])
   const [regionOptions, setRegionOptions] = useState<SelectRegion[]>([])
   
+  // 도시 이미지 관리 모달
+  const [showImageModal, setShowImageModal] = useState(false)
+  const [imageModalCity, setImageModalCity] = useState<{
+    cityKo: string | null
+    cityEn: string | null
+    cityCode: string | null
+    citySlug: string | null
+  } | null>(null)
+  
+  // 썸네일 URL 캐시 (key: citySlug 또는 cityKo, value: url)
+  const [thumbnailCache, setThumbnailCache] = useState<Record<string, string>>({})
+  // 로딩 중인 썸네일 추적 (중복 요청 방지)
+  const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set())
+  
+  // 썸네일 로드 함수
+  const loadThumbnail = async (cacheKey: string, cityCode: string | null, cityKo: string | null, cityEn: string | null) => {
+    // 이미 로딩 중이거나 캐시에 있으면 스킵
+    if (loadingThumbnails.has(cacheKey) || thumbnailCache[cacheKey] !== undefined) {
+      return
+    }
+    
+    if (!cityCode && !cityKo && !cityEn) return
+    
+    // 로딩 시작
+    setLoadingThumbnails(prev => new Set(prev).add(cacheKey))
+    
+    const searchParam = cityCode ? `cityCode=${encodeURIComponent(cityCode)}`
+      : cityKo ? `cityKo=${encodeURIComponent(cityKo)}`
+      : `cityEn=${encodeURIComponent(cityEn || '')}`
+    
+    try {
+      const response = await fetch(`/api/city-images/first?${searchParam}`)
+      const result = await response.json()
+      
+      // 결과가 있든 없든 캐시에 저장 (빈 문자열이라도)
+      setThumbnailCache(prev => ({ 
+        ...prev, 
+        [cacheKey]: result.url || '' 
+      }))
+    } catch (error) {
+      console.error('[RegionsManager] Thumbnail fetch error:', error)
+      setThumbnailCache(prev => ({ ...prev, [cacheKey]: '' }))
+    } finally {
+      // 로딩 완료
+      setLoadingThumbnails(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(cacheKey)
+        return newSet
+      })
+    }
+  }
+  
   // 드래그앤 드롭 센서
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -221,6 +291,7 @@ export function RegionsManager({ initialItems }: Props) {
       return [
         ...base,
         { key: 'city_sort_order', label: '순서', width: '70px' },
+        { key: 'thumbnail', label: '썸네일', width: '100px' },
         { key: 'city_ko', label: '도시(한)', width: '100px' },
         { key: 'city_en', label: '도시(영)', width: '100px' },
         { key: 'city_code', label: '도시코드', width: '80px' },
@@ -329,47 +400,26 @@ export function RegionsManager({ initialItems }: Props) {
           console.log('[RegionsManager] Fetched data sample:', regionData.slice(0, 3).map(r => ({
             id: r.id,
             status: r.status,
-            city_ko: r.city_ko
+            city_ko: r.city_ko,
+            city_sort_order: r.city_sort_order
           })))
           
-          // 정렬: 1) status (active 우선) → 2) sort_order (오름차순) → 3) id (최신순)
-          const sorted = regionData.sort((a, b) => {
-            const statusA = a.status || 'active'
-            const statusB = b.status || 'active'
-            
-            // 1순위: status
-            if (statusA === 'active' && statusB !== 'active') return -1
-            if (statusA !== 'active' && statusB === 'active') return 1
-            
-            // 2순위: sort_order (타입별로 다른 컬럼 사용)
-            let sortOrderA: number | null = null
-            let sortOrderB: number | null = null
-            
-            if (selectedType === 'city') {
-              sortOrderA = a.city_sort_order
-              sortOrderB = b.city_sort_order
-            } else if (selectedType === 'country') {
-              sortOrderA = a.country_sort_order
-              sortOrderB = b.country_sort_order
-            } else if (selectedType === 'continent') {
-              sortOrderA = a.continent_sort_order
-              sortOrderB = b.continent_sort_order
-            } else if (selectedType === 'region') {
-              sortOrderA = a.region_name_sort_order
-              sortOrderB = b.region_name_sort_order
+          // API에서 이미 정렬되어 옴 (status → sort_order → id)
+          // 중복 제거만 수행
+          const uniqueData = regionData.reduce((acc: SelectRegion[], current) => {
+            const isDuplicate = acc.some(item => 
+              item.id === current.id && item.region_type === current.region_type
+            )
+            if (!isDuplicate) {
+              acc.push(current)
+            } else {
+              console.warn(`[RegionsManager] Duplicate in fetched data: ${current.region_type}-${current.id}`)
             }
-            
-            // null은 맨 뒤로
-            if (sortOrderA != null && sortOrderB == null) return -1
-            if (sortOrderA == null && sortOrderB != null) return 1
-            if (sortOrderA != null && sortOrderB != null) {
-              if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB
-            }
-            
-            // 3순위: id 역순 (최신순)
-            return b.id - a.id
-          })
-          setItems(sorted)
+            return acc
+          }, [])
+          
+          console.log('[RegionsManager] Final data (after dedup):', uniqueData.length, 'items')
+          setItems(uniqueData)
         }
       } catch {
         // ignore
@@ -425,10 +475,36 @@ export function RegionsManager({ initialItems }: Props) {
       status: i.status,
       city_ko: i.city_ko 
     })))
+    
+    // 중복 제거 (region_type + id 조합으로 고유성 보장)
+    const uniqueFiltered = filtered.reduce((acc: SelectRegion[], current) => {
+      const isDuplicate = acc.some(item => 
+        item.id === current.id && item.region_type === current.region_type
+      )
+      if (!isDuplicate) {
+        acc.push(current)
+      } else {
+        console.warn(`[RegionsManager] Duplicate found and removed: ${current.region_type}-${current.id}`)
+      }
+      return acc
+    }, [])
+    
+    console.log('[RegionsManager] After deduplication:', uniqueFiltered.length, 'items')
     console.log('[RegionsManager] === FILTER DEBUG END ===')
     
-    return filtered
+    return uniqueFiltered
   }, [items, statusFilter])
+
+  // 썸네일 미리 로드 (filteredItems 변경 시)
+  useEffect(() => {
+    if (selectedType === 'city') {
+      filteredItems.forEach(row => {
+        const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
+        loadThumbnail(cacheKey, row.city_code ?? null, row.city_ko, row.city_en)
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredItems, selectedType])
 
   // 드래그 종료 핸들러
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -437,11 +513,20 @@ export function RegionsManager({ initialItems }: Props) {
     if (over && active.id !== over.id) {
       console.log('[RegionsManager] Drag ended:', { activeId: active.id, overId: over.id })
       
+      // ID 형식이 "${region_type}-${id}"이므로 실제 ID 추출
+      const extractId = (compositeId: string | number): number => {
+        const id = String(compositeId).split('-').pop()
+        return parseInt(id || '0')
+      }
+      
+      const activeId = extractId(active.id)
+      const overId = extractId(over.id)
+      
       let updatedItems: SelectRegion[] = []
       
       setItems((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id)
-        const newIndex = items.findIndex((item) => item.id === over.id)
+        const oldIndex = items.findIndex((item) => item.id === activeId)
+        const newIndex = items.findIndex((item) => item.id === overId)
 
         const newItems = arrayMove(items, oldIndex, newIndex)
         
@@ -537,54 +622,7 @@ export function RegionsManager({ initialItems }: Props) {
     }
   }
 
-  // 순서 일괄 저장
-  const handleSaveOrder = async () => {
-    if (!confirm('현재 순서로 저장하시겠습니까?\n\n모든 항목의 순서가 업데이트됩니다.')) return
-
-    setIsSavingOrder(true)
-    let successCount = 0
-    let errorCount = 0
-
-    for (const item of filteredItems) {
-      const input: RegionFormInput & { id?: number } = {
-        id: item.id,
-        region_type: item.region_type,
-        status: item.status,
-        city_ko: item.city_ko,
-        city_en: item.city_en,
-        city_code: item.city_code,
-        city_slug: item.city_slug,
-        city_sort_order: item.city_sort_order,
-        country_ko: item.country_ko,
-        country_en: item.country_en,
-        country_code: item.country_code,
-        country_slug: item.country_slug,
-        country_sort_order: item.country_sort_order,
-        continent_ko: item.continent_ko,
-        continent_en: item.continent_en,
-        continent_code: item.continent_code,
-        continent_slug: item.continent_slug,
-        continent_sort_order: item.continent_sort_order,
-        region_name_ko: item.region_name_ko,
-        region_name_en: item.region_name_en,
-        region_code: item.region_code,
-        region_slug: item.region_slug,
-        region_name_sort_order: item.region_name_sort_order,
-      }
-
-      const res = await upsertRegion(input)
-      if (res.success) {
-        successCount++
-      } else {
-        errorCount++
-      }
-    }
-
-    setIsSavingOrder(false)
-    await refreshData()
-    
-    alert(`순서 저장 완료!\n\n성공: ${successCount}개\n실패: ${errorCount}개`)
-  }
+  // handleSaveOrder 함수 제거됨 (드래그 앤 드롭 자동 저장으로 대체)
 
   const handleAdd = async () => {
     if (!confirm('호텔 테이블의 도시명을 수집하여 지역(city)으로 upsert 하시겠습니까?')) return
@@ -635,6 +673,16 @@ export function RegionsManager({ initialItems }: Props) {
     } else {
       alert(res.error || '삭제 실패')
     }
+  }
+
+  const handleImageManage = (row: SelectRegion) => {
+    setImageModalCity({
+      cityKo: row.city_ko,
+      cityEn: row.city_en,
+      cityCode: row.city_code ?? null,
+      citySlug: row.city_code ?? null  // city_slug 컬럼이 없으므로 city_code 사용
+    })
+    setShowImageModal(true)
   }
 
   const handleSaveRow = async (row: SelectRegion) => {
@@ -835,44 +883,22 @@ export function RegionsManager({ initialItems }: Props) {
       const data = await response.json()
       if (data.success && Array.isArray(data.data)) {
         const regionData = data.data as SelectRegion[]
-        // 정렬: 1) status (active 우선) → 2) sort_order (오름차순) → 3) id (최신순)
-        const sorted = regionData.sort((a, b) => {
-          const statusA = a.status || 'active'
-          const statusB = b.status || 'active'
-          
-          // 1순위: status
-          if (statusA === 'active' && statusB !== 'active') return -1
-          if (statusA !== 'active' && statusB === 'active') return 1
-          
-          // 2순위: sort_order (타입별로 다른 컬럼 사용)
-          let sortOrderA: number | null = null
-          let sortOrderB: number | null = null
-          
-          if (selectedType === 'city') {
-            sortOrderA = a.city_sort_order
-            sortOrderB = b.city_sort_order
-          } else if (selectedType === 'country') {
-            sortOrderA = a.country_sort_order
-            sortOrderB = b.country_sort_order
-          } else if (selectedType === 'continent') {
-            sortOrderA = a.continent_sort_order
-            sortOrderB = b.continent_sort_order
-          } else if (selectedType === 'region') {
-            sortOrderA = a.region_name_sort_order
-            sortOrderB = b.region_name_sort_order
+        
+        // API에서 이미 정렬되어 옴 (status → sort_order → id)
+        // 중복 제거만 수행
+        const uniqueData = regionData.reduce((acc: SelectRegion[], current) => {
+          const isDuplicate = acc.some(item => 
+            item.id === current.id && item.region_type === current.region_type
+          )
+          if (!isDuplicate) {
+            acc.push(current)
+          } else {
+            console.warn(`[RegionsManager] Duplicate in refreshData: ${current.region_type}-${current.id}`)
           }
-          
-          // null은 맨 뒤로
-          if (sortOrderA != null && sortOrderB == null) return -1
-          if (sortOrderA == null && sortOrderB != null) return 1
-          if (sortOrderA != null && sortOrderB != null) {
-            if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB
-          }
-          
-          // 3순위: id 역순 (최신순)
-          return b.id - a.id
-        })
-        setItems(sorted)
+          return acc
+        }, [])
+        
+        setItems(uniqueData)
       }
     } catch (error) {
       console.error('Failed to refresh data:', error)
@@ -1169,6 +1195,37 @@ export function RegionsManager({ initialItems }: Props) {
     const value = (row as any)[columnKey]
 
     if (!isEditing) {
+      if (columnKey === 'thumbnail') {
+        // 썸네일은 city 타입일 때만 표시
+        // 고유한 캐시 키 생성 (region_type-id 조합으로 완전히 고유하게)
+        const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
+        const thumbnailUrl = thumbnailCache[cacheKey]
+        const isLoading = loadingThumbnails.has(cacheKey)
+        
+        return (
+          <div 
+            className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors overflow-hidden"
+            onClick={() => {
+              setImageModalCity({
+                cityKo: row.city_ko,
+                cityEn: row.city_en,
+                cityCode: row.city_code ?? null,
+                citySlug: row.city_code ?? null
+              })
+              setShowImageModal(true)
+            }}
+            title="클릭하여 이미지 관리"
+          >
+            {isLoading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400"></div>
+            ) : thumbnailUrl ? (
+              <img src={thumbnailUrl} alt={row.city_ko || row.city_en || ''} className="w-full h-full object-cover" />
+            ) : (
+              <ImageIcon className="h-6 w-6 text-gray-400" />
+            )}
+          </div>
+        )
+      }
       if (columnKey === 'status') {
         return (
           <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -1186,7 +1243,15 @@ export function RegionsManager({ initialItems }: Props) {
     }
 
     // 편집 모드
-    if (columnKey === 'id' || columnKey === 'region_type') {
+    if (columnKey === 'id' || columnKey === 'region_type' || columnKey === 'thumbnail') {
+      // thumbnail은 편집 불가, 읽기 전용
+      if (columnKey === 'thumbnail') {
+        return (
+          <div className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
+            <ImageIcon className="h-6 w-6 text-gray-300" />
+          </div>
+        )
+      }
       return <span className="text-gray-500">{value ?? '-'}</span>
     }
 
@@ -2081,30 +2146,6 @@ export function RegionsManager({ initialItems }: Props) {
           <span className="ml-2">신규 행 추가</span>
         </Button>
 
-        <Button 
-          onClick={handleSaveOrder} 
-          className="ml-2 bg-indigo-600 hover:bg-indigo-700" 
-          disabled={editingRowId !== null || loading || isSavingOrder || filteredItems.length === 0}
-        >
-          {isSavingOrder ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="ml-2">저장 중...</span>
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" />
-              <span className="ml-2">순서 수동 저장</span>
-            </>
-          )}
-        </Button>
-        
-        {isSavingOrder && (
-          <span className="ml-2 text-sm text-indigo-600 animate-pulse">
-            순서 저장 중...
-          </span>
-        )}
-
         {selectedType === 'city' && (
           <>
             <Button onClick={handleAdd} className="ml-2" disabled={editingRowId !== null}>
@@ -2256,33 +2297,33 @@ export function RegionsManager({ initialItems }: Props) {
       {/* 인라인 에디터 테이블 */}
       <div className="border rounded-lg overflow-hidden bg-white shadow">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-gray-100 border-b">
-              <tr>
-                <th className="border p-2 text-center font-medium text-gray-700" style={{ width: '40px' }}>
-                  <GripVertical className="h-4 w-4 text-gray-400 mx-auto" />
-                </th>
-                {columns.map((col) => (
-                  <th 
-                    key={col.key} 
-                    className="border p-2 text-left font-medium text-gray-700"
-                    style={{ width: col.width }}
-                  >
-                    {col.label}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-gray-100 border-b">
+                <tr>
+                  <th className="border p-2 text-center font-medium text-gray-700" style={{ width: '40px' }}>
+                    <GripVertical className="h-4 w-4 text-gray-400 mx-auto" />
                   </th>
-                ))}
-                <th className="border p-2 text-left font-medium text-gray-700" style={{ width: '180px' }}>
-                  작업
-                </th>
-              </tr>
-            </thead>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
+                  {columns.map((col) => (
+                    <th 
+                      key={col.key} 
+                      className="border p-2 text-left font-medium text-gray-700"
+                      style={{ width: col.width }}
+                    >
+                      {col.label}
+                    </th>
+                  ))}
+                  <th className="border p-2 text-left font-medium text-gray-700" style={{ width: '180px' }}>
+                    작업
+                  </th>
+                </tr>
+              </thead>
               <SortableContext
-                items={filteredItems.map(item => item.id)}
+                items={filteredItems.map(item => `${item.region_type}-${item.id}`)}
                 strategy={verticalListSortingStrategy}
               >
                 <tbody>
@@ -2308,7 +2349,7 @@ export function RegionsManager({ initialItems }: Props) {
                   if (isEditing) {
                     return (
                       <tr 
-                        key={row.id} 
+                        key={`${row.region_type}-${row.id}`} 
                         className="bg-blue-50 border-2 border-blue-400"
                       >
                         {/* 드래그 핸들 (편집 중에는 비활성화) */}
@@ -2336,7 +2377,7 @@ export function RegionsManager({ initialItems }: Props) {
                   
                   return (
                     <SortableRow
-                      key={row.id}
+                      key={`${row.region_type}-${row.id}`}
                       row={row}
                       isEditing={isEditing}
         columns={columns}
@@ -2348,6 +2389,7 @@ export function RegionsManager({ initialItems }: Props) {
                       onEdit={handleEdit}
                       onSaveRow={handleSaveRow}
                       onDelete={handleDelete}
+                      onImageManage={handleImageManage}
                       loading={loading}
                     />
                   )
@@ -2355,8 +2397,8 @@ export function RegionsManager({ initialItems }: Props) {
               )}
                 </tbody>
               </SortableContext>
-            </DndContext>
-          </table>
+            </table>
+          </DndContext>
         </div>
         <div className="p-3 border-t bg-gray-50 text-sm text-gray-600 flex justify-between items-center">
           <span>
@@ -2457,6 +2499,24 @@ export function RegionsManager({ initialItems }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 도시 이미지 관리 모달 */}
+      {showImageModal && imageModalCity && (
+        <CityImageManagerModal
+          isOpen={showImageModal}
+        onClose={() => {
+            setShowImageModal(false)
+            // 썸네일 캐시 전체 초기화 (해당 도시 관련 모든 캐시 제거)
+            // 이유: region_type-id-cityname 형식의 캐시 키를 사용하므로 정확한 매칭이 어려움
+            setThumbnailCache({})
+            setImageModalCity(null)
+          }}
+          cityKo={imageModalCity.cityKo}
+          cityEn={imageModalCity.cityEn}
+          cityCode={imageModalCity.cityCode}
+          citySlug={imageModalCity.citySlug}
+        />
       )}
     </div>
   )
