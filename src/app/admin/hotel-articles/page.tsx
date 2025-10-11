@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { 
   Newspaper, 
@@ -544,21 +544,6 @@ function HotelBlogsManager() {
   )
 }
 
-// Quill 에디터 모듈 설정
-const quillModules = {
-  toolbar: [
-    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-    ['bold', 'italic', 'underline', 'strike'],
-    [{ 'color': [] }, { 'background': [] }],
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-    [{ 'indent': '-1'}, { 'indent': '+1' }],
-    [{ 'align': [] }],
-    ['link', 'image'],
-    ['blockquote', 'code-block'],
-    ['clean']
-  ]
-}
-
 const quillFormats = [
   'header',
   'bold', 'italic', 'underline', 'strike',
@@ -588,13 +573,92 @@ function SectionEditor({ title, contentKey, sabreKey, content, sabreId, blogId, 
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [hotelInfo, setHotelInfo] = useState<{ property_name_ko: string; property_name_en: string } | null>(null)
   const [loadingHotelInfo, setLoadingHotelInfo] = useState(false)
+  const [editorContent, setEditorContent] = useState(content)
+  const quillRef = useRef<any>(null)
 
   // 에디터 높이 설정
   const heightMap = {
-    small: '300px',
-    medium: '450px',
-    large: '600px'
+    small: '390px',
+    medium: '585px',
+    large: '780px'
   }
+
+  // 이미지 업로드 핸들러
+  const handleImageUpload = () => {
+    const input = document.createElement('input')
+    input.setAttribute('type', 'file')
+    input.setAttribute('accept', 'image/*')
+    
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+
+      const formData = new FormData()
+      formData.append('file', file)
+      if (sabreId) {
+        formData.append('sabreId', sabreId)
+      }
+
+      try {
+        const response = await fetch('/api/hotel/content/upload-image', {
+          method: 'POST',
+          body: formData
+        })
+
+        const result = await response.json()
+
+        if (result.success) {
+          const quill = quillRef.current?.getEditor?.()
+          if (quill) {
+            const range = quill.getSelection(true) || { index: quill.getLength() }
+            quill.insertEmbed(range.index, 'image', result.data.url)
+            quill.setSelection(range.index + 1)
+          }
+        } else {
+          alert(result.error || '이미지 업로드에 실패했습니다.')
+        }
+      } catch (err) {
+        console.error('이미지 업로드 오류:', err)
+        alert('이미지 업로드 중 오류가 발생했습니다.')
+      }
+    }
+
+    input.click()
+  }
+
+  // Quill 에디터 모듈 설정 (이미지 핸들러 포함)
+  const quillModules = useMemo(() => ({
+    toolbar: {
+      container: [
+        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        [{ 'indent': '-1'}, { 'indent': '+1' }],
+        [{ 'align': [] }],
+        ['link', 'image'],
+        ['blockquote', 'code-block'],
+        ['clean']
+      ],
+      handlers: {
+        image: handleImageUpload
+      }
+    }
+  }), [sabreId])
+
+  // content prop이 변경될 때만 에디터 내용 업데이트
+  useEffect(() => {
+    setEditorContent(content)
+  }, [content])
+
+  // cleanup: 컴포넌트 언마운트 시 debounce 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (handleEditorChange.current) {
+        clearTimeout(handleEditorChange.current)
+      }
+    }
+  }, [])
 
   // 호텔 정보 가져오기
   useEffect(() => {
@@ -628,10 +692,19 @@ function SectionEditor({ title, contentKey, sabreKey, content, sabreId, blogId, 
     fetchHotelInfo()
   }, [sabreId])
 
-  // 에디터 내용이 변경될 때
-  const handleEditorChange = (htmlContent: string) => {
-    onContentChange(contentKey, htmlContent)
-    setSaveSuccess(false) // 변경되면 저장 성공 표시 제거
+  // 에디터 내용이 변경될 때 (debounce 적용)
+  const handleEditorChange = useRef<NodeJS.Timeout>()
+  const onEditorChange = (htmlContent: string) => {
+    setEditorContent(htmlContent)
+    setSaveSuccess(false)
+    
+    // debounce로 부모 상태 업데이트
+    if (handleEditorChange.current) {
+      clearTimeout(handleEditorChange.current)
+    }
+    handleEditorChange.current = setTimeout(() => {
+      onContentChange(contentKey, htmlContent)
+    }, 500)
   }
 
   // 섹션별 저장
@@ -643,13 +716,16 @@ function SectionEditor({ title, contentKey, sabreKey, content, sabreId, blogId, 
 
     setIsSaving(true)
     try {
+      // 현재 에디터 내용 먼저 부모에게 전달
+      onContentChange(contentKey, editorContent)
+      
       const response = await fetch(`/api/hotel-articles/${blogId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          [contentKey]: content,
+          [contentKey]: editorContent,
           [sabreKey]: sabreId || null
         })
       })
@@ -789,9 +865,11 @@ function SectionEditor({ title, contentKey, sabreKey, content, sabreId, blogId, 
         <div className="p-4 bg-white flex justify-center">
           <div className="w-full max-w-4xl">
             <ReactQuill
+              {...({ ref: quillRef } as any)}
+              key={`editor-${contentKey}`}
               theme="snow"
-              value={content || ''}
-              onChange={handleEditorChange}
+              value={editorContent || ''}
+              onChange={onEditorChange}
               modules={quillModules}
               formats={quillFormats}
               className="bg-white"
@@ -1044,14 +1122,48 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
             </div>
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                대표 이미지 URL
+                대표 이미지
               </label>
-              <Input
-                type="url"
-                value={formData.main_image}
-                onChange={(e) => setFormData({ ...formData, main_image: e.target.value })}
-                placeholder="https://example.com/image.jpg"
-              />
+              <div className="space-y-3">
+                <Input
+                  type="url"
+                  value={formData.main_image}
+                  onChange={(e) => setFormData({ ...formData, main_image: e.target.value })}
+                  placeholder="https://example.com/image.jpg"
+                />
+                {formData.main_image && (
+                  <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <p className="text-xs text-gray-600 mb-2">미리보기</p>
+                    <div className="relative w-full max-w-md mx-auto">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={formData.main_image}
+                        alt="대표 이미지 미리보기"
+                        className="w-full h-auto rounded-lg border border-gray-300"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                          const errorDiv = target.nextElementSibling as HTMLElement
+                          if (errorDiv) errorDiv.style.display = 'flex'
+                        }}
+                        onLoad={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'block'
+                          const errorDiv = target.nextElementSibling as HTMLElement
+                          if (errorDiv) errorDiv.style.display = 'none'
+                        }}
+                      />
+                      <div 
+                        className="w-full h-40 bg-gray-100 rounded-lg border border-gray-300 flex-col items-center justify-center text-gray-400 text-sm"
+                        style={{ display: 'none' }}
+                      >
+                        <Newspaper className="h-8 w-8 mb-2" />
+                        <p>이미지를 불러올 수 없습니다</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

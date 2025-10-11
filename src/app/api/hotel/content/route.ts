@@ -3,7 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { sabre_id, property_details } = await request.json()
+    const { sabre_id, property_details, property_location } = await request.json()
 
     if (!sabre_id) {
       return NextResponse.json(
@@ -14,9 +14,14 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = createServiceRoleClient()
 
+    // 업데이트할 필드만 포함
+    const updateData: Record<string, unknown> = {}
+    if (property_details !== undefined) updateData.property_details = property_details
+    if (property_location !== undefined) updateData.property_location = property_location
+
     const { data, error } = await supabase
       .from('select_hotels')
-      .update({ property_details })
+      .update(updateData)
       .eq('sabre_id', sabre_id)
       .select()
       .single()
@@ -60,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('select_hotels')
-      .select('sabre_id, property_name_ko, property_name_en, property_details')
+      .select('sabre_id, property_name_ko, property_name_en, property_details, property_location')
       .eq('sabre_id', sabre_id)
       .single()
 
