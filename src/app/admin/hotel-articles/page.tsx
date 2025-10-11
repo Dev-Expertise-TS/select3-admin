@@ -1,7 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useRef } from 'react'
-import dynamic from 'next/dynamic'
+import React, { useState, useEffect } from 'react'
 import { 
   Newspaper, 
   Plus, 
@@ -15,14 +14,8 @@ import {
 import { AuthGuard } from '@/components/shared/auth-guard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { HotelAutocomplete } from '@/components/shared/hotel-autocomplete'
 import { cn } from '@/lib/utils'
-
-// Quill Editor 동적 import (client-side only) - React 19 호환 버전
-const ReactQuill = dynamic(() => import('react-quill-new'), {
-  ssr: false,
-  loading: () => <div className="h-64 bg-gray-50 rounded border flex items-center justify-center text-gray-500">에디터 로딩 중...</div>
-})
+import { BlogSectionEditor } from './_components/BlogSectionEditor'
 
 import 'react-quill-new/dist/quill.snow.css'
 
@@ -544,344 +537,6 @@ function HotelBlogsManager() {
   )
 }
 
-const quillFormats = [
-  'header',
-  'bold', 'italic', 'underline', 'strike',
-  'color', 'background',
-  'list', 'indent',
-  'align',
-  'link', 'image',
-  'blockquote', 'code-block'
-]
-
-// 섹션 에디터 컴포넌트
-interface SectionEditorProps {
-  title: string
-  contentKey: string
-  sabreKey: string
-  content: string
-  sabreId: string
-  blogId?: number
-  onContentChange: (key: string, value: string) => void
-  onSabreChange: (key: string, value: string) => void
-}
-
-function SectionEditor({ title, contentKey, sabreKey, content, sabreId, blogId, onContentChange, onSabreChange }: SectionEditorProps) {
-  const [isExpanded, setIsExpanded] = useState(!!content)
-  const [editorHeight, setEditorHeight] = useState<'small' | 'medium' | 'large'>('medium')
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  const [hotelInfo, setHotelInfo] = useState<{ property_name_ko: string; property_name_en: string } | null>(null)
-  const [loadingHotelInfo, setLoadingHotelInfo] = useState(false)
-  const [editorContent, setEditorContent] = useState(content)
-  const quillRef = useRef<any>(null)
-
-  // 에디터 높이 설정
-  const heightMap = {
-    small: '390px',
-    medium: '585px',
-    large: '780px'
-  }
-
-  // 이미지 업로드 핸들러
-  const handleImageUpload = () => {
-    const input = document.createElement('input')
-    input.setAttribute('type', 'file')
-    input.setAttribute('accept', 'image/*')
-    
-    input.onchange = async () => {
-      const file = input.files?.[0]
-      if (!file) return
-
-      const formData = new FormData()
-      formData.append('file', file)
-      if (sabreId) {
-        formData.append('sabreId', sabreId)
-      }
-
-      try {
-        const response = await fetch('/api/hotel/content/upload-image', {
-          method: 'POST',
-          body: formData
-        })
-
-        const result = await response.json()
-
-        if (result.success) {
-          const quill = quillRef.current?.getEditor?.()
-          if (quill) {
-            const range = quill.getSelection(true) || { index: quill.getLength() }
-            quill.insertEmbed(range.index, 'image', result.data.url)
-            quill.setSelection(range.index + 1)
-          }
-        } else {
-          alert(result.error || '이미지 업로드에 실패했습니다.')
-        }
-      } catch (err) {
-        console.error('이미지 업로드 오류:', err)
-        alert('이미지 업로드 중 오류가 발생했습니다.')
-      }
-    }
-
-    input.click()
-  }
-
-  // Quill 에디터 모듈 설정 (이미지 핸들러 포함)
-  const quillModules = useMemo(() => ({
-    toolbar: {
-      container: [
-        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'color': [] }, { 'background': [] }],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        [{ 'indent': '-1'}, { 'indent': '+1' }],
-        [{ 'align': [] }],
-        ['link', 'image'],
-        ['blockquote', 'code-block'],
-        ['clean']
-      ],
-      handlers: {
-        image: handleImageUpload
-      }
-    }
-  }), [sabreId])
-
-  // content prop이 변경될 때만 에디터 내용 업데이트
-  useEffect(() => {
-    setEditorContent(content)
-  }, [content])
-
-  // cleanup: 컴포넌트 언마운트 시 debounce 타이머 정리
-  useEffect(() => {
-    return () => {
-      if (handleEditorChange.current) {
-        clearTimeout(handleEditorChange.current)
-      }
-    }
-  }, [])
-
-  // 호텔 정보 가져오기
-  useEffect(() => {
-    const fetchHotelInfo = async () => {
-      if (!sabreId) {
-        setHotelInfo(null)
-        return
-      }
-
-      setLoadingHotelInfo(true)
-      try {
-        const response = await fetch(`/api/hotel/get?sabre_id=${sabreId}`)
-        const result = await response.json()
-        
-        if (result.success && result.data) {
-          setHotelInfo({
-            property_name_ko: result.data.property_name_ko,
-            property_name_en: result.data.property_name_en
-          })
-        } else {
-          setHotelInfo(null)
-        }
-      } catch (err) {
-        console.error('호텔 정보 로드 오류:', err)
-        setHotelInfo(null)
-      } finally {
-        setLoadingHotelInfo(false)
-      }
-    }
-
-    fetchHotelInfo()
-  }, [sabreId])
-
-  // 에디터 내용이 변경될 때 (debounce 적용)
-  const handleEditorChange = useRef<NodeJS.Timeout>()
-  const onEditorChange = (htmlContent: string) => {
-    setEditorContent(htmlContent)
-    setSaveSuccess(false)
-    
-    // debounce로 부모 상태 업데이트
-    if (handleEditorChange.current) {
-      clearTimeout(handleEditorChange.current)
-    }
-    handleEditorChange.current = setTimeout(() => {
-      onContentChange(contentKey, htmlContent)
-    }, 500)
-  }
-
-  // 섹션별 저장
-  const handleSectionSave = async () => {
-    if (!blogId) {
-      alert('블로그를 먼저 생성해주세요.')
-      return
-    }
-
-    setIsSaving(true)
-    try {
-      // 현재 에디터 내용 먼저 부모에게 전달
-      onContentChange(contentKey, editorContent)
-      
-      const response = await fetch(`/api/hotel-articles/${blogId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          [contentKey]: editorContent,
-          [sabreKey]: sabreId || null
-        })
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        setSaveSuccess(true)
-        setTimeout(() => setSaveSuccess(false), 3000) // 3초 후 성공 표시 제거
-      } else {
-        alert(result.error || '저장에 실패했습니다.')
-      }
-    } catch (err) {
-      console.error('섹션 저장 오류:', err)
-      alert('저장 중 오류가 발생했습니다.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <div 
-        className="flex items-center justify-between p-3 bg-gray-50"
-      >
-        <div className="flex items-center gap-3">
-          <h4 className="text-sm font-medium text-gray-700">{title}</h4>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="cursor-pointer text-xs"
-          >
-            {isExpanded ? '접기' : '편집하기'}
-          </Button>
-          {content && (
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-              작성됨
-            </span>
-          )}
-          {saveSuccess && (
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded animate-pulse">
-              ✓ 저장됨
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col gap-1">
-            {sabreId && hotelInfo ? (
-              <div className="text-sm">
-                <span className="font-medium text-gray-700">Sabre ID: {sabreId}</span>
-                <span className="text-gray-500 mx-2">•</span>
-                <span className="text-gray-700">{hotelInfo.property_name_ko}</span>
-                <span className="text-gray-500 mx-2">•</span>
-                <span className="text-gray-500">{hotelInfo.property_name_en}</span>
-              </div>
-            ) : sabreId && loadingHotelInfo ? (
-              <div className="text-sm text-gray-500">호텔 정보 로딩 중...</div>
-            ) : sabreId ? (
-              <div className="text-sm text-gray-500">Sabre ID: {sabreId}</div>
-            ) : (
-              <div className="text-sm text-gray-400">호텔 미연결</div>
-            )}
-            <div className="w-64">
-              <HotelAutocomplete
-                value={sabreId}
-                onChange={(value) => {
-                  onSabreChange(sabreKey, value)
-                  setSaveSuccess(false) // 호텔 변경 시 저장 상태 초기화
-                }}
-                placeholder="호텔 검색..."
-              />
-            </div>
-          </div>
-          {isExpanded && (
-            <>
-              <div className="flex items-center gap-1 border rounded px-2 py-1 bg-white">
-                <button
-                  type="button"
-                  onClick={() => setEditorHeight('small')}
-                  className={cn(
-                    "px-2 py-0.5 text-xs rounded",
-                    editorHeight === 'small' ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
-                  )}
-                  title="작게"
-                >
-                  S
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditorHeight('medium')}
-                  className={cn(
-                    "px-2 py-0.5 text-xs rounded",
-                    editorHeight === 'medium' ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
-                  )}
-                  title="보통"
-                >
-                  M
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditorHeight('large')}
-                  className={cn(
-                    "px-2 py-0.5 text-xs rounded",
-                    editorHeight === 'large' ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
-                  )}
-                  title="크게"
-                >
-                  L
-                </button>
-              </div>
-              {blogId && (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleSectionSave}
-                  disabled={isSaving}
-                  className="bg-green-600 hover:bg-green-700 cursor-pointer"
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                      저장중
-                    </>
-                  ) : (
-                    '저장'
-                  )}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-      
-      {isExpanded && (
-        <div className="p-4 bg-white flex justify-center">
-          <div className="w-full max-w-4xl">
-            <ReactQuill
-              {...({ ref: quillRef } as any)}
-              key={`editor-${contentKey}`}
-              theme="snow"
-              value={editorContent || ''}
-              onChange={onEditorChange}
-              modules={quillModules}
-              formats={quillFormats}
-              className="bg-white"
-              style={{ height: heightMap[editorHeight], marginBottom: '42px' }}
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // 블로그 생성/편집 모달 컴포넌트
 interface BlogModalProps {
   isOpen: boolean
@@ -891,6 +546,8 @@ interface BlogModalProps {
 }
 
 function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  
   // 날짜를 datetime-local 형식으로 변환하는 함수
   const formatDateTimeLocal = (dateString: string) => {
     if (!dateString) return ''
@@ -943,6 +600,42 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
+  // 대표 이미지 URL을 Storage로 업로드
+  const handleUploadMainImage = async () => {
+    if (!formData.main_image || !formData.main_image.startsWith('http')) {
+      alert('유효한 이미지 URL을 입력해주세요.')
+      return
+    }
+
+    setIsUploadingImage(true)
+    try {
+      const response = await fetch('/api/hotel-articles/upload-main-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          imageUrl: formData.main_image,
+          blogSlug: formData.slug || undefined
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setFormData({ ...formData, main_image: result.data.url })
+        alert('이미지가 성공적으로 업로드되었습니다.')
+      } else {
+        alert(result.error || '이미지 업로드에 실패했습니다.')
+      }
+    } catch (err) {
+      console.error('이미지 업로드 오류:', err)
+      alert('이미지 업로드 중 오류가 발생했습니다.')
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -978,11 +671,6 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
         
         // 블로그 목록 새로고침
         onSave()
-        
-        // 모달 닫기
-        setTimeout(() => {
-          onClose()
-        }, 500)
       } else {
         setError(result.error || '저장에 실패했습니다.')
       }
@@ -1125,12 +813,34 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                 대표 이미지
               </label>
               <div className="space-y-3">
-                <Input
-                  type="url"
-                  value={formData.main_image}
-                  onChange={(e) => setFormData({ ...formData, main_image: e.target.value })}
-                  placeholder="https://example.com/image.jpg"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    type="url"
+                    value={formData.main_image}
+                    onChange={(e) => setFormData({ ...formData, main_image: e.target.value })}
+                    placeholder="https://example.com/image.jpg"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleUploadMainImage}
+                    disabled={isUploadingImage || !formData.main_image}
+                    className="cursor-pointer whitespace-nowrap"
+                  >
+                    {isUploadingImage ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        업로드 중...
+                      </>
+                    ) : (
+                      'Storage로 업로드'
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-500">
+                  외부 이미지 URL을 입력하고 "Storage로 업로드" 버튼을 클릭하면 Supabase Storage에 저장됩니다.
+                </p>
                 {formData.main_image && (
                   <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
                     <p className="text-xs text-gray-600 mb-2">미리보기</p>
@@ -1194,7 +904,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
               { key: 's11_contents', sabreKey: 's11_sabre_id', title: '섹션 11' },
               { key: 's12_contents', sabreKey: 's12_sabre_id', title: '섹션 12' }
             ].map(({ key, sabreKey, title }) => (
-              <SectionEditor
+              <BlogSectionEditor
                 key={key}
                 title={title}
                 contentKey={key}

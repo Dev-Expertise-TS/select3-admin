@@ -3,22 +3,74 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File
-    const sabreId = formData.get('sabreId') as string
+    const contentType = request.headers.get('content-type')
+    
+    let file: File | null = null
+    let sabreId: string | undefined = undefined
+    let imageUrl: string | undefined = undefined
 
-    if (!file) {
+    // FormData (파일 업로드) 또는 JSON (URL 다운로드) 처리
+    if (contentType?.includes('multipart/form-data')) {
+      const formData = await request.formData()
+      file = formData.get('file') as File
+      sabreId = formData.get('sabreId') as string | undefined
+    } else {
+      const body = await request.json()
+      imageUrl = body.imageUrl
+      sabreId = body.sabreId
+    }
+
+    const supabase = createServiceRoleClient()
+    const timestamp = Date.now()
+
+    let buffer: Uint8Array
+    let fileExtension: string
+    let fileContentType: string
+
+    if (imageUrl) {
+      // URL에서 이미지 다운로드
+      const response = await fetch(imageUrl, { method: 'GET' })
+      if (!response.ok) {
+        return NextResponse.json(
+          { success: false, error: `이미지 다운로드 실패: ${response.status}` },
+          { status: 400 }
+        )
+      }
+
+      fileContentType = response.headers.get('content-type') || 'image/jpeg'
+      const arrayBuffer = await response.arrayBuffer()
+      buffer = new Uint8Array(arrayBuffer)
+
+      // 파일 크기 제한 (10MB)
+      if (buffer.length > 10 * 1024 * 1024) {
+        return NextResponse.json(
+          { success: false, error: '파일 크기가 10MB를 초과합니다.' },
+          { status: 400 }
+        )
+      }
+
+      // 확장자 추정
+      fileExtension = (() => {
+        if (fileContentType.includes('png')) return 'png'
+        if (fileContentType.includes('webp')) return 'webp'
+        if (fileContentType.includes('avif')) return 'avif'
+        if (fileContentType.includes('gif')) return 'gif'
+        return 'jpg'
+      })()
+    } else if (file) {
+      // 파일 업로드
+      const arrayBuffer = await file.arrayBuffer()
+      buffer = new Uint8Array(arrayBuffer)
+      fileExtension = file.name.split('.').pop() || 'jpg'
+      fileContentType = file.type
+    } else {
       return NextResponse.json(
-        { success: false, error: '파일이 필요합니다.' },
+        { success: false, error: '파일 또는 이미지 URL이 필요합니다.' },
         { status: 400 }
       )
     }
 
-    const supabase = createServiceRoleClient()
-
-    // 파일명 생성 (타임스탬프 추가로 중복 방지)
-    const timestamp = Date.now()
-    const fileExtension = file.name.split('.').pop()
+    // 파일명 생성
     const fileName = sabreId 
       ? `${sabreId}-content-${timestamp}.${fileExtension}`
       : `content-${timestamp}.${fileExtension}`
@@ -28,15 +80,11 @@ export async function POST(request: NextRequest) {
       ? `content/${sabreId}/${fileName}`
       : `content/general/${fileName}`
 
-    // 파일을 ArrayBuffer로 변환
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = new Uint8Array(arrayBuffer)
-
     // Supabase Storage에 업로드
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('hotel-media')
       .upload(storagePath, buffer, {
-        contentType: file.type,
+        contentType: fileContentType,
         upsert: false
       })
 
