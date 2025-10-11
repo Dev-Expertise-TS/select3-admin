@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { 
   Newspaper, 
@@ -18,13 +18,13 @@ import { Input } from '@/components/ui/input'
 import { HotelAutocomplete } from '@/components/shared/hotel-autocomplete'
 import { cn } from '@/lib/utils'
 
-// Toast UI Editor 동적 import (client-side only)
-const Editor = dynamic(() => import('@toast-ui/react-editor').then(mod => mod.Editor), {
+// Quill Editor 동적 import (client-side only) - React 19 호환 버전
+const ReactQuill = dynamic(() => import('react-quill-new'), {
   ssr: false,
   loading: () => <div className="h-64 bg-gray-50 rounded border flex items-center justify-center text-gray-500">에디터 로딩 중...</div>
 })
 
-import '@toast-ui/editor/dist/toastui-editor.css'
+import 'react-quill-new/dist/quill.snow.css'
 
 interface HotelBlog {
   id: number
@@ -309,7 +309,11 @@ function HotelBlogsManager() {
                     <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
-                        {new Date(blog.created_at).toLocaleDateString()}
+                        최종 수정: {new Date(blog.updated_at).toLocaleDateString('ko-KR', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
                       </div>
                       <div className="text-gray-600">
                         Slug: {blog.slug}
@@ -540,6 +544,31 @@ function HotelBlogsManager() {
   )
 }
 
+// Quill 에디터 모듈 설정
+const quillModules = {
+  toolbar: [
+    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'color': [] }, { 'background': [] }],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    [{ 'indent': '-1'}, { 'indent': '+1' }],
+    [{ 'align': [] }],
+    ['link', 'image'],
+    ['blockquote', 'code-block'],
+    ['clean']
+  ]
+}
+
+const quillFormats = [
+  'header',
+  'bold', 'italic', 'underline', 'strike',
+  'color', 'background',
+  'list', 'indent',
+  'align',
+  'link', 'image',
+  'blockquote', 'code-block'
+]
+
 // 섹션 에디터 컴포넌트
 interface SectionEditorProps {
   title: string
@@ -547,69 +576,226 @@ interface SectionEditorProps {
   sabreKey: string
   content: string
   sabreId: string
+  blogId?: number
   onContentChange: (key: string, value: string) => void
   onSabreChange: (key: string, value: string) => void
 }
 
-function SectionEditor({ title, contentKey, sabreKey, content, sabreId, onContentChange, onSabreChange }: SectionEditorProps) {
-  const editorRef = useRef<any>(null)
+function SectionEditor({ title, contentKey, sabreKey, content, sabreId, blogId, onContentChange, onSabreChange }: SectionEditorProps) {
   const [isExpanded, setIsExpanded] = useState(!!content)
+  const [editorHeight, setEditorHeight] = useState<'small' | 'medium' | 'large'>('medium')
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [hotelInfo, setHotelInfo] = useState<{ property_name_ko: string; property_name_en: string } | null>(null)
+  const [loadingHotelInfo, setLoadingHotelInfo] = useState(false)
+
+  // 에디터 높이 설정
+  const heightMap = {
+    small: '300px',
+    medium: '450px',
+    large: '600px'
+  }
+
+  // 호텔 정보 가져오기
+  useEffect(() => {
+    const fetchHotelInfo = async () => {
+      if (!sabreId) {
+        setHotelInfo(null)
+        return
+      }
+
+      setLoadingHotelInfo(true)
+      try {
+        const response = await fetch(`/api/hotel/get?sabre_id=${sabreId}`)
+        const result = await response.json()
+        
+        if (result.success && result.data) {
+          setHotelInfo({
+            property_name_ko: result.data.property_name_ko,
+            property_name_en: result.data.property_name_en
+          })
+        } else {
+          setHotelInfo(null)
+        }
+      } catch (err) {
+        console.error('호텔 정보 로드 오류:', err)
+        setHotelInfo(null)
+      } finally {
+        setLoadingHotelInfo(false)
+      }
+    }
+
+    fetchHotelInfo()
+  }, [sabreId])
 
   // 에디터 내용이 변경될 때
-  const handleEditorChange = () => {
-    if (editorRef.current) {
-      const htmlContent = editorRef.current.getInstance().getHTML()
-      onContentChange(contentKey, htmlContent)
+  const handleEditorChange = (htmlContent: string) => {
+    onContentChange(contentKey, htmlContent)
+    setSaveSuccess(false) // 변경되면 저장 성공 표시 제거
+  }
+
+  // 섹션별 저장
+  const handleSectionSave = async () => {
+    if (!blogId) {
+      alert('블로그를 먼저 생성해주세요.')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const response = await fetch(`/api/hotel-articles/${blogId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          [contentKey]: content,
+          [sabreKey]: sabreId || null
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setSaveSuccess(true)
+        setTimeout(() => setSaveSuccess(false), 3000) // 3초 후 성공 표시 제거
+      } else {
+        alert(result.error || '저장에 실패했습니다.')
+      }
+    } catch (err) {
+      console.error('섹션 저장 오류:', err)
+      alert('저장 중 오류가 발생했습니다.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       <div 
-        className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
-        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center justify-between p-3 bg-gray-50"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <h4 className="text-sm font-medium text-gray-700">{title}</h4>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="cursor-pointer text-xs"
+          >
+            {isExpanded ? '접기' : '편집하기'}
+          </Button>
           {content && (
             <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
               작성됨
             </span>
           )}
+          {saveSuccess && (
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded animate-pulse">
+              ✓ 저장됨
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
-          <div className="w-64" onClick={(e) => e.stopPropagation()}>
-            <HotelAutocomplete
-              value={sabreId}
-              onChange={(value) => onSabreChange(sabreKey, value)}
-              placeholder="호텔 검색..."
-            />
+          <div className="flex flex-col gap-1">
+            {sabreId && hotelInfo ? (
+              <div className="text-sm">
+                <span className="font-medium text-gray-700">Sabre ID: {sabreId}</span>
+                <span className="text-gray-500 mx-2">•</span>
+                <span className="text-gray-700">{hotelInfo.property_name_ko}</span>
+                <span className="text-gray-500 mx-2">•</span>
+                <span className="text-gray-500">{hotelInfo.property_name_en}</span>
+              </div>
+            ) : sabreId && loadingHotelInfo ? (
+              <div className="text-sm text-gray-500">호텔 정보 로딩 중...</div>
+            ) : sabreId ? (
+              <div className="text-sm text-gray-500">Sabre ID: {sabreId}</div>
+            ) : (
+              <div className="text-sm text-gray-400">호텔 미연결</div>
+            )}
+            <div className="w-64">
+              <HotelAutocomplete
+                value={sabreId}
+                onChange={(value) => {
+                  onSabreChange(sabreKey, value)
+                  setSaveSuccess(false) // 호텔 변경 시 저장 상태 초기화
+                }}
+                placeholder="호텔 검색..."
+              />
+            </div>
           </div>
-          <button className="text-gray-500">
-            {isExpanded ? '▲' : '▼'}
-          </button>
+          {isExpanded && (
+            <>
+              <div className="flex items-center gap-1 border rounded px-2 py-1 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setEditorHeight('small')}
+                  className={cn(
+                    "px-2 py-0.5 text-xs rounded",
+                    editorHeight === 'small' ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
+                  )}
+                  title="작게"
+                >
+                  S
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditorHeight('medium')}
+                  className={cn(
+                    "px-2 py-0.5 text-xs rounded",
+                    editorHeight === 'medium' ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
+                  )}
+                  title="보통"
+                >
+                  M
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditorHeight('large')}
+                  className={cn(
+                    "px-2 py-0.5 text-xs rounded",
+                    editorHeight === 'large' ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
+                  )}
+                  title="크게"
+                >
+                  L
+                </button>
+              </div>
+              {blogId && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSectionSave}
+                  disabled={isSaving}
+                  className="bg-green-600 hover:bg-green-700 cursor-pointer"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      저장중
+                    </>
+                  ) : (
+                    '저장'
+                  )}
+                </Button>
+              )}
+            </>
+          )}
         </div>
       </div>
       
       {isExpanded && (
-        <div className="p-4 bg-white">
-          <div className="border rounded">
-            <Editor
-              ref={editorRef}
-              initialValue={content || ''}
-              previewStyle="vertical"
-              height="300px"
-              initialEditType="wysiwyg"
-              useCommandShortcut={true}
-              hideModeSwitch={false}
+        <div className="p-4 bg-white flex justify-center">
+          <div className="w-full max-w-4xl">
+            <ReactQuill
+              theme="snow"
+              value={content || ''}
               onChange={handleEditorChange}
-              toolbarItems={[
-                ['heading', 'bold', 'italic', 'strike'],
-                ['hr', 'quote'],
-                ['ul', 'ol', 'indent', 'outdent'],
-                ['table', 'link'],
-                ['code', 'codeblock']
-              ]}
+              modules={quillModules}
+              formats={quillFormats}
+              className="bg-white"
+              style={{ height: heightMap[editorHeight], marginBottom: '42px' }}
             />
           </div>
         </div>
@@ -627,12 +813,29 @@ interface BlogModalProps {
 }
 
 function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
+  // 날짜를 datetime-local 형식으로 변환하는 함수
+  const formatDateTimeLocal = (dateString: string) => {
+    if (!dateString) return ''
+    try {
+      const date = new Date(dateString)
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const hours = String(date.getHours()).padStart(2, '0')
+      const minutes = String(date.getMinutes()).padStart(2, '0')
+      return `${year}-${month}-${day}T${hours}:${minutes}`
+    } catch {
+      return ''
+    }
+  }
+
   const [formData, setFormData] = useState({
     slug: blog?.slug || '',
     publish: blog?.publish || false,
     main_title: blog?.main_title || '',
     sub_title: blog?.sub_title || '',
     main_image: blog?.main_image || '',
+    updated_at: blog?.updated_at ? formatDateTimeLocal(blog.updated_at) : '',
     s1_contents: blog?.s1_contents || '',
     s2_contents: blog?.s2_contents || '',
     s3_contents: blog?.s3_contents || '',
@@ -672,20 +875,36 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
       const url = blog ? `/api/hotel-articles/${blog.id}` : '/api/hotel-articles'
       const method = blog ? 'PUT' : 'POST'
 
+      // datetime-local 형식을 ISO 형식으로 변환
+      const submitData = {
+        ...formData,
+        updated_at: formData.updated_at ? new Date(formData.updated_at).toISOString() : undefined
+      }
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(submitData)
       })
 
       const result = await response.json()
 
       if (result.success) {
-        setSuccessMessage(blog ? '블로그가 성공적으로 수정되었습니다.' : '블로그가 성공적으로 생성되었습니다.')
+        const message = blog ? '블로그가 성공적으로 저장되었습니다.' : '블로그가 성공적으로 생성되었습니다.'
+        setSuccessMessage(message)
+        
+        // 알림 표시
+        alert(message)
+        
         // 블로그 목록 새로고침
         onSave()
+        
+        // 모달 닫기
+        setTimeout(() => {
+          onClose()
+        }, 500)
       } else {
         setError(result.error || '저장에 실패했습니다.')
       }
@@ -701,7 +920,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden border-2 border-gray-300">
+      <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden border-2 border-gray-300">
         {/* 헤더 */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -727,7 +946,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
         </div>
 
         {/* 폼 */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto max-h-[calc(95vh-140px)]">
           {error && (
             <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-center gap-2">
@@ -762,17 +981,43 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                   required
                 />
               </div>
-              <div className="flex items-center">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.publish}
-                    onChange={(e) => setFormData({ ...formData, publish: e.target.checked })}
-                    className="rounded border-gray-300"
-                  />
-                  <span className="text-sm font-medium text-gray-700">발행</span>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  업데이트 날짜
                 </label>
+                <div className="flex gap-2">
+                  <Input
+                    type="datetime-local"
+                    value={formData.updated_at}
+                    onChange={(e) => setFormData({ ...formData, updated_at: e.target.value })}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const now = new Date()
+                      const formatted = formatDateTimeLocal(now.toISOString())
+                      setFormData({ ...formData, updated_at: formatted })
+                    }}
+                    className="cursor-pointer whitespace-nowrap"
+                  >
+                    현재
+                  </Button>
+                </div>
               </div>
+            </div>
+            <div className="mt-4 flex items-center">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={formData.publish}
+                  onChange={(e) => setFormData({ ...formData, publish: e.target.checked })}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm font-medium text-gray-700">발행</span>
+              </label>
             </div>
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -812,8 +1057,17 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
 
           {/* 섹션별 내용 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">섹션별 내용</h3>
-            <p className="text-sm text-gray-600 mb-4">각 섹션을 클릭하여 펼치고 HTML 콘텐츠를 편집하세요</p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">섹션별 내용</h3>
+                <p className="text-sm text-gray-600">각 섹션을 클릭하여 펼치고 HTML 콘텐츠를 편집하세요</p>
+              </div>
+              {blog && (
+                <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded">
+                  💡 각 섹션마다 개별 저장할 수 있습니다
+                </span>
+              )}
+            </div>
             {[
               { key: 's1_contents', sabreKey: 's1_sabre_id', title: '섹션 1' },
               { key: 's2_contents', sabreKey: 's2_sabre_id', title: '섹션 2' },
@@ -835,6 +1089,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                 sabreKey={sabreKey}
                 content={formData[key as keyof typeof formData] as string}
                 sabreId={formData[sabreKey as keyof typeof formData] as string}
+                blogId={blog?.id}
                 onContentChange={(k, v) => setFormData({ ...formData, [k]: v })}
                 onSabreChange={(k, v) => setFormData({ ...formData, [k]: v })}
               />
@@ -863,7 +1118,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                   저장 중...
                 </>
               ) : (
-                blog ? '수정' : '생성'
+                '저장'
               )}
             </Button>
           </div>

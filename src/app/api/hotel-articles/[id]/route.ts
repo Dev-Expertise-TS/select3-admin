@@ -60,6 +60,7 @@ export async function PUT(
       main_title,
       sub_title,
       main_image,
+      updated_at,
       s1_contents,
       s2_contents,
       s3_contents,
@@ -97,7 +98,7 @@ export async function PUT(
 
     // 업데이트할 데이터 준비
     const updateData: Record<string, unknown> = {
-      updated_at: new Date().toISOString()
+      updated_at: updated_at || new Date().toISOString()
     }
 
     if (slug !== undefined) updateData.slug = slug
