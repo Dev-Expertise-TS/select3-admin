@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { 
   Newspaper, 
   Plus, 
@@ -16,6 +17,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { HotelAutocomplete } from '@/components/shared/hotel-autocomplete'
 import { cn } from '@/lib/utils'
+
+// Toast UI Editor 동적 import (client-side only)
+const Editor = dynamic(() => import('@toast-ui/react-editor').then(mod => mod.Editor), {
+  ssr: false,
+  loading: () => <div className="h-64 bg-gray-50 rounded border flex items-center justify-center text-gray-500">에디터 로딩 중...</div>
+})
+
+import '@toast-ui/editor/dist/toastui-editor.css'
 
 interface HotelBlog {
   id: number
@@ -531,6 +540,84 @@ function HotelBlogsManager() {
   )
 }
 
+// 섹션 에디터 컴포넌트
+interface SectionEditorProps {
+  title: string
+  contentKey: string
+  sabreKey: string
+  content: string
+  sabreId: string
+  onContentChange: (key: string, value: string) => void
+  onSabreChange: (key: string, value: string) => void
+}
+
+function SectionEditor({ title, contentKey, sabreKey, content, sabreId, onContentChange, onSabreChange }: SectionEditorProps) {
+  const editorRef = useRef<any>(null)
+  const [isExpanded, setIsExpanded] = useState(!!content)
+
+  // 에디터 내용이 변경될 때
+  const handleEditorChange = () => {
+    if (editorRef.current) {
+      const htmlContent = editorRef.current.getInstance().getHTML()
+      onContentChange(contentKey, htmlContent)
+    }
+  }
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div 
+        className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-medium text-gray-700">{title}</h4>
+          {content && (
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+              작성됨
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-64" onClick={(e) => e.stopPropagation()}>
+            <HotelAutocomplete
+              value={sabreId}
+              onChange={(value) => onSabreChange(sabreKey, value)}
+              placeholder="호텔 검색..."
+            />
+          </div>
+          <button className="text-gray-500">
+            {isExpanded ? '▲' : '▼'}
+          </button>
+        </div>
+      </div>
+      
+      {isExpanded && (
+        <div className="p-4 bg-white">
+          <div className="border rounded">
+            <Editor
+              ref={editorRef}
+              initialValue={content || ''}
+              previewStyle="vertical"
+              height="300px"
+              initialEditType="wysiwyg"
+              useCommandShortcut={true}
+              hideModeSwitch={false}
+              onChange={handleEditorChange}
+              toolbarItems={[
+                ['heading', 'bold', 'italic', 'strike'],
+                ['hr', 'quote'],
+                ['ul', 'ol', 'indent', 'outdent'],
+                ['table', 'link'],
+                ['code', 'codeblock']
+              ]}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // 블로그 생성/편집 모달 컴포넌트
 interface BlogModalProps {
   isOpen: boolean
@@ -613,8 +700,8 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden border-2 border-gray-300">
         {/* 헤더 */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -724,8 +811,9 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
           </div>
 
           {/* 섹션별 내용 */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             <h3 className="text-lg font-medium text-gray-900">섹션별 내용</h3>
+            <p className="text-sm text-gray-600 mb-4">각 섹션을 클릭하여 펼치고 HTML 콘텐츠를 편집하세요</p>
             {[
               { key: 's1_contents', sabreKey: 's1_sabre_id', title: '섹션 1' },
               { key: 's2_contents', sabreKey: 's2_sabre_id', title: '섹션 2' },
@@ -740,26 +828,16 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
               { key: 's11_contents', sabreKey: 's11_sabre_id', title: '섹션 11' },
               { key: 's12_contents', sabreKey: 's12_sabre_id', title: '섹션 12' }
             ].map(({ key, sabreKey, title }) => (
-              <div key={key} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-medium text-gray-700">{title}</h4>
-                  <div className="w-64">
-                    <HotelAutocomplete
-                      value={formData[sabreKey as keyof typeof formData] as string}
-                      onChange={(value) => {
-                        setFormData({ ...formData, [sabreKey]: value })
-                      }}
-                      placeholder="호텔 검색..."
-                    />
-                  </div>
-                </div>
-                <textarea
-                  value={formData[key as keyof typeof formData] as string}
-                  onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
-                  placeholder={`${title} 내용을 입력하세요 (HTML 지원)`}
-                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
+              <SectionEditor
+                key={key}
+                title={title}
+                contentKey={key}
+                sabreKey={sabreKey}
+                content={formData[key as keyof typeof formData] as string}
+                sabreId={formData[sabreKey as keyof typeof formData] as string}
+                onContentChange={(k, v) => setFormData({ ...formData, [k]: v })}
+                onSabreChange={(k, v) => setFormData({ ...formData, [k]: v })}
+              />
             ))}
           </div>
 
@@ -806,8 +884,8 @@ function BlogViewModal({ isOpen, onClose, blog }: BlogViewModalProps) {
   if (!isOpen || !blog) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border-2 border-gray-300">
         {/* 헤더 */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">

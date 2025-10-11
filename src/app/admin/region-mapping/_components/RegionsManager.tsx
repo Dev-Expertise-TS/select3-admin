@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus, Save, X, Trash2, Link2, Loader2, PlusCircle, Edit, GripVertical, Image as ImageIcon } from 'lucide-react'
 import type { SelectRegion, RegionFormInput, RegionType, MappedHotel, RegionStatus } from '@/types/regions'
-import { upsertRegion, deleteRegion, upsertCitiesFromHotels, upsertCountriesFromHotels, upsertContinentsFromHotels, fillRegionSlugsAndCodes, fillCityCodesAndSlugs, fillCountryCodesAndSlugs, fillContinentCodesAndSlugs, forceUpdateAllCityCodes, getMappedHotels, bulkUpdateHotelRegionCodes } from '@/features/regions/actions'
+import { upsertRegion, deleteRegion, upsertCitiesFromHotels, upsertCountriesFromHotels, upsertContinentsFromHotels, fillRegionSlugsAndCodes, fillCityCodesAndSlugs, fillCountryCodesAndSlugs, fillContinentCodesAndSlugs, getMappedHotels, bulkUpdateHotelRegionCodes } from '@/features/regions/actions'
 import { HotelSearchSelector } from '@/components/shared/hotel-search-selector'
 import CityImageManagerModal from './CityImageManagerModal'
 import {
@@ -2383,25 +2383,6 @@ export function RegionsManager({ initialItems }: Props) {
             }} className="ml-2" disabled={editingRowId !== null}>
             <Plus className="h-4 w-4" />
             <span className="ml-1">도시 코드/슬러그 보정</span>
-          </Button>
-          <Button 
-            onClick={async () => {
-                if (!confirm('모든 도시의 IATA 코드를 재조회합니다. 시간이 걸릴 수 있습니다. 계속하시겠습니까?')) return
-              setLoading(true)
-              const res = await forceUpdateAllCityCodes()
-              if (res.success) {
-                  await refreshData()
-                  alert(`도시 코드 강제 업데이트 완료: ${res.data?.updated ?? 0}/${res.data?.total ?? 0}건`)
-              } else {
-                alert(res.error || '강제 업데이트 실패')
-              }
-              setLoading(false)
-            }} 
-            className="ml-2 bg-orange-600 hover:bg-orange-700"
-              disabled={editingRowId !== null}
-          >
-            <Edit className="h-4 w-4" />
-            <span className="ml-1">🔥 모든 도시 코드 강제 업데이트</span>
           </Button>
             <Button 
               onClick={async () => {
