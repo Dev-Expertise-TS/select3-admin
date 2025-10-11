@@ -88,6 +88,48 @@ export default function DataMigrationPage() {
   const [testLocationResult, setTestLocationResult] = useState<Record<string, unknown> | null>(null)
   const [isTestingLocation, setIsTestingLocation] = useState(false)
   
+  // 아티클 이미지 마이그레이션 상태
+  const [blogImageMigrationStatus, setBlogImageMigrationStatus] = useState<{
+    isRunning: boolean
+    progress: number
+    total: number
+    migrated: number
+    skipped: number
+    failed: number
+    currentBlog: string
+    logs: Array<{ blogId: string; status: string; message?: string }>
+  }>({
+    isRunning: false,
+    progress: 0,
+    total: 0,
+    migrated: 0,
+    skipped: 0,
+    failed: 0,
+    currentBlog: '',
+    logs: []
+  })
+
+  // 블로그 섹션 이미지 마이그레이션 상태
+  const [blogSectionImageMigrationStatus, setBlogSectionImageMigrationStatus] = useState<{
+    isRunning: boolean
+    progress: number
+    total: number
+    processed: number
+    imagesReplaced: number
+    failed: number
+    currentBlog: string
+    logs: Array<{ blogId: string; status: string; message?: string }>
+  }>({
+    isRunning: false,
+    progress: 0,
+    total: 0,
+    processed: 0,
+    imagesReplaced: 0,
+    failed: 0,
+    currentBlog: '',
+    logs: []
+  })
+  
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(20)
@@ -731,6 +773,208 @@ export default function DataMigrationPage() {
       console.error('일괄 마이그레이션 오류:', error)
       alert('일괄 마이그레이션 중 오류가 발생했습니다')
       setLocationMigrationStatus(prev => ({
+        ...prev,
+        isRunning: false
+      }))
+    }
+  }
+
+  // 아티클 이미지 마이그레이션
+  const handleBlogImageMigration = async () => {
+    if (!confirm('블로그 아티클의 메인 이미지를 Supabase Storage로 마이그레이션하시겠습니까?')) {
+      return
+    }
+
+    setBlogImageMigrationStatus({
+      isRunning: true,
+      progress: 0,
+      total: 0,
+      migrated: 0,
+      skipped: 0,
+      failed: 0,
+      currentBlog: '',
+      logs: []
+    })
+
+    try {
+      const response = await fetch('/api/data-migration/migrate-blog-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        throw new Error('블로그 이미지 마이그레이션 API 호출 실패')
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) {
+        throw new Error('응답 스트림을 읽을 수 없습니다')
+      }
+
+      let buffer = ''
+      
+      while (true) {
+        const { done, value } = await reader.read()
+        
+        if (done) break
+        
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        
+        // 마지막 불완전한 라인은 버퍼에 보관
+        buffer = lines.pop() || ''
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              
+              if (data.type === 'init') {
+                setBlogImageMigrationStatus(prev => ({
+                  ...prev,
+                  total: data.total
+                }))
+              } else if (data.type === 'progress') {
+                setBlogImageMigrationStatus(prev => ({
+                  ...prev,
+                  migrated: data.migrated,
+                  skipped: data.skipped,
+                  failed: data.failed,
+                  currentBlog: `Blog #${data.blogId}`,
+                  progress: Math.round((data.current / data.total) * 100),
+                  logs: [...prev.logs, {
+                    blogId: `Blog #${data.blogId}`,
+                    status: data.status,
+                    message: data.message || (data.status === 'success' ? `${data.oldUrl} → ${data.newUrl}` : '')
+                  }].slice(-50) // 최근 50개만 유지
+                }))
+              } else if (data.type === 'complete') {
+                setBlogImageMigrationStatus(prev => ({
+                  ...prev,
+                  isRunning: false,
+                  progress: 100
+                }))
+                alert(`마이그레이션 완료!\n마이그레이션: ${data.migrated}개\n건너뜀: ${data.skipped}개\n실패: ${data.failed}개`)
+              } else if (data.type === 'error') {
+                alert(`오류: ${data.error}`)
+                setBlogImageMigrationStatus(prev => ({
+                  ...prev,
+                  isRunning: false
+                }))
+              }
+            } catch (parseError) {
+              console.error('SSE 데이터 파싱 오류:', parseError)
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('블로그 이미지 마이그레이션 오류:', error)
+      alert('블로그 이미지 마이그레이션 중 오류가 발생했습니다')
+      setBlogImageMigrationStatus(prev => ({
+        ...prev,
+        isRunning: false
+      }))
+    }
+  }
+
+  // 블로그 섹션 이미지 마이그레이션
+  const handleBlogSectionImageMigration = async () => {
+    if (!confirm('블로그 섹션 콘텐츠 내의 framerusercontent.com 이미지를 Supabase Storage로 마이그레이션하시겠습니까?')) {
+      return
+    }
+
+    setBlogSectionImageMigrationStatus({
+      isRunning: true,
+      progress: 0,
+      total: 0,
+      processed: 0,
+      imagesReplaced: 0,
+      failed: 0,
+      currentBlog: '',
+      logs: []
+    })
+
+    try {
+      const response = await fetch('/api/data-migration/migrate-blog-section-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        throw new Error('블로그 섹션 이미지 마이그레이션 API 호출 실패')
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) {
+        throw new Error('응답 스트림을 읽을 수 없습니다')
+      }
+
+      let buffer = ''
+      
+      while (true) {
+        const { done, value } = await reader.read()
+        
+        if (done) break
+        
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        
+        // 마지막 불완전한 라인은 버퍼에 보관
+        buffer = lines.pop() || ''
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              
+              if (data.type === 'init') {
+                setBlogSectionImageMigrationStatus(prev => ({
+                  ...prev,
+                  total: data.total
+                }))
+              } else if (data.type === 'progress') {
+                setBlogSectionImageMigrationStatus(prev => ({
+                  ...prev,
+                  processed: data.processed,
+                  imagesReplaced: data.imagesReplaced,
+                  failed: data.failed,
+                  currentBlog: `Blog #${data.blogId}`,
+                  progress: Math.round((data.current / data.total) * 100),
+                  logs: [...prev.logs, {
+                    blogId: `Blog #${data.blogId}`,
+                    status: data.status,
+                    message: data.message || ''
+                  }].slice(-50) // 최근 50개만 유지
+                }))
+              } else if (data.type === 'complete') {
+                setBlogSectionImageMigrationStatus(prev => ({
+                  ...prev,
+                  isRunning: false,
+                  progress: 100
+                }))
+                alert(`마이그레이션 완료!\n처리된 블로그: ${data.processed}개\n교체된 이미지: ${data.imagesReplaced}개\n실패: ${data.failed}개`)
+              } else if (data.type === 'error') {
+                alert(`오류: ${data.error}`)
+                setBlogSectionImageMigrationStatus(prev => ({
+                  ...prev,
+                  isRunning: false
+                }))
+              }
+            } catch (parseError) {
+              console.error('SSE 데이터 파싱 오류:', parseError)
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('블로그 섹션 이미지 마이그레이션 오류:', error)
+      alert('블로그 섹션 이미지 마이그레이션 중 오류가 발생했습니다')
+      setBlogSectionImageMigrationStatus(prev => ({
         ...prev,
         isRunning: false
       }))
@@ -1608,6 +1852,204 @@ export default function DataMigrationPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* 아티클 메인 이미지 마이그레이션 섹션 */}
+          <div className="bg-white rounded-lg border p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              아티클 메인 이미지 마이그레이션
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              블로그 아티클의 main_image를 외부 URL에서 Supabase Storage로 다운로드하여 마이그레이션합니다.
+            </p>
+
+            <div className="p-4 bg-gray-50 rounded-lg border">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-medium">블로그 메인 이미지 마이그레이션</h3>
+                <Button 
+                  onClick={handleBlogImageMigration}
+                  disabled={blogImageMigrationStatus.isRunning}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  {blogImageMigrationStatus.isRunning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      마이그레이션 중...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      이미지 마이그레이션 시작
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {blogImageMigrationStatus.isRunning && (
+                <div className="space-y-3">
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div 
+                      className="bg-purple-500 h-3 rounded-full transition-all duration-300"
+                      style={{ width: `${blogImageMigrationStatus.progress}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">진행률:</span>
+                      <span className="ml-2 font-medium">{blogImageMigrationStatus.progress}%</span>
+                    </div>
+                    <div>
+                      <span className="text-purple-600">마이그레이션:</span>
+                      <span className="ml-2 font-medium">{blogImageMigrationStatus.migrated}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">건너뜀:</span>
+                      <span className="ml-2 font-medium">{blogImageMigrationStatus.skipped}</span>
+                    </div>
+                    <div>
+                      <span className="text-red-600">실패:</span>
+                      <span className="ml-2 font-medium">{blogImageMigrationStatus.failed}</span>
+                    </div>
+                  </div>
+                  {blogImageMigrationStatus.currentBlog && (
+                    <div className="text-sm text-gray-600">
+                      현재 처리 중: <span className="font-medium">{blogImageMigrationStatus.currentBlog}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {blogImageMigrationStatus.logs.length > 0 && (
+                <div className="mt-4 p-3 bg-white border rounded-lg max-h-60 overflow-y-auto">
+                  <h4 className="font-medium text-gray-800 mb-2 text-sm">처리 로그 ({blogImageMigrationStatus.logs.length}개)</h4>
+                  <div className="space-y-1">
+                    {blogImageMigrationStatus.logs.map((log, idx) => (
+                      <div 
+                        key={idx} 
+                        className={cn(
+                          "text-xs p-2 rounded",
+                          log.status === 'success' && "bg-green-50 text-green-700",
+                          log.status === 'skipped' && "bg-gray-50 text-gray-600",
+                          log.status === 'failed' && "bg-red-50 text-red-700"
+                        )}
+                      >
+                        <span className="font-medium">[{log.blogId}]</span>{' '}
+                        {log.status === 'success' && '✓ 성공'}
+                        {log.status === 'skipped' && '⊘ 건너뜀'}
+                        {log.status === 'failed' && '✗ 실패'}
+                        {log.message && `: ${log.message}`}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 text-xs text-gray-500">
+                💡 이미 Supabase Storage에 저장된 이미지는 자동으로 건너뜁니다.
+              </div>
+            </div>
+          </div>
+
+          {/* 블로그 섹션 이미지 마이그레이션 섹션 */}
+          <div className="bg-white rounded-lg border p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              블로그 섹션 이미지 마이그레이션
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              블로그 섹션 콘텐츠(s1~s12_contents) 내의 framerusercontent.com 이미지를 Supabase Storage로 마이그레이션합니다.
+              <br />
+              <span className="text-orange-600 font-medium">⚠️ 다른 콘텐츠는 유지하며 이미지 URL만 교체합니다.</span>
+            </p>
+
+            <div className="p-4 bg-gray-50 rounded-lg border">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-medium">블로그 섹션 콘텐츠 이미지 마이그레이션</h3>
+                <Button 
+                  onClick={handleBlogSectionImageMigration}
+                  disabled={blogSectionImageMigrationStatus.isRunning}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  {blogSectionImageMigrationStatus.isRunning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      마이그레이션 중...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      섹션 이미지 마이그레이션 시작
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {blogSectionImageMigrationStatus.isRunning && (
+                <div className="space-y-3">
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div 
+                      className="bg-orange-500 h-3 rounded-full transition-all duration-300"
+                      style={{ width: `${blogSectionImageMigrationStatus.progress}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">진행률:</span>
+                      <span className="ml-2 font-medium">{blogSectionImageMigrationStatus.progress}%</span>
+                    </div>
+                    <div>
+                      <span className="text-orange-600">처리된 블로그:</span>
+                      <span className="ml-2 font-medium">{blogSectionImageMigrationStatus.processed}</span>
+                    </div>
+                    <div>
+                      <span className="text-green-600">교체된 이미지:</span>
+                      <span className="ml-2 font-medium">{blogSectionImageMigrationStatus.imagesReplaced}</span>
+                    </div>
+                    <div>
+                      <span className="text-red-600">실패:</span>
+                      <span className="ml-2 font-medium">{blogSectionImageMigrationStatus.failed}</span>
+                    </div>
+                  </div>
+                  {blogSectionImageMigrationStatus.currentBlog && (
+                    <div className="text-sm text-gray-600">
+                      현재 처리 중: <span className="font-medium">{blogSectionImageMigrationStatus.currentBlog}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {blogSectionImageMigrationStatus.logs.length > 0 && (
+                <div className="mt-4 p-3 bg-white border rounded-lg max-h-60 overflow-y-auto">
+                  <h4 className="font-medium text-gray-800 mb-2 text-sm">처리 로그 ({blogSectionImageMigrationStatus.logs.length}개)</h4>
+                  <div className="space-y-1">
+                    {blogSectionImageMigrationStatus.logs.map((log, idx) => (
+                      <div 
+                        key={idx} 
+                        className={cn(
+                          "text-xs p-2 rounded",
+                          log.status === 'success' && "bg-green-50 text-green-700",
+                          log.status === 'skipped' && "bg-gray-50 text-gray-600",
+                          log.status === 'failed' && "bg-red-50 text-red-700"
+                        )}
+                      >
+                        <span className="font-medium">[{log.blogId}]</span>{' '}
+                        {log.status === 'success' && '✓ 성공'}
+                        {log.status === 'skipped' && '⊘ 건너뜀'}
+                        {log.status === 'failed' && '✗ 실패'}
+                        {log.message && `: ${log.message}`}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 text-xs text-gray-500 space-y-1">
+                <div>💡 s1_contents ~ s12_contents 컬럼의 모든 framerusercontent.com 이미지를 처리합니다.</div>
+                <div>💡 다른 텍스트나 HTML 구조는 유지되며 이미지 URL만 교체됩니다.</div>
+                <div>💡 각 이미지는 <code className="bg-gray-200 px-1 rounded">blog/{'{'}blogId{'}'}/{'{'}filename{'}'}</code> 경로에 저장됩니다.</div>
+              </div>
             </div>
           </div>
 

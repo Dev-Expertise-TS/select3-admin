@@ -616,7 +616,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
         },
         body: JSON.stringify({
           imageUrl: formData.main_image,
-          blogSlug: formData.slug || undefined
+          blogId: blog?.id
         })
       })
 

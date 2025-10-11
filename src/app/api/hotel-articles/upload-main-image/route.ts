@@ -3,7 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageUrl, blogSlug } = await request.json()
+    const { imageUrl, blogId } = await request.json()
 
     if (!imageUrl) {
       return NextResponse.json(
@@ -42,15 +42,15 @@ export async function POST(request: NextRequest) {
       return 'jpg'
     })()
 
-    // 파일명 생성
+    // 파일명 생성 (blogId 사용으로 ASCII 안전)
     const timestamp = Date.now()
-    const fileName = blogSlug 
-      ? `${blogSlug}-main-${timestamp}.${inferredExt}`
+    const fileName = blogId 
+      ? `blog-${blogId}-main-${timestamp}.${inferredExt}`
       : `blog-main-${timestamp}.${inferredExt}`
     
     // Storage 경로
-    const storagePath = blogSlug 
-      ? `blog/${blogSlug}/${fileName}`
+    const storagePath = blogId 
+      ? `blog/${blogId}/${fileName}`
       : `blog/general/${fileName}`
 
     const supabase = createServiceRoleClient()
