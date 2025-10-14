@@ -12,6 +12,15 @@ const nextConfig: NextConfig = {
     // ESLint 에러를 수정한 후에는 이 설정을 제거하세요
     ignoreDuringBuilds: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
   webpack: (config, { isServer }) => {
     // Supabase realtime-js의 critical dependency warning 억제
     config.ignoreWarnings = [

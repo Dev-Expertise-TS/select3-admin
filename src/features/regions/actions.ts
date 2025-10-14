@@ -450,16 +450,33 @@ export async function updateRegion(id: number, input: RegionFormInput): Promise<
     console.log('[regions] updateRegion input:', input)
     console.log('[regions] updateRegion payload:', payload)
 
+    // 먼저 해당 ID가 존재하는지 확인
+    const { data: existingData } = await supabase
+      .from(TABLE)
+      .select('id')
+      .eq('id', id)
+      .maybeSingle()
+    
+    if (!existingData) {
+      console.error('[regions] Record not found for id:', id)
+      return { success: false, error: `ID ${id}에 해당하는 레코드를 찾을 수 없습니다.` }
+    }
+
     const { data, error } = await supabase
       .from(TABLE)
       .update(payload)
       .eq('id', id)
       .select('*')
-      .single()
+      .maybeSingle()
 
     if (error) {
       console.error('[regions] update error:', error)
       return { success: false, error: `수정에 실패했습니다: ${error.message}` }
+    }
+
+    if (!data) {
+      console.error('[regions] Update returned no data for id:', id)
+      return { success: false, error: `레코드 업데이트에 실패했습니다. ID: ${id}` }
     }
 
     revalidatePath('/admin/region-mapping')
@@ -566,15 +583,33 @@ export async function upsertRegion(input: RegionFormInput & { id?: number }): Pr
     if (payload.id) {
       // ✅ ID가 있으면 UPDATE만 실행
       console.log('[regions] Executing UPDATE for id:', payload.id)
+      
+      // 먼저 해당 ID가 존재하는지 확인
+      const { data: existingData } = await supabase
+        .from(TABLE)
+        .select('id')
+        .eq('id', payload.id)
+        .maybeSingle()
+      
+      if (!existingData) {
+        console.error('[regions] Record not found for id:', payload.id)
+        return { success: false, error: `ID ${payload.id}에 해당하는 레코드를 찾을 수 없습니다.` }
+      }
+      
       const result = await supabase
         .from(TABLE)
         .update(payload)
         .eq('id', payload.id)
         .select('*')
-        .single()
+        .maybeSingle()
       
       data = result.data
       error = result.error
+      
+      if (!data && !error) {
+        console.error('[regions] Update returned no data for id:', payload.id)
+        return { success: false, error: `레코드 업데이트에 실패했습니다. ID: ${payload.id}` }
+      }
     } else {
       // ✅ ID가 없으면 INSERT만 실행
       console.log('[regions] Executing INSERT (new record)')

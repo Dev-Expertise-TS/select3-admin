@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Plus, Save, X, Trash2, Link2, Loader2, PlusCircle, Edit, GripVertical, Image as ImageIcon } from 'lucide-react'
 import type { SelectRegion, RegionFormInput, RegionType, MappedHotel, RegionStatus } from '@/types/regions'
@@ -189,11 +190,21 @@ function SortableRow({
 }
 
 export function RegionsManager({ initialItems }: Props) {
-  const [items, setItems] = useState<SelectRegion[]>(initialItems)
+  // ✅ 초기 데이터를 active 우선으로 정렬
+  const sortedInitialItems = useMemo(() => {
+    const activeItems = initialItems.filter(item => item.status === 'active')
+    const inactiveItems = initialItems.filter(item => item.status !== 'active')
+    
+    console.log(`[RegionsManager] Initial data: ${activeItems.length} active, ${inactiveItems.length} inactive`)
+    
+    return [...activeItems, ...inactiveItems]
+  }, [initialItems])
+  
+  const [items, setItems] = useState<SelectRegion[]>(sortedInitialItems)
   const [loading, setLoading] = useState(false)
   const [selectedType, setSelectedType] = useState<RegionType>('city')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active') // 기본값: active
-  const [pageSize, setPageSize] = useState<number>(100)
+  const [pageSize, setPageSize] = useState<number>(200)
   const [showHotelModal, setShowHotelModal] = useState(false)
   const [mappedHotels, setMappedHotels] = useState<MappedHotel[]>([])
   const [modalTitle, setModalTitle] = useState('')
@@ -223,52 +234,75 @@ export function RegionsManager({ initialItems }: Props) {
   // 로딩 중인 썸네일 추적 (중복 요청 방지)
   const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set())
   
-  // 썸네일 로드 함수
-  const loadThumbnail = async (cacheKey: string, cityCode: string | null, cityKo: string | null, cityEn: string | null, forceReload = false) => {
-    // ✅ 강제 새로고침이 아니면 캐시 체크
-    if (!forceReload && thumbnailCache[cacheKey] !== undefined) {
-      return
-    }
-    
-    // ✅ 이미 로딩 중이면 스킵 (강제 새로고침은 예외)
-    if (!forceReload && loadingThumbnails.has(cacheKey)) {
-      return
-    }
-    
-    if (!cityCode && !cityKo && !cityEn) {
-      // 검색 가능한 값이 없으면 빈 문자열로 캐시
-      setThumbnailCache(prev => ({ ...prev, [cacheKey]: '' }))
-      return
-    }
-    
-    // 로딩 시작
+  // ✅ 배치 썸네일 로드 함수 (여러 이미지를 한 번에)
+  const loadThumbnailsBatch = async (items: SelectRegion[]) => {
+    if (items.length === 0) return
+
+    const cities = items
+      .filter(row => {
+        const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
+        return thumbnailCache[cacheKey] === undefined && !loadingThumbnails.has(cacheKey)
+      })
+      .map(row => ({
+        cacheKey: `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`,
+        cityCode: row.city_code ?? undefined,
+        cityKo: row.city_ko ?? undefined,
+        cityEn: row.city_en ?? undefined,
+      }))
+      .filter(city => city.cityCode || city.cityKo || city.cityEn)
+
+    if (cities.length === 0) return
+
+    console.log(`[RegionsManager] Loading ${cities.length} thumbnails in batch...`)
+
+    // 로딩 상태 설정
     setLoadingThumbnails(prev => {
       const newSet = new Set(prev)
-      newSet.add(cacheKey)
+      cities.forEach(city => newSet.add(city.cacheKey))
       return newSet
     })
-    
-    const searchParam = cityCode ? `cityCode=${encodeURIComponent(cityCode)}`
-      : cityKo ? `cityKo=${encodeURIComponent(cityKo)}`
-      : `cityEn=${encodeURIComponent(cityEn || '')}`
-    
+
     try {
-      const response = await fetch(`/api/city-images/first?${searchParam}`)
+      const response = await fetch('/api/city-images/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cities: cities.map(c => ({
+            cityCode: c.cityCode,
+            cityKo: c.cityKo,
+            cityEn: c.cityEn,
+          })),
+        }),
+      })
+
       const result = await response.json()
-      
-      // 결과가 있든 없든 캐시에 저장 (재요청 방지)
-      setThumbnailCache(prev => ({ 
-        ...prev, 
-        [cacheKey]: result.url || '' 
-      }))
+
+      if (result.success && result.data) {
+        // 배치 결과를 캐시에 저장
+        setThumbnailCache(prev => {
+          const newCache = { ...prev }
+          cities.forEach(city => {
+            const searchKey = city.cityCode || city.cityKo || city.cityEn || 'none'
+            newCache[city.cacheKey] = result.data[searchKey] || ''
+          })
+          return newCache
+        })
+      }
     } catch (error) {
-      console.error('[RegionsManager] Thumbnail fetch error:', error)
-      setThumbnailCache(prev => ({ ...prev, [cacheKey]: '' }))
+      console.error('[RegionsManager] Batch thumbnail fetch error:', error)
+      // 에러 시 빈 문자열로 캐시
+      setThumbnailCache(prev => {
+        const newCache = { ...prev }
+        cities.forEach(city => {
+          newCache[city.cacheKey] = ''
+        })
+        return newCache
+      })
     } finally {
       // 로딩 완료
       setLoadingThumbnails(prev => {
         const newSet = new Set(prev)
-        newSet.delete(cacheKey)
+        cities.forEach(city => newSet.delete(city.cacheKey))
         return newSet
       })
     }
@@ -508,11 +542,11 @@ export function RegionsManager({ initialItems }: Props) {
     return uniqueFiltered
   }, [items, statusFilter])
 
-  // 썸네일 미리 로드 (filteredItems 변경 시)
+  // ✅ 썸네일 배치 로드 (filteredItems 변경 시)
   useEffect(() => {
     if (selectedType !== 'city') return
     
-    // ✅ 캐시에 없는 항목만 로드
+    // 캐시에 없는 항목만 필터링
     const itemsToLoad = filteredItems.filter(row => {
       const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
       return thumbnailCache[cacheKey] === undefined && !loadingThumbnails.has(cacheKey)
@@ -523,12 +557,14 @@ export function RegionsManager({ initialItems }: Props) {
       return
     }
     
-    console.log(`[RegionsManager] Loading ${itemsToLoad.length} new thumbnails (total visible: ${filteredItems.length})`)
+    console.log(`[RegionsManager] Batch loading ${itemsToLoad.length} new thumbnails (total visible: ${filteredItems.length})`)
     
-    itemsToLoad.forEach(row => {
-      const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
-      loadThumbnail(cacheKey, row.city_code ?? null, row.city_ko, row.city_en)
-    })
+    // ✅ 50개씩 분할하여 배치 로드 (API 제한)
+    const chunkSize = 50
+    for (let i = 0; i < itemsToLoad.length; i += chunkSize) {
+      const chunk = itemsToLoad.slice(i, i + chunkSize)
+      loadThumbnailsBatch(chunk)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredItems, selectedType])
 
@@ -565,30 +601,73 @@ export function RegionsManager({ initialItems }: Props) {
       const activeId = extractId(active.id)
       const overId = extractId(over.id)
       
-      let updatedItems: SelectRegion[] = []
+      let allUpdatedItems: SelectRegion[] = []
       
       setItems((items) => {
-        const oldIndex = items.findIndex((item) => item.id === activeId)
-        const newIndex = items.findIndex((item) => item.id === overId)
-
-        const newItems = arrayMove(items, oldIndex, newIndex)
+        // 현재 선택된 타입의 모든 아이템 가져오기
+        const currentTypeItems = items.filter(item => item.region_type === selectedType)
         
-        // 순서 재정렬 후 sort_order 업데이트
-        const reorderedItems = newItems.map((item, index) => {
-          const sortOrderKey = getSortOrderKey(selectedType)
-          return {
-            ...item,
-            [sortOrderKey]: index + 1
-          }
+        // active와 inactive 분리
+        const activeItems = currentTypeItems.filter(item => item.status === 'active')
+        const inactiveItems = currentTypeItems.filter(item => item.status !== 'active')
+        const otherTypeItems = items.filter(item => item.region_type !== selectedType)
+        
+        // 드래그된 아이템이 active인지 확인
+        const draggedItem = currentTypeItems.find(item => item.id === activeId)
+        const isActiveItem = draggedItem?.status === 'active'
+        
+        let reorderedActiveItems = activeItems
+        let reorderedInactiveItems = inactiveItems
+        
+        if (isActiveItem) {
+          // active 아이템 내에서 재정렬
+          const oldIndex = activeItems.findIndex((item) => item.id === activeId)
+          const newIndex = activeItems.findIndex((item) => item.id === overId)
+          reorderedActiveItems = arrayMove(activeItems, oldIndex, newIndex)
+        } else {
+          // inactive 아이템 내에서 재정렬
+          const oldIndex = inactiveItems.findIndex((item) => item.id === activeId)
+          const newIndex = inactiveItems.findIndex((item) => item.id === overId)
+          reorderedInactiveItems = arrayMove(inactiveItems, oldIndex, newIndex)
+        }
+        
+        // 순서 부여: active는 1부터, inactive는 active 마지막 + 1부터
+        const sortOrderKey = getSortOrderKey(selectedType)
+        const activeCount = reorderedActiveItems.length
+        
+        const updatedActiveItems = reorderedActiveItems.map((item, index) => ({
+          ...item,
+          [sortOrderKey]: index + 1  // active: 1부터 시작
+        }))
+        
+        const updatedInactiveItems = reorderedInactiveItems.map((item, index) => ({
+          ...item,
+          [sortOrderKey]: activeCount + index + 1  // inactive: active 마지막 + 1부터
+        }))
+        
+        console.log(`[RegionsManager] Updated sort orders:`, {
+          active: updatedActiveItems.slice(0, 3).map(i => ({ 
+            id: i.id, 
+            status: i.status,
+            [sortOrderKey]: i[sortOrderKey as keyof SelectRegion] 
+          })),
+          inactive: updatedInactiveItems.slice(0, 3).map(i => ({ 
+            id: i.id, 
+            status: i.status,
+            [sortOrderKey]: i[sortOrderKey as keyof SelectRegion] 
+          }))
         })
         
-        updatedItems = reorderedItems
-        return reorderedItems
+        // 전체 아이템 병합 (다른 타입 + 업데이트된 active + 업데이트된 inactive)
+        allUpdatedItems = [...updatedActiveItems, ...updatedInactiveItems]
+        const newItems = [...otherTypeItems, ...updatedActiveItems, ...updatedInactiveItems]
+        
+        return newItems
       })
       
-      // 순서 자동 저장
+      // 순서 자동 저장 (active와 inactive 모두)
       console.log('[RegionsManager] Auto-saving order after drag...')
-      await handleAutoSaveOrder(updatedItems)
+      await handleAutoSaveOrder(allUpdatedItems)
     }
   }
 
@@ -597,16 +676,22 @@ export function RegionsManager({ initialItems }: Props) {
     setIsSavingOrder(true)
     let successCount = 0
     let errorCount = 0
+    let notFoundCount = 0
+    const notFoundIds: number[] = []
 
-    // 필터링된 아이템만 저장 (filteredItems에 있는 것만)
-    const itemsToUpdate = itemsToSave.filter(item => {
-      if (statusFilter === 'all') return true
-      if (statusFilter === 'active') return item.status === 'active'
-      if (statusFilter === 'inactive') return item.status !== 'active'
-      return true
-    })
+    // 이미 필터링된 아이템을 받으므로 추가 필터링 불필요
+    const itemsToUpdate = itemsToSave
 
-    console.log(`[RegionsManager] Auto-saving ${itemsToUpdate.length} items...`)
+    console.log(`[RegionsManager] Auto-saving ${itemsToUpdate.length} items with 1-based sort order...`)
+    
+    // 첫 3개 아이템의 sort_order 로깅
+    const sortOrderKey = getSortOrderKey(selectedType)
+    console.log(`[RegionsManager] First 3 items sort orders:`, 
+      itemsToUpdate.slice(0, 3).map(i => ({ 
+        id: i.id, 
+        [sortOrderKey]: i[sortOrderKey as keyof SelectRegion] 
+      }))
+    )
 
     for (const item of itemsToUpdate) {
       const input: RegionFormInput & { id?: number } = {
@@ -639,17 +724,35 @@ export function RegionsManager({ initialItems }: Props) {
       if (res.success) {
         successCount++
       } else {
-        errorCount++
-        console.error(`[RegionsManager] Failed to save order for item ${item.id}:`, res.error)
+        // 레코드를 찾을 수 없는 경우는 별도로 카운트
+        if (res.error && res.error.includes('해당하는 레코드를 찾을 수 없습니다')) {
+          notFoundCount++
+          notFoundIds.push(item.id)
+          console.warn(`[RegionsManager] Record not found (skipping): ID ${item.id}`)
+        } else {
+          errorCount++
+          console.error(`[RegionsManager] Failed to save order for item ${item.id}:`, res.error)
+        }
       }
     }
 
     setIsSavingOrder(false)
-    console.log(`[RegionsManager] Auto-save complete: ${successCount} success, ${errorCount} errors`)
+    console.log(`[RegionsManager] Auto-save complete: ${successCount} success, ${errorCount} errors, ${notFoundCount} not found`)
+    
+    // 레코드를 찾을 수 없는 경우가 있으면 데이터를 새로고침하여 동기화
+    if (notFoundCount > 0) {
+      console.log(`[RegionsManager] Refreshing data due to ${notFoundCount} missing records (IDs: ${notFoundIds.join(', ')})`)
+      await refreshData()
+    }
     
     // 성공/실패 피드백 (토스트 알림처럼)
-    if (errorCount === 0) {
+    if (errorCount === 0 && notFoundCount === 0) {
       console.log(`✅ 순서가 자동 저장되었습니다 (${successCount}개)`)
+    } else if (notFoundCount > 0) {
+      console.warn(`⚠️ 순서 저장 완료: ${successCount}개 성공, ${notFoundCount}개 스킵됨 (레코드 없음)`)
+      if (errorCount > 0) {
+        console.error(`❌ ${errorCount}개 저장 실패`)
+      }
     } else {
       console.warn(`⚠️ 순서 저장 완료: ${successCount}개 성공, ${errorCount}개 실패`)
     }
@@ -976,8 +1079,7 @@ export function RegionsManager({ initialItems }: Props) {
       if (data.success && Array.isArray(data.data)) {
         const regionData = data.data as SelectRegion[]
         
-        // API에서 이미 정렬되어 옴 (status → sort_order → id)
-        // 중복 제거만 수행
+        // 중복 제거
         const uniqueData = regionData.reduce((acc: SelectRegion[], current) => {
           const isDuplicate = acc.some(item => 
             item.id === current.id && item.region_type === current.region_type
@@ -990,11 +1092,33 @@ export function RegionsManager({ initialItems }: Props) {
           return acc
         }, [])
         
+        // ✅ active와 inactive를 분리하여 정렬
+        // active는 sort_order 순으로, inactive는 그 다음에 배치
+        const activeItems = uniqueData.filter(item => item.status === 'active')
+        const inactiveItems = uniqueData.filter(item => item.status !== 'active')
+        
+        // 타입별 sort_order로 정렬
+        const sortOrderKey = getSortOrderKey(selectedType)
+        activeItems.sort((a, b) => {
+          const aOrder = (a[sortOrderKey as keyof SelectRegion] as number) || 0
+          const bOrder = (b[sortOrderKey as keyof SelectRegion] as number) || 0
+          return aOrder - bOrder
+        })
+        inactiveItems.sort((a, b) => {
+          const aOrder = (a[sortOrderKey as keyof SelectRegion] as number) || 0
+          const bOrder = (b[sortOrderKey as keyof SelectRegion] as number) || 0
+          return aOrder - bOrder
+        })
+        
+        const sortedData = [...activeItems, ...inactiveItems]
+        
+        console.log(`[RegionsManager] Loaded data: ${activeItems.length} active, ${inactiveItems.length} inactive`)
+        
         // ✅ 기존 items와 비교하여 실제로 변경된 경우에만 업데이트
-        const hasChanged = JSON.stringify(items) !== JSON.stringify(uniqueData)
+        const hasChanged = JSON.stringify(items) !== JSON.stringify(sortedData)
         if (hasChanged) {
           console.log('[RegionsManager] Data changed, updating items')
-          setItems(uniqueData)
+          setItems(sortedData)
         } else {
           console.log('[RegionsManager] Data unchanged, skipping update')
         }
@@ -1303,7 +1427,7 @@ export function RegionsManager({ initialItems }: Props) {
         
         return (
           <div 
-            className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors overflow-hidden"
+            className="relative w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors overflow-hidden"
             onClick={() => {
               setImageModalCity({
                 cityKo: row.city_ko,
@@ -1318,7 +1442,15 @@ export function RegionsManager({ initialItems }: Props) {
             {isLoading ? (
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400"></div>
             ) : thumbnailUrl ? (
-              <img src={thumbnailUrl} alt={row.city_ko || row.city_en || ''} className="w-full h-full object-cover" />
+              <Image 
+                src={thumbnailUrl} 
+                alt={row.city_ko || row.city_en || ''} 
+                fill
+                sizes="64px"
+                className="object-cover"
+                loading="lazy"
+                unoptimized={thumbnailUrl.includes('supabase')}
+              />
             ) : (
               <ImageIcon className="h-6 w-6 text-gray-400" />
             )}
@@ -1433,7 +1565,7 @@ export function RegionsManager({ initialItems }: Props) {
         
         return (
           <div 
-            className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors overflow-hidden"
+            className="relative w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors overflow-hidden"
             onClick={(e) => {
               e.stopPropagation() // 편집 모드에서도 클릭 가능
               setImageModalCity({
@@ -1449,7 +1581,15 @@ export function RegionsManager({ initialItems }: Props) {
             {isLoading ? (
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400"></div>
             ) : thumbnailUrl ? (
-              <img src={thumbnailUrl} alt={row.city_ko || row.city_en || ''} className="w-full h-full object-cover" />
+              <Image 
+                src={thumbnailUrl} 
+                alt={row.city_ko || row.city_en || ''} 
+                fill
+                sizes="64px"
+                className="object-cover"
+                loading="lazy"
+                unoptimized={thumbnailUrl.includes('supabase')}
+              />
             ) : (
               <ImageIcon className="h-6 w-6 text-gray-400" />
             )}
@@ -2753,11 +2893,21 @@ export function RegionsManager({ initialItems }: Props) {
                   console.warn(`[RegionsManager] No city items found for ${imageModalCity.cityCode}`)
                 }
                 
+                // ✅ 해당 도시의 썸네일 캐시를 초기화하고 다시 로드
                 cityItems.forEach(row => {
                   const cacheKey = `${row.region_type}-${row.id}-${row.city_code || row.city_ko || row.city_en || 'none'}`
-                  console.log(`[RegionsManager] Force loading thumbnail for: ${cacheKey}`)
-                  loadThumbnail(cacheKey, row.city_code ?? null, row.city_ko, row.city_en, true) // ✅ forceReload = true
+                  console.log(`[RegionsManager] Force reloading thumbnail for: ${cacheKey}`)
+                  
+                  // 캐시 삭제
+                  setThumbnailCache(prev => {
+                    const newCache = { ...prev }
+                    delete newCache[cacheKey]
+                    return newCache
+                  })
                 })
+                
+                // 배치로 다시 로드
+                loadThumbnailsBatch(cityItems)
               }, 100) // 최소한의 지연만 적용
             }
           }}
