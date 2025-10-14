@@ -214,10 +214,12 @@ export default function AdminUsersPage() {
   }, [])
 
   // 검색 필터링
-  const filteredUsers = users.filter(user =>
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.role.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredUsers = users.filter(user => {
+    const email = String(user.email ?? '').toLowerCase()
+    const role = String(user.role ?? '').toLowerCase()
+    const term = String(searchTerm ?? '').toLowerCase()
+    return email.includes(term) || role.includes(term)
+  })
 
   if (loading) {
     return (

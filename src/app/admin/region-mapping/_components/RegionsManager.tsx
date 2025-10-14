@@ -587,11 +587,13 @@ export function RegionsManager({ initialItems }: Props) {
     // ✅ SANCASSIAN 레코드 찾기 (페이지 로드 시)
     const sancassianPatterns = ['SANCASSIAN', 'San Cassiano', 'san cassiano', 'SanCassiano', 'cassian']
     const sancassianItems = items.filter(item => 
-      sancassianPatterns.some(pattern => 
-        item.city_code?.toLowerCase().includes(pattern.toLowerCase()) || 
-        item.city_en?.toLowerCase().includes(pattern.toLowerCase()) ||
-        item.city_ko?.toLowerCase().includes(pattern.toLowerCase())
-      )
+      sancassianPatterns.some(pattern => {
+        const code = String(item.city_code ?? '').toLowerCase()
+        const en = String(item.city_en ?? '').toLowerCase()
+        const ko = String(item.city_ko ?? '').toLowerCase()
+        const p = String(pattern ?? '').toLowerCase()
+        return code.includes(p) || en.includes(p) || ko.includes(p)
+      })
     )
     
     if (sancassianItems.length > 0) {
@@ -818,11 +820,13 @@ export function RegionsManager({ initialItems }: Props) {
     for (const item of itemsToUpdate) {
       // ✅ SANCASSIAN 레코드 특별 로깅 (다양한 패턴 체크)
       const sancassianPatterns = ['SANCASSIAN', 'San Cassiano', 'san cassiano', 'SanCassiano', 'cassian']
-      const isSancassian = sancassianPatterns.some(pattern => 
-        item.city_code?.toLowerCase().includes(pattern.toLowerCase()) || 
-        item.city_en?.toLowerCase().includes(pattern.toLowerCase()) ||
-        item.city_ko?.toLowerCase().includes(pattern.toLowerCase())
-      )
+      const isSancassian = sancassianPatterns.some(pattern => {
+        const code = String(item.city_code ?? '').toLowerCase()
+        const en = String(item.city_en ?? '').toLowerCase()
+        const ko = String(item.city_ko ?? '').toLowerCase()
+        const p = String(pattern ?? '').toLowerCase()
+        return code.includes(p) || en.includes(p) || ko.includes(p)
+      })
       
       const input: RegionFormInput & { id?: number } = {
         id: item.id,
