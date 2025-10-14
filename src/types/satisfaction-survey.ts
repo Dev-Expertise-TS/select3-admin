@@ -10,6 +10,7 @@ export interface SatisfactionSurvey {
   early_check_in: boolean | null
   late_check_out: boolean | null
   room_upgrade: boolean | null
+  pick: boolean | null
   created_at?: string
   updated_at?: string
 }
@@ -26,5 +27,6 @@ export interface SatisfactionSurveyFormInput {
   early_check_in?: boolean | null
   late_check_out?: boolean | null
   room_upgrade?: boolean | null
+  pick?: boolean | null
 }
 

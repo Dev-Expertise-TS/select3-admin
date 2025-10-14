@@ -52,7 +52,7 @@ export function SatisfactionSurveyTable() {
   const rows: Row[] = useMemo(() => surveyData || [], [surveyData])
   
   // 표시할 컬럼 순서 고정 (sabre_id 대신 property_name_kr 표시)
-  const columns = ['id', 'submitted_at', 'booking_number', 'property_name_kr', 'satisfaction', 'early_check_in', 'late_check_out', 'room_upgrade', 'review_text']
+  const columns = ['id', 'submitted_at', 'booking_number', 'property_name_kr', 'satisfaction', 'early_check_in', 'late_check_out', 'room_upgrade', 'pick', 'review_text']
 
   const pkField = 'id'
 
@@ -134,7 +134,7 @@ export function SatisfactionSurveyTable() {
 
   // Boolean 필드인지 확인
   const isBooleanField = (field: string) => {
-    return ['satisfaction', 'early_check_in', 'late_check_out', 'room_upgrade'].includes(field)
+    return ['satisfaction', 'early_check_in', 'late_check_out', 'room_upgrade', 'pick'].includes(field)
   }
 
   // 컬럼 라벨 매핑
@@ -148,7 +148,8 @@ export function SatisfactionSurveyTable() {
       satisfaction: '만족도',
       early_check_in: '얼리 체크인',
       late_check_out: '레이트 체크아웃',
-      room_upgrade: '룸 업그레이드'
+      room_upgrade: '룸 업그레이드',
+      pick: '선정'
     }
     return labelMap[column] || column
   }
@@ -164,6 +165,7 @@ export function SatisfactionSurveyTable() {
       early_check_in: '120px',
       late_check_out: '120px',
       room_upgrade: '120px',
+      pick: '90px',
       review_text: '350px'
     }
     return widthMap[column] || 'auto'
@@ -228,9 +230,19 @@ export function SatisfactionSurveyTable() {
                       defaultValue=""
                       form="new-row-form"
                     >
-                      <option value="">-</option>
-                      <option value="true">{c === 'satisfaction' ? '만족' : '제공'}</option>
-                      <option value="false">{c === 'satisfaction' ? '불만족' : '미제공'}</option>
+                      {c === 'pick' ? (
+                        <>
+                          <option value=""> </option>
+                          <option value="true">선정</option>
+                          <option value="false"> </option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="">-</option>
+                          <option value="true">{c === 'satisfaction' ? '만족' : '제공'}</option>
+                          <option value="false">{c === 'satisfaction' ? '불만족' : '미제공'}</option>
+                        </>
+                      )}
                     </select>
                   ) : c === 'review_text' ? (
                     <textarea 
@@ -290,15 +302,15 @@ export function SatisfactionSurveyTable() {
                   <Button
                     type="submit"
                     size="xs"
+                    variant="default"
                     disabled={createMutation.isPending}
-                    className="bg-yellow-600 hover:bg-yellow-700"
                   >
                     {createMutation.isPending ? '생성 중' : '생성'}
                   </Button>
                   <Button
                     type="button"
                     size="xs"
-                    variant="ghost"
+                    variant="secondary"
                     onClick={() => {
                       setAdding(false)
                       setSelectedHotels(prev => {
@@ -341,9 +353,19 @@ export function SatisfactionSurveyTable() {
                         defaultValue={r[c] === true ? 'true' : r[c] === false ? 'false' : ''}
                         form={formId}
                       >
-                        <option value="">-</option>
-                        <option value="true">{c === 'satisfaction' ? '만족' : '제공'}</option>
-                        <option value="false">{c === 'satisfaction' ? '불만족' : '미제공'}</option>
+                        {c === 'pick' ? (
+                          <>
+                            <option value=""> </option>
+                            <option value="true">선정</option>
+                            <option value="false"> </option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="">-</option>
+                            <option value="true">{c === 'satisfaction' ? '만족' : '제공'}</option>
+                            <option value="false">{c === 'satisfaction' ? '불만족' : '미제공'}</option>
+                          </>
+                        )}
                       </select>
                     ) : c === 'review_text' ? (
                       <textarea 
@@ -421,8 +443,9 @@ export function SatisfactionSurveyTable() {
                     <Button
                       type="submit"
                       size="xs"
+                      variant="default"
                       disabled={savingRecords.has(pkValue)}
-                      className="bg-teal-600 hover:bg-teal-700 w-full"
+                      className="w-full"
                     >
                       {savingRecords.has(pkValue) ? '저장 중' : '저장'}
                     </Button>
