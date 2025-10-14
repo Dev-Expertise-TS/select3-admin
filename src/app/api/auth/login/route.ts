@@ -21,8 +21,17 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    if (!body.email || !body.password) {
-      console.log('❌ 필수 필드 누락:', { hasEmail: !!body.email, hasPassword: !!body.password })
+    // ✅ 이메일과 패스워드 앞뒤 공백 제거
+    const trimmedEmail = body.email?.trim()
+    const trimmedPassword = body.password?.trim()
+    
+    if (!trimmedEmail || !trimmedPassword) {
+      console.log('❌ 필수 필드 누락 (trim 후):', { 
+        hasEmail: !!trimmedEmail, 
+        hasPassword: !!trimmedPassword,
+        originalEmail: body.email,
+        originalPassword: body.password ? '***' : null
+      })
       return NextResponse.json<AuthResponse>(
         {
           success: false,
@@ -54,23 +63,60 @@ export async function POST(request: NextRequest) {
     
     // 사용자 인증
     console.log('🔐 사용자 인증 시도 중...')
-    console.log('📧 인증 시도 이메일:', body.email)
+    console.log('📧 인증 시도 이메일:', trimmedEmail)
+    console.log('🔑 패스워드 길이:', trimmedPassword.length)
+    console.log('🔑 패스워드 첫 3자:', trimmedPassword.substring(0, 3) + '***')
+    
+    // ✅ 먼저 사용자가 존재하는지 확인
+    try {
+      const { data: users, error: listError } = await supabase.auth.admin.listUsers()
+      if (listError) {
+        console.error('❌ 사용자 목록 조회 오류:', listError)
+      } else {
+        const userExists = users.users.find(u => u.email === trimmedEmail)
+        if (userExists) {
+          console.log('✅ 사용자 존재 확인:', {
+            id: userExists.id,
+            email: userExists.email,
+            confirmed: userExists.email_confirmed_at ? '인증됨' : '미인증',
+            lastSignIn: userExists.last_sign_in_at
+          })
+        } else {
+          console.log('❌ 해당 이메일의 사용자가 존재하지 않음')
+        }
+      }
+    } catch (e) {
+      console.warn('사용자 확인 중 오류 (계속 진행):', e)
+    }
     
     type SignInResult = Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>
     let authData: SignInResult['data'] | null = null
     let authError: SignInResult['error'] | null = null
     
     try {
+      console.log('🔐 signInWithPassword 호출 시작...')
+      
       const result = await supabase.auth.signInWithPassword({
-        email: body.email,
-        password: body.password
+        email: trimmedEmail,
+        password: trimmedPassword
       })
       
       authData = result.data
       authError = result.error
 
+      console.log('🔐 signInWithPassword 호출 완료:', {
+        hasData: !!authData,
+        hasUser: !!authData?.user,
+        hasError: !!authError,
+        errorMessage: authError?.message
+      })
+
       if (authError) {
-        console.error('❌ Supabase 인증 오류:', authError)
+        console.error('❌ Supabase 인증 오류 상세:', {
+          message: authError.message,
+          status: authError.status,
+          name: authError.name
+        })
         
         // 더 구체적인 오류 메시지 제공
         let errorMessage = '이메일 또는 비밀번호가 올바르지 않습니다.'
@@ -101,9 +147,13 @@ export async function POST(request: NextRequest) {
         )
       }
       
-      console.log('✅ Supabase 인증 성공:', { userId: authData.user?.id })
+      console.log('✅ Supabase 인증 성공:', { 
+        userId: authData.user?.id,
+        email: authData.user?.email
+      })
     } catch (authError) {
       console.error('❌ Supabase 인증 예외 발생:', authError)
+      console.error('❌ 예외 상세:', JSON.stringify(authError, null, 2))
       return NextResponse.json<AuthResponse>(
         {
           success: false,

@@ -6,7 +6,11 @@ export async function POST(request: NextRequest) {
   try {
     const body: SignUpCredentials = await request.json()
     
-    if (!body.email || !body.password) {
+    // ✅ 이메일과 패스워드 앞뒤 공백 제거
+    const trimmedEmail = body.email?.trim()
+    const trimmedPassword = body.password?.trim()
+    
+    if (!trimmedEmail || !trimmedPassword) {
       return NextResponse.json<AuthResponse>(
         {
           success: false,
@@ -16,7 +20,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (body.password.length < 6) {
+    if (trimmedPassword.length < 6) {
       return NextResponse.json<AuthResponse>(
         {
           success: false,
@@ -26,12 +30,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    console.log('📝 회원가입 API 호출:', {
+      email: trimmedEmail,
+      passwordLength: trimmedPassword.length
+    })
+
     const supabase = createServiceRoleClient()
     
     // 사용자 계정 생성
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: body.email,
-      password: body.password,
+      email: trimmedEmail,
+      password: trimmedPassword,
       email_confirm: true // 이메일 확인 자동 완료
     })
 

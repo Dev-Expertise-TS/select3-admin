@@ -25,7 +25,18 @@ export function LoginForm({ onSwitchToSignup, className }: LoginFormProps) {
     setLoading(true)
 
     try {
-      const result = await login(email, password)
+      // ✅ 이메일과 패스워드 앞뒤 공백 제거
+      const trimmedEmail = email.trim()
+      const trimmedPassword = password.trim()
+      
+      console.log('🔐 로그인 시도:', { 
+        email: trimmedEmail, 
+        passwordLength: trimmedPassword.length,
+        hadEmailSpaces: email !== trimmedEmail,
+        hadPasswordSpaces: password !== trimmedPassword
+      })
+      
+      const result = await login(trimmedEmail, trimmedPassword)
       
       if (result.success) {
         // 로그인 성공 - 페이지 리다이렉트는 AuthContext에서 처리
@@ -138,6 +149,12 @@ export function LoginForm({ onSwitchToSignup, className }: LoginFormProps) {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onPaste={(e) => {
+              // ✅ 붙여넣기 시 자동으로 공백 제거
+              e.preventDefault()
+              const pastedText = e.clipboardData.getData('text').trim()
+              setEmail(pastedText)
+            }}
             placeholder="your@email.com"
             required
             autoComplete="username"
@@ -158,6 +175,12 @@ export function LoginForm({ onSwitchToSignup, className }: LoginFormProps) {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            onPaste={(e) => {
+              // ✅ 붙여넣기 시 자동으로 공백 제거
+              e.preventDefault()
+              const pastedText = e.clipboardData.getData('text').trim()
+              setPassword(pastedText)
+            }}
             placeholder="••••••••"
             required
             autoComplete="current-password"
@@ -191,6 +214,32 @@ export function LoginForm({ onSwitchToSignup, className }: LoginFormProps) {
           </p>
         </div>
       )}
+
+      {/* ✅ 로그인 문제 해결 버튼 */}
+      <div className="mt-4 text-center">
+        <button
+          type="button"
+          onClick={() => {
+            if (confirm('로그인에 문제가 있나요?\n\n저장된 세션 데이터를 초기화하고 다시 시도합니다.\n\n계속하시겠습니까?')) {
+              // 로컬스토리지의 Supabase 데이터 삭제
+              const keys = Object.keys(localStorage)
+              keys.forEach(key => {
+                if (key.startsWith('sb-')) {
+                  localStorage.removeItem(key)
+                  console.log('🗑️ 삭제된 키:', key)
+                }
+              })
+              
+              console.log('✅ 세션 데이터 초기화 완료')
+              alert('✅ 세션 데이터가 초기화되었습니다.\n\n페이지를 새로고침하고 다시 로그인하세요.')
+              window.location.reload()
+            }
+          }}
+          className="text-xs text-gray-500 hover:text-gray-700 underline"
+        >
+          로그인 문제 해결 (세션 초기화)
+        </button>
+      </div>
     </div>
   )
 }

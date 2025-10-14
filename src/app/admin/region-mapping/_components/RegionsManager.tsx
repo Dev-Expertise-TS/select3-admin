@@ -583,6 +583,30 @@ export function RegionsManager({ initialItems }: Props) {
 
   useEffect(() => {
     console.log('[RegionsManager] items changed:', items.length, 'items')
+    
+    // ✅ SANCASSIAN 레코드 찾기 (페이지 로드 시)
+    const sancassianPatterns = ['SANCASSIAN', 'San Cassiano', 'san cassiano', 'SanCassiano', 'cassian']
+    const sancassianItems = items.filter(item => 
+      sancassianPatterns.some(pattern => 
+        item.city_code?.toLowerCase().includes(pattern.toLowerCase()) || 
+        item.city_en?.toLowerCase().includes(pattern.toLowerCase()) ||
+        item.city_ko?.toLowerCase().includes(pattern.toLowerCase())
+      )
+    )
+    
+    if (sancassianItems.length > 0) {
+      console.log('[RegionsManager] 🔍🔍🔍 SANCASSIAN records found:', sancassianItems.map(i => ({
+        id: i.id,
+        city_code: i.city_code,
+        city_ko: i.city_ko,
+        city_en: i.city_en,
+        status: i.status,
+        city_sort_order: i.city_sort_order,
+        region_type: i.region_type
+      })))
+    } else {
+      console.log('[RegionsManager] ⚠️ No SANCASSIAN records found in items')
+    }
   }, [items])
 
   // 드래그 종료 핸들러
@@ -590,6 +614,7 @@ export function RegionsManager({ initialItems }: Props) {
     const { active, over } = event
 
     if (over && active.id !== over.id) {
+      console.log('[RegionsManager] ===== DRAG END DEBUG START =====')
       console.log('[RegionsManager] Drag ended:', { activeId: active.id, overId: over.id })
       
       // ID 형식이 "${region_type}-${id}"이므로 실제 ID 추출
@@ -601,20 +626,85 @@ export function RegionsManager({ initialItems }: Props) {
       const activeId = extractId(active.id)
       const overId = extractId(over.id)
       
+      console.log('[RegionsManager] Extracted IDs:', { activeId, overId })
+      
       let allUpdatedItems: SelectRegion[] = []
       
       setItems((items) => {
         // 현재 선택된 타입의 모든 아이템 가져오기
         const currentTypeItems = items.filter(item => item.region_type === selectedType)
         
+        console.log(`[RegionsManager] Current type (${selectedType}) items count:`, currentTypeItems.length)
+        
         // active와 inactive 분리
         const activeItems = currentTypeItems.filter(item => item.status === 'active')
         const inactiveItems = currentTypeItems.filter(item => item.status !== 'active')
         const otherTypeItems = items.filter(item => item.region_type !== selectedType)
         
+        console.log(`[RegionsManager] Status split: ${activeItems.length} active, ${inactiveItems.length} inactive`)
+        
         // 드래그된 아이템이 active인지 확인
         const draggedItem = currentTypeItems.find(item => item.id === activeId)
-        const isActiveItem = draggedItem?.status === 'active'
+        const targetItem = currentTypeItems.find(item => item.id === overId)
+        
+        if (!draggedItem) {
+          console.error(`[RegionsManager] ❌ Dragged item not found! ID: ${activeId}`)
+          console.error('[RegionsManager] Available IDs in currentTypeItems:', currentTypeItems.map(i => i.id))
+          return items
+        }
+        
+        if (!targetItem) {
+          console.error(`[RegionsManager] ❌ Target item not found! ID: ${overId}`)
+          console.error('[RegionsManager] Available IDs in currentTypeItems:', currentTypeItems.map(i => i.id))
+          return items
+        }
+        
+        console.log('[RegionsManager] Dragged item:', { 
+          id: draggedItem.id, 
+          city_code: draggedItem.city_code, 
+          city_ko: draggedItem.city_ko,
+          city_en: draggedItem.city_en,
+          status: draggedItem.status,
+          city_sort_order: draggedItem.city_sort_order
+        })
+        console.log('[RegionsManager] Target item:', { 
+          id: targetItem.id, 
+          city_code: targetItem.city_code,
+          city_ko: targetItem.city_ko,
+          city_en: targetItem.city_en,
+          status: targetItem.status,
+          city_sort_order: targetItem.city_sort_order
+        })
+        
+        // ✅ SANCASSIAN 특별 체크 (다양한 패턴 확인)
+        const sancassianPatterns = ['SANCASSIAN', 'San Cassiano', 'san cassiano', 'SanCassiano']
+        const isSancassianDragged = sancassianPatterns.some(pattern => 
+          draggedItem.city_code?.includes(pattern) || 
+          draggedItem.city_en?.includes(pattern) ||
+          draggedItem.city_ko?.includes(pattern)
+        )
+        const isSancassianTarget = sancassianPatterns.some(pattern => 
+          targetItem.city_code?.includes(pattern) || 
+          targetItem.city_en?.includes(pattern) ||
+          targetItem.city_ko?.includes(pattern)
+        )
+        
+        if (isSancassianDragged) {
+          console.log('[RegionsManager] 🔍🔍🔍 SANCASSIAN DETECTED as DRAGGED item!')
+        }
+        if (isSancassianTarget) {
+          console.log('[RegionsManager] 🔍🔍🔍 SANCASSIAN DETECTED as TARGET item!')
+        }
+        
+        const isActiveItem = draggedItem.status === 'active'
+        const isTargetActive = targetItem.status === 'active'
+        
+        // ✅ 다른 status 그룹으로 드래그하는 경우 경고
+        if (isActiveItem !== isTargetActive) {
+          console.warn('[RegionsManager] ⚠️ Cannot move between active and inactive groups!')
+          alert('active와 inactive 간에는 이동할 수 없습니다. 같은 상태의 레코드끼리만 순서를 변경할 수 있습니다.')
+          return items
+        }
         
         let reorderedActiveItems = activeItems
         let reorderedInactiveItems = inactiveItems
@@ -623,11 +713,27 @@ export function RegionsManager({ initialItems }: Props) {
           // active 아이템 내에서 재정렬
           const oldIndex = activeItems.findIndex((item) => item.id === activeId)
           const newIndex = activeItems.findIndex((item) => item.id === overId)
+          
+          console.log('[RegionsManager] Active group reorder:', { oldIndex, newIndex })
+          
+          if (oldIndex === -1 || newIndex === -1) {
+            console.error('[RegionsManager] ❌ Invalid index in active group:', { oldIndex, newIndex })
+            return items
+          }
+          
           reorderedActiveItems = arrayMove(activeItems, oldIndex, newIndex)
         } else {
           // inactive 아이템 내에서 재정렬
           const oldIndex = inactiveItems.findIndex((item) => item.id === activeId)
           const newIndex = inactiveItems.findIndex((item) => item.id === overId)
+          
+          console.log('[RegionsManager] Inactive group reorder:', { oldIndex, newIndex })
+          
+          if (oldIndex === -1 || newIndex === -1) {
+            console.error('[RegionsManager] ❌ Invalid index in inactive group:', { oldIndex, newIndex })
+            return items
+          }
+          
           reorderedInactiveItems = arrayMove(inactiveItems, oldIndex, newIndex)
         }
         
@@ -648,11 +754,13 @@ export function RegionsManager({ initialItems }: Props) {
         console.log(`[RegionsManager] Updated sort orders:`, {
           active: updatedActiveItems.slice(0, 3).map(i => ({ 
             id: i.id, 
+            city_code: (i as any).city_code,
             status: i.status,
             [sortOrderKey]: i[sortOrderKey as keyof SelectRegion] 
           })),
           inactive: updatedInactiveItems.slice(0, 3).map(i => ({ 
-            id: i.id, 
+            id: i.id,
+            city_code: (i as any).city_code,
             status: i.status,
             [sortOrderKey]: i[sortOrderKey as keyof SelectRegion] 
           }))
@@ -662,11 +770,25 @@ export function RegionsManager({ initialItems }: Props) {
         allUpdatedItems = [...updatedActiveItems, ...updatedInactiveItems]
         const newItems = [...otherTypeItems, ...updatedActiveItems, ...updatedInactiveItems]
         
+        // ✅ SANCASSIAN 레코드 확인
+        const sancassianInUpdated = allUpdatedItems.find(i => (i as any).city_code === 'SANCASSIAN')
+        if (sancassianInUpdated) {
+          console.log('[RegionsManager] 🔍 SANCASSIAN in updated items:', {
+            id: sancassianInUpdated.id,
+            city_code: (sancassianInUpdated as any).city_code,
+            city_sort_order: sancassianInUpdated.city_sort_order,
+            status: sancassianInUpdated.status
+          })
+        }
+        
+        console.log('[RegionsManager] ===== DRAG END DEBUG END =====')
+        
         return newItems
       })
       
       // 순서 자동 저장 (active와 inactive 모두)
       console.log('[RegionsManager] Auto-saving order after drag...')
+      console.log('[RegionsManager] Items to save count:', allUpdatedItems.length)
       await handleAutoSaveOrder(allUpdatedItems)
     }
   }
@@ -694,6 +816,14 @@ export function RegionsManager({ initialItems }: Props) {
     )
 
     for (const item of itemsToUpdate) {
+      // ✅ SANCASSIAN 레코드 특별 로깅 (다양한 패턴 체크)
+      const sancassianPatterns = ['SANCASSIAN', 'San Cassiano', 'san cassiano', 'SanCassiano', 'cassian']
+      const isSancassian = sancassianPatterns.some(pattern => 
+        item.city_code?.toLowerCase().includes(pattern.toLowerCase()) || 
+        item.city_en?.toLowerCase().includes(pattern.toLowerCase()) ||
+        item.city_ko?.toLowerCase().includes(pattern.toLowerCase())
+      )
+      
       const input: RegionFormInput & { id?: number } = {
         id: item.id,
         region_type: item.region_type,
@@ -720,7 +850,30 @@ export function RegionsManager({ initialItems }: Props) {
         region_name_sort_order: item.region_name_sort_order,
       }
 
+      if (isSancassian) {
+        console.log('[RegionsManager] 🔍 SANCASSIAN save input:', {
+          id: input.id,
+          city_code: input.city_code,
+          city_ko: input.city_ko,
+          city_sort_order: input.city_sort_order,
+          status: input.status
+        })
+      }
+
       const res = await upsertRegion(input)
+      
+      if (isSancassian) {
+        console.log('[RegionsManager] 🔍 SANCASSIAN save result:', {
+          success: res.success,
+          error: res.error,
+          data: res.data ? {
+            id: res.data.id,
+            city_code: res.data.city_code,
+            city_sort_order: res.data.city_sort_order
+          } : null
+        })
+      }
+      
       if (res.success) {
         successCount++
       } else {
@@ -728,10 +881,10 @@ export function RegionsManager({ initialItems }: Props) {
         if (res.error && res.error.includes('해당하는 레코드를 찾을 수 없습니다')) {
           notFoundCount++
           notFoundIds.push(item.id)
-          console.warn(`[RegionsManager] Record not found (skipping): ID ${item.id}`)
+          console.warn(`[RegionsManager] Record not found (skipping): ID ${item.id}, city_code: ${item.city_code}`)
         } else {
           errorCount++
-          console.error(`[RegionsManager] Failed to save order for item ${item.id}:`, res.error)
+          console.error(`[RegionsManager] Failed to save order for item ${item.id} (${item.city_code}):`, res.error)
         }
       }
     }

@@ -96,19 +96,39 @@ export default function AdminUsersPage() {
     return new Promise<{ success: boolean; error?: string }>((resolve) => {
       startTransition(async () => {
         try {
+          // ✅ 공백 제거
+          const trimmedEmail = userData.email?.trim()
+          const trimmedPassword = userData.password?.trim()
+          
+          console.log('👤 사용자 업데이트 로컬:', {
+            userId: userData.id,
+            email: trimmedEmail,
+            role: userData.role,
+            hasPassword: !!trimmedPassword,
+            passwordLength: trimmedPassword?.length || 0
+          })
+          
           const formData = new FormData()
           formData.append('id', userData.id)
-          if (userData.email) formData.append('email', userData.email)
+          if (trimmedEmail) formData.append('email', trimmedEmail)
           if (userData.role) formData.append('role', userData.role)
-          if (userData.password) formData.append('password', userData.password)
+          if (trimmedPassword) formData.append('password', trimmedPassword)
 
           const result = await updateUser(formData)
 
           if (result.success) {
+            console.log('✅ 사용자 업데이트 성공 완료')
+            
+            // ✅ 비밀번호 변경 시 명확한 알림
+            if (trimmedPassword) {
+              alert(`✅ 비밀번호가 성공적으로 변경되었습니다.\n\n새 비밀번호로 로그인하세요:\n이메일: ${trimmedEmail}\n비밀번호: ${trimmedPassword}\n\n(이 메시지는 테스트용입니다)`)
+            }
+            
             await fetchUsers()
             setEditingUser(null)
             resolve({ success: true })
           } else {
+            console.error('❌ 사용자 업데이트 실패:', result.error)
             resolve({ success: false, error: result.error })
           }
         } catch {
@@ -135,6 +155,58 @@ export default function AdminUsersPage() {
         alert('사용자 삭제 중 오류가 발생했습니다.')
       }
     })
+  }
+
+  // 이메일 확인 처리
+  const confirmUserEmail = async (userId: string, userEmail: string) => {
+    if (!confirm(`${userEmail}의 이메일을 확인 처리하시겠습니까?\n\n이메일 인증을 건너뛰고 즉시 로그인 가능하게 됩니다.`)) return
+
+    try {
+      setLoading(true)
+      const response = await fetch('/api/users/confirm-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        alert('✅ 이메일 확인 처리 완료!')
+        await fetchUsers()
+      } else {
+        alert(`❌ 실패: ${result.error}`)
+      }
+    } catch {
+      alert('이메일 확인 처리 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 모든 사용자 이메일 일괄 확인 처리
+  const confirmAllEmails = async () => {
+    if (!confirm('모든 사용자의 이메일을 확인 처리하시겠습니까?\n\n미인증 상태의 모든 사용자가 즉시 로그인 가능하게 됩니다.')) return
+
+    try {
+      setLoading(true)
+      const response = await fetch('/api/users/confirm-all-emails', {
+        method: 'POST'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        alert(`✅ 이메일 일괄 확인 처리 완료!\n\n• 전체: ${result.data.total}명\n• 이미 확인됨: ${result.data.alreadyConfirmed}명\n• 새로 확인됨: ${result.data.newlyConfirmed}명\n• 실패: ${result.data.errors}개`)
+        await fetchUsers()
+      } else {
+        alert(`❌ 실패: ${result.error}`)
+      }
+    } catch {
+      alert('이메일 일괄 확인 처리 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -188,13 +260,24 @@ export default function AdminUsersPage() {
               className="max-w-sm"
             />
           </div>
-          <Button
-            onClick={() => setShowCreateForm(true)}
-            className="h-10 px-4"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            새 사용자
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={confirmAllEmails}
+              variant="outline"
+              className="h-10 px-4"
+              title="모든 미인증 사용자의 이메일을 즉시 확인 처리"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              전체 이메일 확인
+            </Button>
+            <Button
+              onClick={() => setShowCreateForm(true)}
+              className="h-10 px-4"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              새 사용자
+            </Button>
+          </div>
         </div>
 
 
@@ -215,8 +298,22 @@ export default function AdminUsersPage() {
               {filteredUsers.map((user) => (
                 <tr key={user.id} className="border-b">
                   <td className="p-4 align-middle">
-                    <div className="font-medium">{user.email}</div>
-                    <div className="text-sm text-gray-500">ID: {user.id}</div>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <div className="font-medium">{user.email}</div>
+                        <div className="text-sm text-gray-500">ID: {user.id}</div>
+                      </div>
+                      {/* ✅ 이메일 확인 상태 표시 */}
+                      {user.email_confirmed_at ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" title="이메일 인증 완료">
+                          ✓ 인증됨
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800" title="이메일 미인증">
+                          ⚠ 미인증
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-4 align-middle">
                     <div className="flex items-center gap-2">
@@ -257,6 +354,18 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="p-4 align-middle">
                     <div className="flex gap-2">
+                      {/* ✅ 미인증 사용자에게 이메일 확인 버튼 표시 */}
+                      {!user.email_confirmed_at && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => confirmUserEmail(user.id, user.email)}
+                          className="text-amber-600 hover:text-amber-700"
+                          title="이메일 인증 건너뛰기"
+                        >
+                          <Shield className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -349,15 +458,20 @@ function UserFormModal({
     setError('')
     setLoading(true)
 
+    // ✅ 공백 제거
+    const trimmedEmail = formData.email.trim()
+    const trimmedPassword = formData.password.trim()
+    const trimmedConfirmPassword = formData.confirmPassword.trim()
+
     // 새 사용자 생성 시에만 비밀번호 확인
-    if (!user && formData.password !== formData.confirmPassword) {
+    if (!user && trimmedPassword !== trimmedConfirmPassword) {
       setError('비밀번호가 일치하지 않습니다.')
       setLoading(false)
       return
     }
 
-    // 새 사용자 생성 시 비밀번호 길이 확인
-    if (!user && formData.password.length < 6) {
+    // 비밀번호 길이 확인 (새 사용자 또는 비밀번호 변경 시)
+    if (trimmedPassword && trimmedPassword.length < 6) {
       setError('비밀번호는 최소 6자 이상이어야 합니다.')
       setLoading(false)
       return
@@ -365,8 +479,26 @@ function UserFormModal({
 
     try {
       const data = user 
-        ? { id: user.id, ...formData }
-        : { email: formData.email, password: formData.password, role: formData.role }
+        ? { 
+            id: user.id, 
+            email: trimmedEmail || user.email,
+            role: formData.role,
+            password: trimmedPassword || undefined  // 비밀번호가 비어있으면 변경하지 않음
+          }
+        : { 
+            email: trimmedEmail, 
+            password: trimmedPassword, 
+            role: formData.role 
+          }
+
+      console.log('📝 폼 제출 데이터:', {
+        isEdit: !!user,
+        userId: user?.id,
+        email: data.email,
+        role: data.role,
+        hasPassword: !!(data as any).password,
+        passwordLength: (data as any).password?.length || 0
+      })
 
       const result = await onSubmit(data)
       
@@ -404,6 +536,11 @@ function UserFormModal({
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onPaste={(e) => {
+                e.preventDefault()
+                const pastedText = e.clipboardData.getData('text').trim()
+                setFormData({ ...formData, email: pastedText })
+              }}
               required
               disabled={!!user} // 수정 시 이메일 변경 불가
             />
@@ -411,15 +548,25 @@ function UserFormModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              비밀번호
+              비밀번호 {user && <span className="text-gray-500 text-xs">(변경 시에만 입력)</span>}
             </label>
             <Input
               type="password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              onPaste={(e) => {
+                e.preventDefault()
+                const pastedText = e.clipboardData.getData('text').trim()
+                setFormData({ ...formData, password: pastedText })
+              }}
               required={!user} // 수정 시 선택사항
               placeholder={user ? '변경하지 않으려면 비워두세요' : '••••••••'}
             />
+            {user && (
+              <p className="text-xs text-amber-600 mt-1 font-medium">
+                ⚠️ 새 비밀번호를 입력하면 기존 비밀번호가 변경됩니다 (최소 6자)
+              </p>
+            )}
             {!user && (
               <p className="text-xs text-gray-500 mt-1">최소 6자 이상</p>
             )}
@@ -434,6 +581,11 @@ function UserFormModal({
                 type="password"
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                onPaste={(e) => {
+                  e.preventDefault()
+                  const pastedText = e.clipboardData.getData('text').trim()
+                  setFormData({ ...formData, confirmPassword: pastedText })
+                }}
                 required={!user}
                 placeholder="••••••••"
               />

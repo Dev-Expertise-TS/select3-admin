@@ -99,17 +99,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 로그인
   const login = async (email: string, password: string) => {
     try {
-      console.log('🔐 로그인 시도:', email)
+      // ✅ 이메일과 패스워드 앞뒤 공백 제거 (보안)
+      const trimmedEmail = email.trim()
+      const trimmedPassword = password.trim()
+      
+      console.log('🔐 ===== 로그인 디버깅 시작 =====')
+      console.log('🔐 AuthContext 로그인 시도:', { 
+        email: trimmedEmail,
+        passwordLength: trimmedPassword.length,
+        passwordFirstChars: trimmedPassword.substring(0, 3) + '***',
+        originalEmailLength: email.length,
+        originalPasswordLength: password.length,
+        hadEmailSpaces: email !== trimmedEmail,
+        hadPasswordSpaces: password !== trimmedPassword
+      })
       
       // 1. Supabase 인증으로 직접 로그인
+      console.log('🔐 Supabase signInWithPassword 호출...')
+      
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password
+        email: trimmedEmail,
+        password: trimmedPassword
+      })
+
+      console.log('🔐 signInWithPassword 응답:', {
+        hasData: !!authData,
+        hasUser: !!authData?.user,
+        hasSession: !!authData?.session,
+        hasError: !!authError,
+        errorMessage: authError?.message,
+        errorStatus: authError?.status
       })
 
       if (authError) {
-        console.error('❌ Supabase 인증 오류:', authError)
-        return { success: false, error: authError.message }
+        console.error('❌ Supabase 인증 오류 상세:', {
+          message: authError.message,
+          status: authError.status,
+          name: authError.name,
+          // @ts-ignore
+          code: authError.code
+        })
+        
+        // ✅ 더 친절한 에러 메시지
+        let friendlyError = authError.message
+        
+        if (authError.message?.includes('Invalid login credentials')) {
+          friendlyError = '이메일 또는 비밀번호가 올바르지 않습니다.\n\n💡 확인사항:\n• 이메일 주소가 정확한지\n• 비밀번호에 공백이 없는지\n• 대소문자를 정확히 입력했는지'
+        } else if (authError.message?.includes('Email not confirmed')) {
+          // ✅ 이메일 미인증 시 자동으로 확인 처리 시도
+          console.warn('⚠️ 이메일 미인증 감지, 자동 확인 처리 시도...')
+          friendlyError = '이메일 인증이 완료되지 않았습니다.\n\n관리자에게 문의하여 이메일을 확인 처리하세요.'
+        }
+        
+        return { success: false, error: friendlyError }
       }
 
       if (!authData.user) {
@@ -133,13 +175,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('✅ 로그인 성공:', { 
         id: authUser.id, 
         email: authUser.email, 
-        role: authUser.role 
+        role: authUser.role,
+        hasSession: !!authData.session
       })
+      console.log('🔐 ===== 로그인 디버깅 끝 =====')
 
       setUser(authUser)
       return { success: true }
     } catch (error) {
       console.error('❌ 로그인 중 예외 발생:', error)
+      console.error('❌ 예외 상세:', JSON.stringify(error, null, 2))
       return { success: false, error: '로그인 중 오류가 발생했습니다.' }
     }
   }
@@ -147,11 +192,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 사용자 생성
   const signup = async (email: string, password: string, role: 'admin' | 'user' = 'user') => {
     try {
-      console.log('📝 회원가입 시도:', email, role)
+      // ✅ 이메일과 패스워드 앞뒤 공백 제거
+      const trimmedEmail = email.trim()
+      const trimmedPassword = password.trim()
+      
+      console.log('📝 AuthContext 회원가입 시도:', { 
+        email: trimmedEmail, 
+        role,
+        passwordLength: trimmedPassword.length
+      })
       
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: trimmedEmail,
+        password: trimmedPassword,
         options: {
           data: { role }
         }
@@ -180,18 +233,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🚪 로그아웃 시작...')
       
-      const { error } = await supabase.auth.signOut()
+      // ✅ 세션 확인 후 로그아웃
+      const { data: { session } } = await supabase.auth.getSession()
       
-      if (error) {
-        console.error('❌ 로그아웃 오류:', error)
+      if (session) {
+        console.log('🔓 활성 세션 발견, 로그아웃 진행...')
+        const { error } = await supabase.auth.signOut()
+        
+        if (error) {
+          console.error('❌ 로그아웃 오류:', error)
+          // 에러가 있어도 계속 진행 (세션 초기화)
+        } else {
+          console.log('✅ 로그아웃 성공')
+        }
       } else {
-        console.log('✅ 로그아웃 성공')
+        console.log('ℹ️ 활성 세션 없음, 바로 로그인 페이지로 이동')
       }
       
       setUser(null)
       router.replace('/login')
     } catch (error) {
       console.error('❌ 로그아웃 중 예외 발생:', error)
+      // 에러가 있어도 사용자 상태 초기화 및 로그인 페이지로 이동
       setUser(null)
       router.replace('/login')
     }

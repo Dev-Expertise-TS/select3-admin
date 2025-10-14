@@ -26,14 +26,19 @@ export function SignupForm({ onSwitchToLogin, className }: SignupFormProps) {
     setError('')
     setSuccess('')
 
+    // ✅ 이메일과 패스워드 앞뒤 공백 제거
+    const trimmedEmail = email.trim()
+    const trimmedPassword = password.trim()
+    const trimmedConfirmPassword = confirmPassword.trim()
+
     // 비밀번호 확인
-    if (password !== confirmPassword) {
+    if (trimmedPassword !== trimmedConfirmPassword) {
       setError('비밀번호가 일치하지 않습니다.')
       return
     }
 
     // 비밀번호 길이 확인
-    if (password.length < 6) {
+    if (trimmedPassword.length < 6) {
       setError('비밀번호는 최소 6자 이상이어야 합니다.')
       return
     }
@@ -41,7 +46,12 @@ export function SignupForm({ onSwitchToLogin, className }: SignupFormProps) {
     setLoading(true)
 
     try {
-      const result = await signup(email, password)
+      console.log('📝 회원가입 시도:', {
+        email: trimmedEmail,
+        passwordLength: trimmedPassword.length
+      })
+      
+      const result = await signup(trimmedEmail, trimmedPassword)
       
       if (result.success) {
         setSuccess('사용자 생성이 완료되었습니다!')
@@ -93,6 +103,12 @@ export function SignupForm({ onSwitchToLogin, className }: SignupFormProps) {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onPaste={(e) => {
+              // ✅ 붙여넣기 시 자동으로 공백 제거
+              e.preventDefault()
+              const pastedText = e.clipboardData.getData('text').trim()
+              setEmail(pastedText)
+            }}
             placeholder="your@email.com"
             required
             autoComplete="username"
@@ -110,6 +126,12 @@ export function SignupForm({ onSwitchToLogin, className }: SignupFormProps) {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            onPaste={(e) => {
+              // ✅ 붙여넣기 시 자동으로 공백 제거
+              e.preventDefault()
+              const pastedText = e.clipboardData.getData('text').trim()
+              setPassword(pastedText)
+            }}
             placeholder="••••••••"
             required
             className="w-full"
@@ -127,6 +149,12 @@ export function SignupForm({ onSwitchToLogin, className }: SignupFormProps) {
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
+            onPaste={(e) => {
+              // ✅ 붙여넣기 시 자동으로 공백 제거
+              e.preventDefault()
+              const pastedText = e.clipboardData.getData('text').trim()
+              setConfirmPassword(pastedText)
+            }}
             placeholder="••••••••"
             required
             autoComplete="new-password"
