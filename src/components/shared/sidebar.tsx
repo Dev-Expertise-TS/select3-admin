@@ -27,6 +27,7 @@ import {
   User,
   ArrowRightLeft,
   Globe,
+  Star,
 } from 'lucide-react'
 
 interface NavItem {
@@ -68,6 +69,13 @@ const navSections: NavSection[] = [
       { label: '맴버쉽 관리', href: '/admin/membership', icon: Users, requiredRole: 'admin' },
       { label: '관리자 관리', href: '/admin/users', icon: Users, requiredRole: 'admin' },
       { label: '데이터 마이그레이션', href: '/admin/data-migration', icon: ArrowRightLeft, requiredRole: 'admin' },
+    ],
+  },
+  {
+    title: '고객 만족도',
+    requiredRole: 'admin',
+    items: [
+      { label: '고객 만족도 데이터 관리', href: '/admin/satisfaction-survey', icon: Star, requiredRole: 'admin' },
     ],
   },
   {
