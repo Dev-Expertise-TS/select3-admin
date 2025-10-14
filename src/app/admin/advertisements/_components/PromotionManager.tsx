@@ -10,11 +10,29 @@ import {
   AlertCircle, 
   CheckCircle,
   Megaphone,
-  Search
+  Search,
+  GripVertical
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import HotelQuickSearch from '@/components/shared/hotel-quick-search'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface PromotionSlot {
   id: number
@@ -47,6 +65,142 @@ type PromotionManagerProps = {
   surface?: string // API 필터 및 생성 시 사용할 surface
 }
 
+// 종료일이 지났는지 확인하는 함수 (한국 시간 기준)
+function isExpired(endDate?: string | null): boolean {
+  if (!endDate) return false
+  
+  const now = new Date()
+  const koreaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
+  const koreaDate = koreaTime.toISOString().split('T')[0] // YYYY-MM-DD
+  
+  return endDate < koreaDate
+}
+
+// 드래그 가능한 행 컴포넌트
+function SortableRow({ 
+  slot, 
+  onUpdate, 
+  onSave, 
+  onDelete,
+  onHotelSearchOpen
+}: { 
+  slot: PromotionSlot
+  onUpdate: (id: number, field: string, value: string | null) => void
+  onSave: (slot: PromotionSlot) => void
+  onDelete: (id: number) => void
+  onHotelSearchOpen: (id: number) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: slot.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const expired = isExpired(slot.end_date)
+
+  return (
+    <tr 
+      ref={setNodeRef} 
+      style={style}
+      className={`border-b border-gray-200 ${expired ? 'bg-gray-100 opacity-60' : 'bg-white'} ${isDragging ? 'shadow-lg' : ''}`}
+    >
+      {/* 드래그 핸들 */}
+      <td className="px-4 py-4 text-center">
+        <div {...attributes} {...listeners} className="cursor-move inline-flex">
+          <GripVertical className="h-5 w-5 text-gray-400" />
+        </div>
+      </td>
+      
+      {/* ID */}
+      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+        {slot.id}
+      </td>
+      
+      {/* Sabre ID */}
+      <td className="px-4 py-4 whitespace-nowrap text-sm font-mono text-blue-600">
+        {slot.sabre_id}
+      </td>
+      
+      {/* 호텔명 */}
+      <td className="px-4 py-4 whitespace-nowrap text-sm">
+        <button
+          onClick={() => onHotelSearchOpen(slot.id)}
+          className={`text-left hover:text-orange-600 hover:underline transition-colors cursor-pointer w-full ${expired ? 'text-gray-500' : 'text-gray-900'}`}
+          title="호텔 검색하기"
+          disabled={expired}
+        >
+          {slot.select_hotels?.property_name_ko || '호텔 선택하기'}
+        </button>
+      </td>
+      
+      {/* Slot Key */}
+      <td className="px-4 py-4 whitespace-nowrap">
+        <Input 
+          type="text" 
+          value={slot.slot_key} 
+          onChange={(e) => onUpdate(slot.id, 'slot_key', e.target.value)} 
+          className="w-24"
+          disabled={expired}
+        />
+      </td>
+      
+      {/* 시작일 */}
+      <td className="px-4 py-4 whitespace-nowrap">
+        <Input 
+          type="date" 
+          value={slot.start_date ?? ''} 
+          onChange={(e) => onUpdate(slot.id, 'start_date', e.target.value || null)} 
+          className="w-36"
+          disabled={expired}
+        />
+      </td>
+      
+      {/* 종료일 */}
+      <td className="px-4 py-4 whitespace-nowrap">
+        <Input 
+          type="date" 
+          value={slot.end_date ?? ''} 
+          onChange={(e) => onUpdate(slot.id, 'end_date', e.target.value || null)} 
+          className="w-36"
+          disabled={expired}
+        />
+      </td>
+      
+      {/* 작업 */}
+      <td className="px-4 py-4 whitespace-nowrap">
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onSave(slot)}
+            className="bg-green-600 hover:bg-green-700 text-white"
+            disabled={expired}
+          >
+            <Save className="h-3 w-3" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onDelete(slot.id)}
+            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 export default function PromotionManager({ title = '프로모션 관리', surface = '프로모션' }: PromotionManagerProps) {
   const [slots, setSlots] = useState<PromotionSlot[]>([])
   const [loading, setLoading] = useState(false)
@@ -71,6 +225,14 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Hotel[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
+
+  // DnD 센서
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   // 데이터 로드
   const loadSlots = async () => {
@@ -104,6 +266,14 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
           created_at: s.created_at,
           select_hotels: { property_name_ko: s.select_hotels?.property_name_ko }
         })) ?? []
+        
+        // slot_key 순서대로 정렬 (숫자로 변환하여 비교)
+        rows.sort((a, b) => {
+          const keyA = parseInt(a.slot_key) || 0
+          const keyB = parseInt(b.slot_key) || 0
+          return keyA - keyB
+        })
+        
         setSlots(rows)
       } else {
         throw new Error(data.error || '데이터를 불러올 수 없습니다.')
@@ -332,6 +502,75 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
     }
   }
 
+  // 슬롯 필드 업데이트
+  const updateSlotField = (id: number, field: string, value: string | null) => {
+    setSlots(prev => prev.map(s => {
+      if (s.id === id) {
+        return { ...s, [field]: value }
+      }
+      return s
+    }))
+  }
+
+  // 드래그 종료 핸들러
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    const oldIndex = slots.findIndex(s => s.id === active.id)
+    const newIndex = slots.findIndex(s => s.id === over.id)
+
+    const reorderedSlots = arrayMove(slots, oldIndex, newIndex)
+    
+    // 순서에 따라 slot_key를 1부터 순차적으로 업데이트
+    const updatedSlots = reorderedSlots.map((slot, index) => ({
+      ...slot,
+      slot_key: String(index + 1)
+    }))
+
+    setSlots(updatedSlots)
+
+    // 서버에 변경사항 저장
+    try {
+      // 각 슬롯의 slot_key를 업데이트
+      const updatePromises = updatedSlots.map(async (slot) => {
+        const response = await fetch(`/api/promotion-slots/${slot.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sabre_id: slot.sabre_id,
+            slot_key: slot.slot_key,
+            start_date: slot.start_date ?? null,
+            end_date: slot.end_date ?? null,
+            surface
+          })
+        })
+
+        const data = await response.json()
+        return data
+      })
+
+      const results = await Promise.all(updatePromises)
+      
+      const failed = results.find(r => !r.success)
+      if (failed) {
+        throw new Error(failed.error || '순서 저장에 실패했습니다.')
+      }
+
+      setSuccess('순서가 저장되었습니다.')
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '순서 저장 중 오류가 발생했습니다.')
+      // 에러 발생 시 원래 데이터로 복원
+      loadSlots()
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* 헤더 */}
@@ -483,12 +722,12 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
         </div>
       )}
 
-      {/* 데이터 테이블 */}
+      {/* 드래그 가능한 데이터 테이블 */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
           <h3 className="text-lg font-medium text-gray-900">프로모션 목록</h3>
           <p className="text-sm text-gray-600 mt-1">
-            총 {slots.length}개의 항목
+            총 {slots.length}개의 항목 • 드래그하여 순서 변경
           </p>
         </div>
 
@@ -512,84 +751,59 @@ export default function PromotionManager({ title = '프로모션 관리', surfac
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Sabre ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    호텔명
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Slot Key
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">시작일</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">종료일</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    작업
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {slots.map((slot, index) => (
-                  <tr key={typeof slot.id === 'number' || typeof slot.id === 'string' ? `slot-${slot.id}` : `slot-${index}`} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {slot.id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">
-                      {slot.sabre_id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <button
-                        onClick={() => handleHotelSearchOpen(slot.id)}
-                        className="text-left hover:text-orange-600 hover:underline transition-colors cursor-pointer w-full"
-                        title="호텔 검색하기"
-                      >
-                        {slot.select_hotels?.property_name_ko || '호텔 선택하기'}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <Input 
-                        type="text" 
-                        value={slot.slot_key} 
-                        onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, slot_key: e.target.value } : s))} 
-                        className="w-full"
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <Input type="date" value={slot.start_date ?? ''} onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, start_date: e.target.value || null } : s))} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <Input type="date" value={slot.end_date ?? ''} onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, end_date: e.target.value || null } : s))} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleUpsert(slot)}
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          <Save className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDelete(slot.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </td>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                      순서
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                      ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                      Sabre ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      호텔명
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                      Slot Key
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                      시작일
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                      종료일
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                      작업
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  <SortableContext
+                    items={slots.map(s => s.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {slots.map((slot) => (
+                      <SortableRow
+                        key={slot.id}
+                        slot={slot}
+                        onUpdate={updateSlotField}
+                        onSave={handleUpsert}
+                        onDelete={handleDelete}
+                        onHotelSearchOpen={handleHotelSearchOpen}
+                      />
+                    ))}
+                  </SortableContext>
+                </tbody>
+              </table>
+            </DndContext>
           </div>
         )}
       </div>

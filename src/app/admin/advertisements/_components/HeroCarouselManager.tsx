@@ -10,12 +10,30 @@ import {
   AlertCircle, 
   CheckCircle,
   Building2,
-  Search
+  Search,
+  GripVertical
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import HotelQuickSearch from '@/components/shared/hotel-quick-search'
 import { saveFeatureSlot, deleteFeatureSlot } from '@/features/advertisements/actions'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface FeatureSlot {
   id: number
@@ -43,6 +61,151 @@ interface Hotel {
   property_name_en: string
 }
 
+// 종료일이 지났는지 확인하는 함수 (한국 시간 기준)
+function isExpired(endDate?: string | null): boolean {
+  if (!endDate) return false
+  
+  const now = new Date()
+  const koreaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
+  const koreaDate = koreaTime.toISOString().split('T')[0] // YYYY-MM-DD
+  
+  return endDate < koreaDate
+}
+
+// 드래그 가능한 행 컴포넌트
+function SortableRow({ 
+  slot, 
+  isPending,
+  onUpdate, 
+  onSave, 
+  onDelete,
+  onHotelSearchOpen
+}: { 
+  slot: FeatureSlot
+  isPending: boolean
+  onUpdate: (id: number, field: string, value: string) => void
+  onSave: (slot: FeatureSlot) => void
+  onDelete: (id: number) => void
+  onHotelSearchOpen: (id: number) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: slot.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const expired = isExpired(slot.end_date)
+
+  return (
+    <tr 
+      ref={setNodeRef} 
+      style={style}
+      className={`border-b border-gray-200 ${expired ? 'bg-gray-100 opacity-60' : 'bg-white'} ${isDragging ? 'shadow-lg' : ''}`}
+    >
+      {/* 드래그 핸들 */}
+      <td className="px-4 py-4 text-center">
+        <div {...attributes} {...listeners} className="cursor-move inline-flex">
+          <GripVertical className="h-5 w-5 text-gray-400" />
+        </div>
+      </td>
+      
+      {/* ID */}
+      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+        {slot.id}
+      </td>
+      
+      {/* Sabre ID */}
+      <td className="px-4 py-4 whitespace-nowrap text-sm font-mono text-blue-600">
+        {slot.sabre_id}
+      </td>
+      
+      {/* 호텔명 */}
+      <td className="px-4 py-4 whitespace-nowrap text-sm">
+        <button
+          onClick={() => onHotelSearchOpen(slot.id)}
+          className={`text-left hover:text-purple-600 hover:underline transition-colors cursor-pointer w-full ${expired ? 'text-gray-500' : 'text-gray-900'}`}
+          title="호텔 검색하기"
+          disabled={expired}
+        >
+          {slot.select_hotels?.property_name_ko || '호텔 선택하기'}
+        </button>
+      </td>
+      
+      {/* Slot Key */}
+      <td className="px-4 py-4 whitespace-nowrap">
+        <Input 
+          type="text" 
+          value={slot.slot_key} 
+          onChange={(e) => onUpdate(slot.id, 'slot_key', e.target.value)} 
+          className="w-24"
+          disabled={expired}
+        />
+      </td>
+      
+      {/* 시작일 */}
+      <td className="px-4 py-4 whitespace-nowrap">
+        <Input 
+          type="date" 
+          value={slot.start_date ?? ''} 
+          onChange={(e) => onUpdate(slot.id, 'start_date', e.target.value)} 
+          className="w-36"
+          disabled={expired}
+        />
+      </td>
+      
+      {/* 종료일 */}
+      <td className="px-4 py-4 whitespace-nowrap">
+        <Input 
+          type="date" 
+          value={slot.end_date ?? ''} 
+          onChange={(e) => onUpdate(slot.id, 'end_date', e.target.value)} 
+          className="w-36"
+          disabled={expired}
+        />
+      </td>
+      
+      {/* 생성일 */}
+      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+        {new Date(slot.created_at).toLocaleDateString('ko-KR')}
+      </td>
+      
+      {/* 작업 */}
+      <td className="px-4 py-4 whitespace-nowrap">
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onSave(slot)}
+            className="bg-green-600 hover:bg-green-700 text-white"
+            disabled={isPending || expired}
+          >
+            {isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            <Save className="h-3 w-3" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onDelete(slot.id)}
+            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            disabled={isPending}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 export default function HeroCarouselManager() {
   const [slots, setSlots] = useState<FeatureSlot[]>([])
   const [loading, setLoading] = useState(false)
@@ -68,6 +231,14 @@ export default function HeroCarouselManager() {
   
   // Server Actions을 위한 transition
   const [isPending, startTransition] = useTransition()
+
+  // DnD 센서
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   // 데이터 로드
   const loadSlots = async () => {
@@ -101,6 +272,13 @@ export default function HeroCarouselManager() {
           created_at: s.created_at,
           select_hotels: { property_name_ko: s.select_hotels?.property_name_ko }
         }))
+        
+        // slot_key 순서대로 정렬 (숫자로 변환하여 비교)
+        rows.sort((a, b) => {
+          const keyA = parseInt(a.slot_key) || 0
+          const keyB = parseInt(b.slot_key) || 0
+          return keyA - keyB
+        })
         
         setSlots(rows)
       } else {
@@ -309,6 +487,70 @@ export default function HeroCarouselManager() {
     })
   }
 
+  // 슬롯 필드 업데이트
+  const updateSlotField = (id: number, field: string, value: string) => {
+    setSlots(prev => prev.map(s => {
+      if (s.id === id) {
+        return { ...s, [field]: value || undefined }
+      }
+      return s
+    }))
+  }
+
+  // 드래그 종료 핸들러
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    const oldIndex = slots.findIndex(s => s.id === active.id)
+    const newIndex = slots.findIndex(s => s.id === over.id)
+
+    const reorderedSlots = arrayMove(slots, oldIndex, newIndex)
+    
+    // 순서에 따라 slot_key를 1부터 순차적으로 업데이트
+    const updatedSlots = reorderedSlots.map((slot, index) => ({
+      ...slot,
+      slot_key: String(index + 1)
+    }))
+
+    setSlots(updatedSlots)
+
+    // 서버에 변경사항 저장
+    startTransition(async () => {
+      try {
+        // 각 슬롯의 slot_key를 업데이트
+        const updatePromises = updatedSlots.map(async (slot) => {
+          const formData = new FormData()
+          formData.append('id', String(slot.id))
+          formData.append('sabre_id', slot.sabre_id)
+          formData.append('surface', '히어로')
+          formData.append('slot_key', slot.slot_key)
+          formData.append('start_date', slot.start_date || '')
+          formData.append('end_date', slot.end_date || '')
+
+          return saveFeatureSlot(formData)
+        })
+
+        const results = await Promise.all(updatePromises)
+        
+        const failed = results.find(r => !r.success)
+        if (failed) {
+          throw new Error(failed.error || '순서 저장에 실패했습니다.')
+        }
+
+        setSuccess('순서가 저장되었습니다.')
+        setTimeout(() => setSuccess(null), 3000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '순서 저장 중 오류가 발생했습니다.')
+        // 에러 발생 시 원래 데이터로 복원
+        loadSlots()
+      }
+    })
+  }
+
   return (
     <div className="space-y-6">
       {/* 헤더 */}
@@ -462,12 +704,12 @@ export default function HeroCarouselManager() {
         </div>
       )}
 
-      {/* 데이터 테이블 */}
+      {/* 드래그 가능한 데이터 테이블 */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
           <h3 className="text-lg font-medium text-gray-900">히어로 캐러셀 목록</h3>
           <p className="text-sm text-gray-600 mt-1">
-            총 {slots.length}개의 항목
+            총 {slots.length}개의 항목 • 드래그하여 순서 변경
           </p>
         </div>
 
@@ -491,92 +733,63 @@ export default function HeroCarouselManager() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Sabre ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    호텔명
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Slot Key
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">시작일</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">종료일</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    생성일
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    작업
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {slots.map((slot) => (
-                  <tr key={slot.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {slot.id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">
-                      {slot.sabre_id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <button
-                        onClick={() => handleHotelSearchOpen(slot.id)}
-                        className="text-left hover:text-purple-600 hover:underline transition-colors cursor-pointer w-full"
-                        title="호텔 검색하기"
-                      >
-                        {slot.select_hotels?.property_name_ko || '호텔 선택하기'}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <Input 
-                        type="text" 
-                        value={slot.slot_key} 
-                        onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, slot_key: e.target.value } : s))} 
-                        className="w-full"
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <Input type="date" value={slot.start_date ?? ''} onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, start_date: e.target.value || undefined } : s))} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <Input type="date" value={slot.end_date ?? ''} onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, end_date: e.target.value || undefined } : s))} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(slot.created_at).toLocaleDateString('ko-KR')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleUpsert(slot)}
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          disabled={isPending}
-                        >
-                          {isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                          <Save className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDelete(slot.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </td>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                      순서
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                      ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                      Sabre ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      호텔명
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                      Slot Key
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                      시작일
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                      종료일
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                      생성일
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                      작업
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  <SortableContext
+                    items={slots.map(s => s.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {slots.map((slot) => (
+                      <SortableRow
+                        key={slot.id}
+                        slot={slot}
+                        isPending={isPending}
+                        onUpdate={updateSlotField}
+                        onSave={handleUpsert}
+                        onDelete={handleDelete}
+                        onHotelSearchOpen={handleHotelSearchOpen}
+                      />
+                    ))}
+                  </SortableContext>
+                </tbody>
+              </table>
+            </DndContext>
           </div>
         )}
       </div>

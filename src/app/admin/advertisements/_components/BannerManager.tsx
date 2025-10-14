@@ -8,12 +8,29 @@ import {
   Trash2,
   Plus,
   Image as ImageIcon,
-  Save
+  Save,
+  GripVertical
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { DataTable } from '@/components/shared/data-table'
 import { saveFeatureSlot, deleteFeatureSlot } from '@/features/advertisements/actions'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface FeatureSlot {
   id: number
@@ -56,6 +73,173 @@ interface Hotel {
   }
 }
 
+// 종료일이 지났는지 확인하는 함수 (한국 시간 기준)
+function isExpired(endDate?: string): boolean {
+  if (!endDate) return false
+  
+  const now = new Date()
+  const koreaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
+  const koreaDate = koreaTime.toISOString().split('T')[0] // YYYY-MM-DD
+  
+  return endDate < koreaDate
+}
+
+// 드래그 가능한 행 컴포넌트
+function SortableRow({ 
+  slot, 
+  isPending,
+  onUpdate, 
+  onSave, 
+  onDelete 
+}: { 
+  slot: FeatureSlot
+  isPending: boolean
+  onUpdate: (id: number, field: string, value: string) => void
+  onSave: (slot: FeatureSlot) => void
+  onDelete: (slot: FeatureSlot) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: slot.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const expired = isExpired(slot.end_date)
+
+  return (
+    <tr 
+      ref={setNodeRef} 
+      style={style}
+      className={`border-b border-gray-200 ${expired ? 'bg-gray-100 opacity-60' : 'bg-white'} ${isDragging ? 'shadow-lg' : ''}`}
+    >
+      {/* 드래그 핸들 */}
+      <td className="px-4 py-4 text-center">
+        <div {...attributes} {...listeners} className="cursor-move">
+          <GripVertical className="h-5 w-5 text-gray-400" />
+        </div>
+      </td>
+      
+      {/* 호텔 이미지 */}
+      <td className="px-4 py-4">
+        <div className="w-16 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+          {slot.hotel_image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={slot.hotel_image}
+              alt={`${slot.select_hotels?.property_name_ko || '호텔'} 이미지`}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                if (target.parentElement) {
+                  target.parentElement.innerHTML = '<div class="flex items-center justify-center text-gray-400 text-xs">이미지 없음</div>';
+                }
+              }}
+            />
+          ) : (
+            <div className="flex items-center justify-center text-gray-400 text-xs">
+              이미지 없음
+            </div>
+          )}
+        </div>
+      </td>
+      
+      {/* 호텔명 */}
+      <td className="px-4 py-4">
+        <div>
+          <div className={`font-medium ${expired ? 'text-gray-600' : 'text-gray-900'}`}>
+            {slot.select_hotels?.property_name_ko || '-'}
+          </div>
+          <div className="text-sm text-gray-500">
+            {slot.select_hotels?.property_name_en || '-'}
+          </div>
+        </div>
+      </td>
+      
+      {/* Sabre ID */}
+      <td className="px-4 py-4">
+        <span className={`font-mono text-sm ${expired ? 'text-gray-500' : 'text-gray-600'}`}>
+          {slot.sabre_id}
+        </span>
+      </td>
+      
+      {/* 슬롯 키 */}
+      <td className="px-4 py-4">
+        <Input 
+          type="text" 
+          value={slot.slot_key} 
+          onChange={(e) => onUpdate(slot.id, 'slot_key', e.target.value)} 
+          className="w-24"
+          disabled={expired}
+        />
+      </td>
+      
+      {/* 시작일 */}
+      <td className="px-4 py-4">
+        <Input 
+          type="date" 
+          value={slot.start_date ?? ''} 
+          onChange={(e) => onUpdate(slot.id, 'start_date', e.target.value)} 
+          className="w-36"
+          disabled={expired}
+        />
+      </td>
+      
+      {/* 종료일 */}
+      <td className="px-4 py-4">
+        <Input 
+          type="date" 
+          value={slot.end_date ?? ''} 
+          onChange={(e) => onUpdate(slot.id, 'end_date', e.target.value)} 
+          className="w-36"
+          disabled={expired}
+        />
+      </td>
+      
+      {/* 생성일 */}
+      <td className="px-4 py-4">
+        <span className="text-sm text-gray-500">
+          {slot.created_at ? new Date(slot.created_at).toLocaleDateString('ko-KR') : '-'}
+        </span>
+      </td>
+      
+      {/* 작업 */}
+      <td className="px-4 py-4">
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onSave(slot)}
+            className="bg-green-600 hover:bg-green-700 text-white"
+            disabled={isPending || expired}
+          >
+            {isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            <Save className="h-3 w-3" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onDelete(slot)}
+            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            disabled={isPending}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 export default function BannerManager() {
   const [slots, setSlots] = useState<FeatureSlot[]>([])
   const [loading, setLoading] = useState(false)
@@ -76,6 +260,14 @@ export default function BannerManager() {
   
   // Server Actions을 위한 transition
   const [isPending, startTransition] = useTransition()
+  
+  // DnD 센서
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
   
   
 
@@ -123,12 +315,12 @@ export default function BannerManager() {
         // 각 슬롯에 호텔 이미지 추가 및 날짜 정규화
         const slotsWithImages = await Promise.all(
           bannerSlots.map(async (slot: Record<string, unknown>) => {
-            const imageUrl = await fetchHotelImage(slot.sabre_id)
+            const imageUrl = await fetchHotelImage(String(slot.sabre_id))
             return { 
               ...slot, 
               hotel_image: imageUrl,
-              start_date: normalizeDate(slot.start_date),
-              end_date: normalizeDate(slot.end_date)
+              start_date: normalizeDate(typeof slot.start_date === 'string' ? slot.start_date : undefined),
+              end_date: normalizeDate(typeof slot.end_date === 'string' ? slot.end_date : undefined)
             } as FeatureSlot
           })
         )
@@ -253,16 +445,14 @@ export default function BannerManager() {
   }, [searchQuery])
 
   // 삭제
-  const handleDelete = async (row?: unknown) => {
-    const target = (row as FeatureSlot) || slots[0]
-    if (!target) return
+  const handleDelete = async (slot: FeatureSlot) => {
     if (!confirm('정말로 상단 베너를 삭제하시겠습니까?')) {
       return
     }
 
     startTransition(async () => {
       try {
-        const result = await deleteFeatureSlot(target.id)
+        const result = await deleteFeatureSlot(slot.id)
 
         if (!result.success) {
           throw new Error(result.error || '삭제에 실패했습니다.')
@@ -272,6 +462,70 @@ export default function BannerManager() {
         loadSlots()
       } catch (err) {
         setError(err instanceof Error ? err.message : '삭제 중 오류가 발생했습니다.')
+      }
+    })
+  }
+
+  // 슬롯 필드 업데이트
+  const updateSlotField = (id: number, field: string, value: string) => {
+    setSlots(prev => prev.map(s => {
+      if (s.id === id) {
+        return { ...s, [field]: value || undefined }
+      }
+      return s
+    }))
+  }
+
+  // 드래그 종료 핸들러
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    const oldIndex = slots.findIndex(s => s.id === active.id)
+    const newIndex = slots.findIndex(s => s.id === over.id)
+
+    const reorderedSlots = arrayMove(slots, oldIndex, newIndex)
+    
+    // 순서에 따라 slot_key를 1부터 순차적으로 업데이트
+    const updatedSlots = reorderedSlots.map((slot, index) => ({
+      ...slot,
+      slot_key: String(index + 1)
+    }))
+
+    setSlots(updatedSlots)
+
+    // 서버에 변경사항 저장
+    startTransition(async () => {
+      try {
+        // 각 슬롯의 slot_key를 업데이트
+        const updatePromises = updatedSlots.map(async (slot) => {
+          const formData = new FormData()
+          formData.append('id', String(slot.id))
+          formData.append('sabre_id', slot.sabre_id)
+          formData.append('surface', '상단베너')
+          formData.append('slot_key', slot.slot_key)
+          formData.append('start_date', slot.start_date || '')
+          formData.append('end_date', slot.end_date || '')
+
+          return saveFeatureSlot(formData)
+        })
+
+        const results = await Promise.all(updatePromises)
+        
+        const failed = results.find(r => !r.success)
+        if (failed) {
+          throw new Error(failed.error || '순서 저장에 실패했습니다.')
+        }
+
+        setSuccess('순서가 저장되었습니다.')
+        setTimeout(() => setSuccess(null), 3000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '순서 저장 중 오류가 발생했습니다.')
+        // 에러 발생 시 원래 데이터로 복원
+        loadSlots()
       }
     })
   }
@@ -507,151 +761,97 @@ export default function BannerManager() {
         </div>
       )}
 
-      {/* 데이터 테이블 */}
-      <DataTable
-        title="상단 베너 슬롯 목록"
-        subtitle={`총 ${slots.length}개의 항목`}
-        data={slots as unknown as Record<string, unknown>[]}
-        loading={loading}
-        columns={[
-          {
-            key: 'hotel_image',
-            label: '호텔 이미지',
-            width: '120px',
-            render: (value, row) => {
-              const slot = row as unknown as FeatureSlot
-              return (
-                <div className="w-16 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
-                  {slot.hotel_image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={slot.hotel_image}
-                      alt={`${slot.select_hotels?.property_name_ko || '호텔'} 이미지`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        target.parentElement!.innerHTML = '<div class="flex items-center justify-center text-gray-400 text-xs">이미지 없음</div>';
-                      }}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center text-gray-400 text-xs">
-                      이미지 없음
-                    </div>
-                  )}
-                </div>
-              )
-            }
-          },
-          {
-            key: 'select_hotels.property_name_ko',
-            label: '호텔명 (한국어)',
-            render: (value, row) => {
-              const slot = row as unknown as FeatureSlot
-              
-              // 일반 표시 모드 (읽기 전용)
-              return (
-                <div>
-                  <div className="font-medium text-gray-900">
-                    {slot.select_hotels?.property_name_ko || '-'}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {slot.select_hotels?.property_name_en || '-'}
-                  </div>
-                </div>
-              )
-            }
-          },
-          {
-            key: 'sabre_id',
-            label: 'Sabre ID',
-            render: (value) => (
-              <span className="font-mono text-sm text-gray-600">{value as string}</span>
-            )
-          },
-          {
-            key: 'slot_key',
-            label: '슬롯 키',
-            render: (value, row) => {
-              const slot = row as unknown as FeatureSlot
-              return (
-                <Input 
-                  type="text" 
-                  value={slot.slot_key} 
-                  onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, slot_key: e.target.value } : s))} 
-                  className="w-full"
-                />
-              )
-            }
-          },
-          {
-            key: 'start_date',
-            label: '노출 시작일',
-            render: (value, row) => {
-              const slot = row as unknown as FeatureSlot
-              return (
-                <Input 
-                  type="date" 
-                  value={slot.start_date ?? ''} 
-                  onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, start_date: e.target.value || undefined } : s))} 
-                />
-              )
-            }
-          },
-          {
-            key: 'end_date',
-            label: '노출 종료일',
-            render: (value, row) => {
-              const slot = row as unknown as FeatureSlot
-              return (
-                <Input 
-                  type="date" 
-                  value={slot.end_date ?? ''} 
-                  onChange={(e) => setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, end_date: e.target.value || undefined } : s))} 
-                />
-              )
-            }
-          },
-          {
-            key: 'created_at',
-            label: '생성일',
-            render: (value) => (
-              <span className="text-sm text-gray-500">
-                {value ? new Date(value as string).toLocaleDateString('ko-KR') : '-'}
-              </span>
-            )
-          },
-          {
-            key: 'actions',
-            label: '작업',
-            render: (value, row) => {
-              const slot = row as unknown as FeatureSlot
-              return (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => saveInline(slot)}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    disabled={isPending}
+      {/* 드래그 가능한 데이터 테이블 */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        {/* 헤더 */}
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">상단 베너 슬롯 목록</h3>
+              <p className="text-sm text-gray-600 mt-1">총 {slots.length}개의 항목 • 드래그하여 순서 변경</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 로딩 상태 */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <span className="ml-2 text-gray-500">로딩 중...</span>
+          </div>
+        ) : slots.length === 0 ? (
+          /* 빈 상태 */
+          <div className="text-center py-12">
+            <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              항목이 없습니다
+            </h3>
+            <p className="text-gray-600 mb-4">
+              새 항목을 추가해보세요.
+            </p>
+          </div>
+        ) : (
+          /* 드래그 가능한 테이블 */
+          <div className="overflow-x-auto">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                      순서
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                      호텔 이미지
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      호텔명
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                      Sabre ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                      슬롯 키
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                      노출 시작일
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                      노출 종료일
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                      생성일
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                      작업
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <SortableContext
+                    items={slots.map(s => s.id)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    {isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                    <Save className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDelete(row)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              )
-            }
-          }
-        ]}
-      />
+                    {slots.map((slot) => (
+                      <SortableRow
+                        key={slot.id}
+                        slot={slot}
+                        isPending={isPending}
+                        onUpdate={updateSlotField}
+                        onSave={saveInline}
+                        onDelete={handleDelete}
+                      />
+                    ))}
+                  </SortableContext>
+                </tbody>
+              </table>
+            </DndContext>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
