@@ -349,7 +349,8 @@ export default function BannerManager() {
           <form onSubmit={async (e) => {
             e.preventDefault()
             
-            if (!formData.sabre_id.trim()) {
+            const sabreId = String(formData.sabre_id || '').trim()
+            if (!sabreId) {
               setError('호텔을 선택해주세요.')
               return
             }
@@ -360,7 +361,7 @@ export default function BannerManager() {
             startTransition(async () => {
               try {
                 const formDataToSubmit = new FormData()
-                formDataToSubmit.append('sabre_id', formData.sabre_id)
+                formDataToSubmit.append('sabre_id', sabreId)
                 formDataToSubmit.append('surface', '상단베너')
                 formDataToSubmit.append('slot_key', 'top-banner')
                 formDataToSubmit.append('start_date', formData.start_date || '')
