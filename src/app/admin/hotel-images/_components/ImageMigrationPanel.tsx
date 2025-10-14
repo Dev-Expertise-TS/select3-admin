@@ -233,10 +233,11 @@ export function ImageMigrationPanel() {
         body: JSON.stringify({
           hotelSlug,
           sabreId: selectedHotel.sabreId,
-          images: selectedImages.map((img) => ({
+          // 선택된 목록의 표시 순서를 기준으로 1부터 부여하여 안전하게 순번 고정
+          images: selectedImages.map((img, i) => ({
             column: img.column,
             url: img.url,
-            seq: img.seq,
+            seq: i + 1,
           })),
         }),
       });

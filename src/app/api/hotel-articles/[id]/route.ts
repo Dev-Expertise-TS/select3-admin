@@ -9,7 +9,7 @@ export async function GET(
   try {
     const { id } = await params
     
-    if (!id) {
+    if (!id || Number.isNaN(Number(id))) {
       return NextResponse.json(
         { success: false, error: '블로그 ID가 필요합니다.' },
         { status: 400 }
@@ -135,15 +135,23 @@ export async function PUT(
     const { data, error } = await supabase
       .from('select_hotel_blogs')
       .update(updateData)
-      .eq('id', id)
+      .eq('id', Number(id))
       .select('*')
-      .single()
+      .maybeSingle()
 
     if (error) {
       console.error('호텔 블로그 수정 오류:', error)
       return NextResponse.json(
         { success: false, error: '호텔 블로그를 수정할 수 없습니다.' },
         { status: 500 }
+      )
+    }
+
+    if (!data) {
+      // 업데이트 대상이 없거나 여러 개인 경우 maybeSingle은 data가 null이 될 수 있음
+      return NextResponse.json(
+        { success: false, error: '해당 블로그를 찾을 수 없습니다.' },
+        { status: 404 }
       )
     }
 

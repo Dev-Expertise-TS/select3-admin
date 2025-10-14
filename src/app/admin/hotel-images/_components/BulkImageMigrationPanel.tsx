@@ -153,12 +153,11 @@ export function BulkImageMigrationPanel() {
   // 검색 필터링
   const filteredHotels = hotels.filter(hotel => {
     if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      hotel.property_name_en?.toLowerCase().includes(query) ||
-      hotel.property_name_ko?.toLowerCase().includes(query) ||
-      hotel.sabre_id?.toLowerCase().includes(query)
-    );
+    const query = String(searchQuery ?? '').toLowerCase();
+    const nameEn = String(hotel.property_name_en ?? '').toLowerCase();
+    const nameKo = String(hotel.property_name_ko ?? '').toLowerCase();
+    const sabre = String(hotel.sabre_id ?? '').toLowerCase();
+    return nameEn.includes(query) || nameKo.includes(query) || sabre.includes(query);
   });
 
   // 페이지네이션 계산
