@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { normalizeSlug } from "@/lib/media-naming";
+import { 
+  normalizeSlug, 
+  DIR_PUBLIC, 
+  DIR_ORIGINALS, 
+  MEDIA_BUCKET,
+  buildOriginalFilename,
+  type ImageFormat
+} from "@/lib/media-naming";
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,49 +45,98 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // slug 정규화 및 경로 생성
+    // slug 정규화
     const normalizedSlug = normalizeSlug(hotel.slug);
-    const storagePath = `public/${normalizedSlug}`;
-
-    // 파일명 생성 (타임스탬프 추가로 중복 방지)
-    const timestamp = Date.now();
-    const fileExtension = file.name.split('.').pop();
-    const fileName = `${sabreId}-${timestamp}.${fileExtension}`;
-    const filePath = `${storagePath}/${fileName}`;
+    
+    // 기존 이미지 개수 확인하여 seq 번호 결정
+    const originalsCheckPath = `${DIR_ORIGINALS}/${normalizedSlug}`;
+    const { data: existingFiles } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .list(originalsCheckPath, { limit: 1000 });
+    
+    const existingCount = existingFiles?.length || 0;
+    const seq = existingCount + 1;
+    
+    // 파일 확장자 추출 및 정규화
+    const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const normalizedExt = (fileExtension === 'jpeg' ? 'jpg' : fileExtension) as ImageFormat;
+    
+    // 원본 파일명 생성 (규칙: {hotel_slug}_{sabreId}_{seq}.{ext})
+    const fileName = buildOriginalFilename({
+      hotelSlug: normalizedSlug,
+      sabreId: sabreId,
+      seq: seq,
+      ext: normalizedExt
+    });
+    
+    console.log(`[upload] 생성된 파일명: ${fileName} (seq: ${seq}, 기존 파일: ${existingCount}개)`);
 
     // 파일을 ArrayBuffer로 변환
     const arrayBuffer = await file.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
 
-    // Supabase Storage에 업로드
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("hotel-media")
-      .upload(filePath, buffer, {
+    const uploadResults: { folder: string; path: string; success: boolean; error?: string }[] = [];
+
+    // 1. Public 폴더에 업로드
+    const publicPath = `${DIR_PUBLIC}/${normalizedSlug}/${fileName}`;
+    console.log(`[upload] Public 폴더에 업로드 시도: ${publicPath}`);
+    
+    const { data: publicUploadData, error: publicUploadError } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(publicPath, buffer, {
         contentType: file.type,
         upsert: false,
       });
 
-    if (uploadError) {
-      console.error("Storage 업로드 오류:", uploadError);
+    if (publicUploadError) {
+      console.error("Public 폴더 업로드 오류:", publicUploadError);
+      uploadResults.push({ folder: 'public', path: publicPath, success: false, error: publicUploadError.message });
+    } else {
+      console.log(`✓ Public 폴더 업로드 완료: ${publicPath}`);
+      uploadResults.push({ folder: 'public', path: publicPath, success: true });
+    }
+
+    // 2. Originals 폴더에 업로드
+    const originalsPath = `${DIR_ORIGINALS}/${normalizedSlug}/${fileName}`;
+    console.log(`[upload] Originals 폴더에 업로드 시도: ${originalsPath}`);
+    
+    const { data: originalsUploadData, error: originalsUploadError } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(originalsPath, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (originalsUploadError) {
+      console.error("Originals 폴더 업로드 오류:", originalsUploadError);
+      uploadResults.push({ folder: 'originals', path: originalsPath, success: false, error: originalsUploadError.message });
+    } else {
+      console.log(`✓ Originals 폴더 업로드 완료: ${originalsPath}`);
+      uploadResults.push({ folder: 'originals', path: originalsPath, success: true });
+    }
+
+    // 업로드 결과 확인
+    const successfulUploads = uploadResults.filter(r => r.success);
+    if (successfulUploads.length === 0) {
       return NextResponse.json(
-        { success: false, error: `업로드 실패: ${uploadError.message}` },
+        { success: false, error: `모든 업로드 실패`, uploadResults },
         { status: 500 },
       );
     }
 
-    // Public URL 생성
+    // Public URL 생성 (public 폴더 기준)
     const { data: publicUrlData } = supabase.storage
-      .from("hotel-media")
-      .getPublicUrl(filePath);
+      .from(MEDIA_BUCKET)
+      .getPublicUrl(publicPath);
 
-    console.log(`이미지 업로드 완료: ${filePath}`);
+    console.log(`이미지 업로드 완료: ${successfulUploads.length}/${uploadResults.length} 성공`);
 
-    // select_hotel_media 테이블에 레코드 Upsert
+    // select_hotel_media 테이블에 레코드 Upsert (public 경로로)
     const mediaRecord = {
       sabre_id: sabreId,
       file_name: fileName,
-      file_path: filePath,
-      storage_path: uploadData.path,
+      file_path: publicPath,
+      storage_path: publicUploadData?.path || publicPath,
       public_url: publicUrlData.publicUrl,
       file_type: file.type,
       file_size: file.size,
@@ -94,7 +150,7 @@ export async function POST(request: NextRequest) {
       .from("select_hotel_media")
       .select("id")
       .eq("sabre_id", sabreId)
-      .eq("file_path", filePath)
+      .eq("file_path", publicPath)
       .maybeSingle()
 
     let upsertData
@@ -141,9 +197,10 @@ export async function POST(request: NextRequest) {
         warning: `이미지는 업로드되었지만 DB 레코드 upsert 실패: ${upsertError.message}`,
         data: {
           fileName: fileName,
-          filePath: filePath,
+          filePath: publicPath,
           url: publicUrlData.publicUrl,
-          storagePath: uploadData.path,
+          storagePath: publicUploadData?.path || publicPath,
+          uploadResults,
         },
       });
     }
@@ -154,11 +211,12 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         fileName: fileName,
-        filePath: filePath,
+        filePath: publicPath,
         url: publicUrlData.publicUrl,
-        storagePath: uploadData.path,
+        storagePath: publicUploadData?.path || publicPath,
+        uploadResults,
       },
-      message: "이미지가 성공적으로 업로드되었습니다.",
+      message: `이미지가 성공적으로 업로드되었습니다 (${successfulUploads.length}/${uploadResults.length} 성공).`,
     });
   } catch (error) {
     console.error("이미지 업로드 오류:", error);

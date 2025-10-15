@@ -19,7 +19,8 @@ import {
   Database,
   ImageIcon,
   Plus,
-  Trash2
+  Trash2,
+  Upload
 } from 'lucide-react'
 import Link from 'next/link'
 import NextImage from 'next/image'
@@ -54,6 +55,10 @@ interface StorageFolderInfo {
   fileCount?: number
   loading: boolean
   error: string | null
+  // Originals 폴더 정보
+  originalsExists?: boolean
+  originalsPath?: string
+  originalsFileCount?: number
 }
 
 interface StorageImage {
@@ -119,6 +124,13 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
   const [urlInputs, setUrlInputs] = useState<string[]>(Array.from({ length: 10 }, () => ''))
 
   const [uploading, setUploading] = useState(false)
+  
+  // 로컬 파일 업로드 상태
+  const [fileUploading, setFileUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // DB 동기화 상태
+  const [syncing, setSyncing] = useState(false)
 
   const uploadFromUrls = async () => {
     const sabreId = String(hotel.sabre_id || '')
@@ -159,6 +171,105 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
       setUploading(false)
     }
   }
+
+  // 로컬 파일 업로드
+  const uploadLocalFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    
+    const sabreId = String(hotel.sabre_id || '')
+    
+    if (!sabreId) {
+      alert('Sabre ID가 없습니다.')
+      return
+    }
+    
+    setFileUploading(true)
+    
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const formData = new FormData()
+        formData.append('sabreId', sabreId)
+        formData.append('file', file)
+        
+        const response = await fetch('/api/hotel-images/upload', {
+          method: 'POST',
+          body: formData,
+        })
+        
+        return response.json()
+      })
+      
+      const results = await Promise.all(uploadPromises)
+      
+      const successCount = results.filter(r => r.success).length
+      const failCount = results.length - successCount
+      
+      if (failCount > 0) {
+        const errors = results.filter(r => !r.success).map(r => r.error).join('\n')
+        alert(`업로드 완료: ${successCount}/${results.length}\n\n오류:\n${errors}`)
+      } else {
+        alert(`업로드 완료: ${successCount}/${results.length}`)
+      }
+      
+      // 이미지 목록 새로고침
+      onLoadStorageImages(hotelId, sabreId)
+      
+      // 파일 input 초기화
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    } catch (err) {
+      alert(`업로드 중 오류가 발생했습니다: ${err instanceof Error ? err.message : '알 수 없는 오류'}`)
+    } finally {
+      setFileUploading(false)
+    }
+  }
+
+  // 파일 선택 버튼 클릭
+  const handleFileSelectClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  // Storage 이미지를 DB에 동기화
+  const syncStorageToDb = async () => {
+    const sabreId = String(hotel.sabre_id || '')
+    
+    if (!sabreId) {
+      alert('Sabre ID가 없습니다.')
+      return
+    }
+    
+    if (!confirm('Storage의 모든 이미지를 DB에 동기화합니다.\n기존 DB 레코드는 삭제되고 새로 생성됩니다.\n계속하시겠습니까?')) {
+      return
+    }
+    
+    setSyncing(true)
+    
+    try {
+      const response = await fetch('/api/hotel-images/sync-to-db', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sabreId }),
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        alert(`동기화 완료: ${data.data.created}개의 레코드가 생성되었습니다.`)
+        // 이미지 목록 새로고침
+        onLoadStorageImages(hotelId, sabreId)
+      } else {
+        alert(`동기화 실패: ${data.error}`)
+      }
+    } catch (err) {
+      alert(`동기화 중 오류가 발생했습니다: ${err instanceof Error ? err.message : '알 수 없는 오류'}`)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   if (!state) {
     return (
       <div className="text-center py-8">
@@ -229,7 +340,7 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
         ) : state.storageFolder ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              {state.storageFolder.exists ? (
+              {(state.storageFolder.exists || state.storageFolder.originalsExists) ? (
                 <>
                   <FolderCheck className="h-5 w-5 text-green-600" />
                   <span className="text-sm text-green-700 font-medium">폴더가 존재합니다</span>
@@ -242,15 +353,23 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
               )}
             </div>
             
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-600 space-y-1">
               <div><strong>Slug:</strong> {state.storageFolder.slug}</div>
-              <div><strong>경로:</strong> select-media/{state.storageFolder.folderPath}</div>
-              {state.storageFolder.fileCount !== undefined && (
-                <div><strong>파일 수:</strong> {state.storageFolder.fileCount}개</div>
-              )}
+              <div>
+                <strong>Public 폴더:</strong> {state.storageFolder.path || 'N/A'}
+                {state.storageFolder.fileCount !== undefined && (
+                  <span className="ml-2 text-gray-500">({state.storageFolder.fileCount}개)</span>
+                )}
+              </div>
+              <div>
+                <strong>Originals 폴더:</strong> {state.storageFolder.originalsPath || 'N/A'}
+                {state.storageFolder.originalsFileCount !== undefined && (
+                  <span className="ml-2 text-gray-500">({state.storageFolder.originalsFileCount}개)</span>
+                )}
+              </div>
             </div>
             
-            {!state.storageFolder.exists && (
+            {!state.storageFolder.exists && !state.storageFolder.originalsExists && (
               <Button
                 onClick={() => onCreateStorageFolder(hotelId, String(hotel.sabre_id))}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
@@ -298,14 +417,32 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
             
             {/* Storage 폴더 상태 */}
             {state.storageFolder && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                {/* Public 폴더 */}
                 <div className="flex items-center gap-2">
                   <Database className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-900">Storage 폴더:</span>
+                  <span className="text-sm font-medium text-blue-900">Public 폴더:</span>
                   <span className="text-sm text-blue-700 font-mono">
-                    {state.storageFolder.path}
+                    {state.storageFolder.path || 'N/A'}
                   </span>
                   {state.storageFolder.exists ? (
+                    <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                      존재함
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">
+                      없음
+                    </span>
+                  )}
+                </div>
+                {/* Originals 폴더 */}
+                <div className="flex items-center gap-2">
+                  <Database className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">Originals 폴더:</span>
+                  <span className="text-sm text-blue-700 font-mono">
+                    {state.storageFolder.originalsPath || 'N/A'}
+                  </span>
+                  {state.storageFolder.originalsExists ? (
                     <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
                       존재함
                     </span>
@@ -318,15 +455,62 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
               </div>
             )}
             
-            {/* 업로드 버튼 */}
-            <div className="flex justify-end mb-4">
+            {/* 업로드 및 동기화 버튼 */}
+            <div className="flex justify-between items-center gap-2 mb-4">
               <Button
                 type="button"
-                className="bg-blue-600 hover:bg-blue-700"
-                onClick={() => setUrlModalOpen(true)}
+                variant="outline"
+                className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                onClick={syncStorageToDb}
+                disabled={syncing || fileUploading}
               >
-                <Plus className="h-4 w-4 mr-2" /> 이미지 URL로 업로드
+                {syncing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    동기화 중...
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-4 w-4 mr-2" /> Storage → DB 일괄 동기화
+                  </>
+                )}
               </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={handleFileSelectClick}
+                  disabled={fileUploading || syncing}
+                >
+                  {fileUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      업로드 중...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" /> 로컬 파일 업로드
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={() => setUrlModalOpen(true)}
+                  disabled={syncing || fileUploading}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> 이미지 URL로 업로드
+                </Button>
+              </div>
+              {/* 숨겨진 파일 input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => uploadLocalFiles(e.target.files)}
+                style={{ display: 'none' }}
+              />
             </div>
 
             {/* 이미지 그리드 */}
@@ -408,6 +592,22 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                         <div className="break-all">경로: <span className="font-mono text-gray-800">{image.storagePath}</span></div>
                       )}
                     </div>
+
+                    {/* 이미지 전체 URL */}
+                    {image.url && (
+                      <div className="mt-2 p-2 bg-blue-50 rounded text-xs border border-blue-200">
+                        <div className="text-blue-600 font-medium mb-1">이미지 URL:</div>
+                        <a
+                          href={image.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-blue-700 hover:text-blue-900 break-all underline cursor-pointer"
+                          title="클릭하여 새 창에서 이미지 보기"
+                        >
+                          {image.url}
+                        </a>
+                      </div>
+                    )}
 
                     {/* Storage 경로 */}
                     {image.storagePath && (
@@ -746,6 +946,9 @@ export default function HotelSearchWidget({
         savingImages: {}
       }
     }))
+    
+    // 먼저 Storage 폴더 상태 확인
+    await checkStorageFolder(hotelId, sabreId)
 
     try {
       // Supabase Storage에서 이미지 목록 가져오기
@@ -769,41 +972,40 @@ export default function HotelSearchWidget({
           imageNames: data.data.images?.map((img: { name: string }) => img.name) || []
         });
         
-        // Supabase Storage 이미지 데이터 설정
-        setImageManagementState(prev => ({
-          ...prev,
-          [hotelId]: {
-            loading: false,
-            saving: false,
-            error: null,
-            success: `${data.data.totalImages}개의 이미지를 불러왔습니다.`,
-            editingImages: false,
-            imageUrls: {
-              image_1: '',
-              image_2: '',
-              image_3: '',
-              image_4: '',
-              image_5: ''
-            },
-            imageInfos: {
-              image_1: null,
-              image_2: null,
-              image_3: null,
-              image_4: null,
-              image_5: null
-            },
-            storageFolder: {
-              exists: true,
-              slug: data.data.hotel?.normalizedSlug || '',
-              folderPath: data.data.storagePath || '',
-              path: data.data.storagePath || '',
+        // Supabase Storage 이미지 데이터 설정 (storageFolder는 이미 checkStorageFolder에서 설정됨)
+        setImageManagementState(prev => {
+          const currentState = prev[hotelId]
+          
+          return {
+            ...prev,
+            [hotelId]: {
+              ...currentState,
               loading: false,
-              error: null
-            },
-            storageImages: data.data.images || [],
-            savingImages: {}
+              saving: false,
+              error: null,
+              success: `${data.data.totalImages}개의 이미지를 불러왔습니다.`,
+              editingImages: false,
+              imageUrls: {
+                image_1: '',
+                image_2: '',
+                image_3: '',
+                image_4: '',
+                image_5: ''
+              },
+              imageInfos: {
+                image_1: null,
+                image_2: null,
+                image_3: null,
+                image_4: null,
+                image_5: null
+              },
+              // storageFolder는 checkStorageFolder에서 이미 설정되었으므로 유지
+              storageFolder: currentState?.storageFolder || null,
+              storageImages: data.data.images || [],
+              savingImages: {}
+            }
           }
-        }))
+        })
       } else {
         setImageManagementState(prev => ({
           ...prev,
@@ -1134,7 +1336,10 @@ export default function HotelSearchWidget({
             folderPath: '',
             path: '',
             loading: true,
-            error: null
+            error: null,
+            originalsExists: false,
+            originalsPath: '',
+            originalsFileCount: 0
           }
         }
       }
@@ -1148,25 +1353,40 @@ export default function HotelSearchWidget({
       }
 
       const data = await response.json()
+      
+      console.log('[checkStorageFolder] API Response:', data)
+      console.log('[checkStorageFolder] Originals info:', {
+        originalsExists: data.data?.originalsExists,
+        originalsPath: data.data?.originalsPath,
+        originalsFileCount: data.data?.originalsFileCount
+      })
 
       if (data.success) {
         setImageManagementState(prev => {
           const currentState = prev[hotelId]
           if (!currentState) return prev
           
+          const newStorageFolder = {
+            exists: data.data.exists || false,
+            slug: data.data.slug || '',
+            folderPath: data.data.folderPath || '',
+            path: data.data.path || '',
+            fileCount: data.data.fileCount,
+            loading: false,
+            error: null,
+            // Originals 폴더 정보
+            originalsExists: data.data.originalsExists || false,
+            originalsPath: data.data.originalsPath || '',
+            originalsFileCount: data.data.originalsFileCount || 0
+          }
+          
+          console.log('[checkStorageFolder] Setting storageFolder state:', newStorageFolder)
+          
           return {
             ...prev,
             [hotelId]: {
               ...currentState,
-              storageFolder: {
-                exists: data.data.exists || false,
-                slug: data.data.slug || '',
-                folderPath: data.data.folderPath || '',
-                path: data.data.path || '',
-                fileCount: data.data.fileCount,
-                loading: false,
-                error: null
-              }
+              storageFolder: newStorageFolder
             }
           }
         })
@@ -1185,7 +1405,10 @@ export default function HotelSearchWidget({
                 folderPath: '',
                 path: '',
                 loading: false,
-                error: data.error || 'Storage 폴더 상태 확인에 실패했습니다.'
+                error: data.error || 'Storage 폴더 상태 확인에 실패했습니다.',
+                originalsExists: false,
+                originalsPath: '',
+                originalsFileCount: 0
               }
             }
           }
@@ -1206,7 +1429,10 @@ export default function HotelSearchWidget({
               folderPath: '',
               path: '',
               loading: false,
-              error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
+              error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.',
+              originalsExists: false,
+              originalsPath: '',
+              originalsFileCount: 0
             }
           }
         }
@@ -1265,7 +1491,10 @@ export default function HotelSearchWidget({
                 folderPath: data.data.folderPath,
                 path: data.data.folderPath,
                 loading: false,
-                error: null
+                error: null,
+                originalsExists: false,
+                originalsPath: '',
+                originalsFileCount: 0
               },
               success: data.data.message
             }
