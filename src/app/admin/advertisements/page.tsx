@@ -6,9 +6,10 @@ import { AuthGuard } from '@/components/shared/auth-guard'
 import HeroCarouselManager from './_components/HeroCarouselManager'
 import PromotionManager from './_components/PromotionManager'
 import BannerManager from './_components/BannerManager'
+import BrandFeaturedManager from './_components/BrandFeaturedManager'
 // import { PromoBannerManager } from './_components/PromoBannerManager'
 
-type AdType = 'promo-banner' | 'banner' | 'carousel' | 'featured' | 'promotion'
+type AdType = 'promo-banner' | 'banner' | 'carousel' | 'featured' | 'promotion' | 'brand-featured'
 
 interface AdItem {
   id: string
@@ -65,6 +66,7 @@ export default function AdminAdvertisementsPage() {
     { id: 'carousel', label: '랜딩 히어로 캐러셀 노출 관리', icon: Sliders },
     { id: 'promotion', label: '랜딩 프로모션 노출 관리', icon: Megaphone },
     { id: 'featured', label: '랜딩 신규 등록 호텔', icon: Star },
+    { id: 'brand-featured', label: '브랜드 별 피처드 호텔', icon: Star },
     { id: 'banner', label: '호텔 목록 메인 베너 노출 관리', icon: Image }
   ]
 
@@ -136,6 +138,9 @@ export default function AdminAdvertisementsPage() {
           ) : activeTab === 'featured' ? (
             // 랜딩 신규 등록 호텔: surface='신규등록' 대상
             <PromotionManager title="신규 등록 호텔 노출 관리" surface="신규등록" />
+          ) : activeTab === 'brand-featured' ? (
+            // 브랜드 별 피처드 호텔: surface='브랜드베너' 대상
+            <BrandFeaturedManager />
           ) : (
             <>
               {/* 새 광고 추가 버튼 */}

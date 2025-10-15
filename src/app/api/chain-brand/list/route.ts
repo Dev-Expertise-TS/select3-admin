@@ -68,8 +68,12 @@ export async function GET() {
     console.log('[chain-brand-list] Actual hotel_chains columns:', chainsColumns)
     console.log('[chain-brand-list] Actual hotel_brands columns:', brandsColumns)
 
-    // 체인 데이터 조회
-    const chainsRes = await supabase.from('hotel_chains').select('*').order('chain_id', { ascending: true })
+    // 체인 데이터 조회 (chain_sort_order로 정렬, 없으면 chain_id로 정렬)
+    const chainsRes = await supabase
+      .from('hotel_chains')
+      .select('*')
+      .order('chain_sort_order', { ascending: true, nullsFirst: false })
+      .order('chain_id', { ascending: true })
     if (chainsRes.error) {
       console.error('[chain-brand-list] hotel_chains query error:', chainsRes.error)
       return NextResponse.json(
@@ -114,11 +118,23 @@ export async function GET() {
       const nameEnKey = chainsColumns.find(key => 
         key.toLowerCase().includes('name') && key.toLowerCase().includes('en')
       ) || 'name_en'
+      
+      // slug 컬럼 찾기
+      const slugKey = chainsColumns.find(key => 
+        key.toLowerCase() === 'slug'
+      ) || 'slug'
+      
+      // chain_sort_order 컬럼 찾기
+      const sortOrderKey = chainsColumns.find(key => 
+        key.toLowerCase().includes('sort') && key.toLowerCase().includes('order')
+      ) || 'chain_sort_order'
 
       return {
         chain_id: Number(r[chainIdKey] ?? 0),
         name_kr: safeString(r[nameKrKey]),
         name_en: safeString(r[nameEnKey]),
+        slug: safeString(r[slugKey]),
+        chain_sort_order: r[sortOrderKey] ? Number(r[sortOrderKey]) : null,
       }
     })
 
@@ -157,7 +173,13 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: { chains, brands }
+      data: { chains, brands },
+      debug: {
+        chainsCount: chains.length,
+        brandsCount: brands.length,
+        chainsColumns: chainsColumns,
+        rawChainsCount: chainsRes.data?.length || 0
+      }
     })
   } catch (error) {
     console.error('[chain-brand-list] error:', error)

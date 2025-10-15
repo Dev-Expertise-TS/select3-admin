@@ -22,6 +22,7 @@ export async function saveFeatureSlot(formData: FormData): Promise<ActionResult>
     const slotKey = formData.get('slot_key') as string
     const startDate = formData.get('start_date') as string
     const endDate = formData.get('end_date') as string
+    const chainSlug = formData.get('chain_slug') as string
 
     if (!sabreId || !slotKey) {
       return {
@@ -36,6 +37,7 @@ export async function saveFeatureSlot(formData: FormData): Promise<ActionResult>
       slot_key: slotKey,
       start_date: startDate || null,
       end_date: endDate || null,
+      chain_slug: chainSlug || null,
     }
 
     let result

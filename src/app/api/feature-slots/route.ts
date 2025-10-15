@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
         slot_key,
         start_date,
         end_date,
+        chain_slug,
         created_at,
         select_hotels (
           property_name_ko,
