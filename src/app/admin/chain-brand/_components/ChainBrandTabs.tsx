@@ -139,6 +139,9 @@ function SortableBrandRow({
             max="32767"
           />
         </td>
+        <td className="border p-2 text-center text-sm font-mono text-gray-600 bg-gray-50">
+          {brand.brand_id}
+        </td>
         <td className="border p-2">
           <input
             type="text"
@@ -203,6 +206,7 @@ function SortableBrandRow({
         </div>
       </td>
       <td className="border p-2 text-center text-sm">{brand.brand_sort_order ?? '-'}</td>
+      <td className="border p-2 text-center text-sm font-mono text-gray-700">{brand.brand_id}</td>
       <td className="border p-2 text-sm">{brand.name_kr || '-'}</td>
       <td className="border p-2 text-sm">{brand.name_en || '-'}</td>
       <td className="border p-2 text-sm">
@@ -796,6 +800,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
           <GripVertical className="h-4 w-4 text-gray-300 mx-auto" />
         </td>
         <td className="border p-2"><span className="text-xs text-gray-500">NEW</span></td>
+        <td className="border p-2 text-center"><span className="text-xs text-gray-500">자동생성</span></td>
         <td className="border p-2">
           <input
             type="text"
@@ -957,6 +962,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                         <GripVertical className="h-4 w-4 text-gray-400 mx-auto" />
                       </th>
                       <th className="border p-2 text-center" style={{ width: '70px' }}>순서</th>
+                      <th className="border p-2 text-center" style={{ width: '80px' }}>Brand ID</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>브랜드(한글)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>브랜드(영문)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>체인</th>

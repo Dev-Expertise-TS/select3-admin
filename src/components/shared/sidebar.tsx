@@ -55,6 +55,7 @@ const navSections: NavSection[] = [
     title: 'Admin',
     requiredRole: 'admin',
     items: [
+      { label: '전체 호텔 보기', href: '/admin/hotels', icon: Database, requiredRole: 'admin' },
       { label: 'Sabre API 요금 코드 관리', href: '/admin/hotel-search', icon: DollarSign, requiredRole: 'admin' },
       { label: 'Sabre Hotel Code 확인', href: '/admin/sabre-id', icon: Building, requiredRole: 'admin' },
       { label: '호텔 정보 업데이트', href: '/admin/hotel-update', icon: Pencil, requiredRole: 'admin' },
