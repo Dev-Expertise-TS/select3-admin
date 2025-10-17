@@ -20,7 +20,7 @@ import { BlogSectionEditor } from './_components/BlogSectionEditor'
 import 'react-quill-new/dist/quill.snow.css'
 
 interface HotelBlog {
-  id: number
+  id: string
   slug: string
   publish: boolean
   main_title: string
@@ -106,8 +106,8 @@ function HotelBlogsManager() {
           if (dateB !== dateA) {
             return dateB - dateA // updated_at 내림차순
           }
-          // updated_at이 같으면 id 기준으로 내림차순
-          return b.id - a.id
+          // updated_at이 같으면 id 기준으로 문자열 비교 (UUID)
+          return b.id.localeCompare(a.id)
         })
         setBlogs(sortedBlogs)
         setTotalPages(result.pagination.totalPages)
@@ -136,11 +136,11 @@ function HotelBlogsManager() {
   }
 
   // 블로그 삭제
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (blog: HotelBlog) => {
     if (!confirm('정말로 이 블로그를 삭제하시겠습니까?')) return
 
     try {
-      const response = await fetch(`/api/hotel-articles/${id}`, {
+      const response = await fetch(`/api/hotel-articles/${blog.id}?slug=${encodeURIComponent(blog.slug)}`, {
         method: 'DELETE'
       })
       const result = await response.json()
@@ -157,14 +157,17 @@ function HotelBlogsManager() {
   }
 
   // 발행 상태 변경
-  const handlePublishChange = async (id: number, publish: boolean) => {
+  const handlePublishChange = async (blog: HotelBlog, publish: boolean) => {
     try {
-      const response = await fetch(`/api/hotel-articles/${id}`, {
+      const response = await fetch(`/api/hotel-articles/${blog.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ publish })
+        body: JSON.stringify({ 
+          slug: blog.slug,
+          publish 
+        })
       })
       const result = await response.json()
 
@@ -353,7 +356,7 @@ function HotelBlogsManager() {
                     </Button>
                     
                     <button
-                      onClick={() => handlePublishChange(blog.id, !blog.publish)}
+                      onClick={() => handlePublishChange(blog, !blog.publish)}
                       className={cn(
                         "text-xs px-2 py-1 border rounded cursor-pointer",
                         blog.publish 
@@ -367,7 +370,7 @@ function HotelBlogsManager() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleDelete(blog.id)}
+                      onClick={() => handleDelete(blog)}
                       className="text-red-600 hover:text-red-700 cursor-pointer"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -912,6 +915,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                 content={formData[key as keyof typeof formData] as string}
                 sabreId={formData[sabreKey as keyof typeof formData] as string}
                 blogId={blog?.id}
+                blogSlug={blog?.slug}
                 onContentChange={(k, v) => setFormData({ ...formData, [k]: v })}
                 onSabreChange={(k, v) => setFormData({ ...formData, [k]: v })}
               />

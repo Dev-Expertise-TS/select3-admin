@@ -21,7 +21,8 @@ interface BlogSectionEditorProps {
   sabreKey: string
   content: string
   sabreId: string
-  blogId?: number
+  blogId?: string
+  blogSlug?: string
   onContentChange: (key: string, value: string) => void
   onSabreChange: (key: string, value: string) => void
 }
@@ -33,6 +34,7 @@ export function BlogSectionEditor({
   content,
   sabreId,
   blogId,
+  blogSlug,
   onContentChange,
   onSabreChange
 }: BlogSectionEditorProps) {
@@ -45,7 +47,7 @@ export function BlogSectionEditor({
   const [editorContent, setEditorContent] = useState(content)
   
   const { quillRef, handleImageUpload, showImageDialog, setShowImageDialog, uploadFile, uploadUrl } = useQuillImageUpload({ sabreId })
-  const handleEditorChange = useRef<NodeJS.Timeout>()
+  const handleEditorChange = useRef<NodeJS.Timeout | undefined>(undefined)
 
   // 이미지 업로드 다이얼로그 핸들러
   const handleImageFileSelected = async (file: File) => {
@@ -127,6 +129,11 @@ export function BlogSectionEditor({
       return
     }
 
+    if (!blogSlug) {
+      alert('블로그 slug가 필요합니다.')
+      return
+    }
+
     setIsSaving(true)
     try {
       // 현재 에디터 내용 먼저 부모에게 전달
@@ -138,6 +145,7 @@ export function BlogSectionEditor({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          slug: blogSlug,
           [contentKey]: editorContent,
           [sabreKey]: sabreId || null
         })

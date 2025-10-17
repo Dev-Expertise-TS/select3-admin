@@ -8,8 +8,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const slug = searchParams.get('slug')
     
-    if (!id || Number.isNaN(Number(id))) {
+    if (!id) {
       return NextResponse.json(
         { success: false, error: '블로그 ID가 필요합니다.' },
         { status: 400 }
@@ -18,24 +20,48 @@ export async function GET(
 
     const supabase = createServiceRoleClient()
 
-    const { data, error } = await supabase
-      .from('select_hotel_blogs')
-      .select('*')
-      .eq('id', id)
-      .single()
+    // Primary key가 (id, slug) 복합키인 경우 slug도 필요
+    if (slug) {
+      const { data, error } = await supabase
+        .from('select_hotel_blogs')
+        .select('*')
+        .eq('id', id)
+        .eq('slug', slug)
+        .single()
 
-    if (error) {
-      console.error('호텔 블로그 조회 오류:', error)
-      return NextResponse.json(
-        { success: false, error: '호텔 블로그를 찾을 수 없습니다.' },
-        { status: 404 }
-      )
+      if (error) {
+        console.error('호텔 블로그 조회 오류:', error)
+        return NextResponse.json(
+          { success: false, error: '호텔 블로그를 찾을 수 없습니다.' },
+          { status: 404 }
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        data
+      })
+    } else {
+      // slug가 없는 경우 id로만 조회 (여러 행이 있을 수 있음)
+      const { data, error } = await supabase
+        .from('select_hotel_blogs')
+        .select('*')
+        .eq('id', id)
+
+      if (error) {
+        console.error('호텔 블로그 조회 오류:', error)
+        return NextResponse.json(
+          { success: false, error: '호텔 블로그를 찾을 수 없습니다.' },
+          { status: 404 }
+        )
+      }
+
+      // 배열로 반환
+      return NextResponse.json({
+        success: true,
+        data
+      })
     }
-
-    return NextResponse.json({
-      success: true,
-      data
-    })
 
   } catch (error) {
     console.error('호텔 블로그 조회 API 오류:', error)
@@ -94,6 +120,14 @@ export async function PUT(
       )
     }
 
+    // slug도 필요 (primary key가 id, slug 복합키)
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: 'slug가 필요합니다.' },
+        { status: 400 }
+      )
+    }
+
     const supabase = createServiceRoleClient()
 
     // 업데이트할 데이터 준비
@@ -101,7 +135,8 @@ export async function PUT(
       updated_at: updated_at || new Date().toISOString()
     }
 
-    if (slug !== undefined) updateData.slug = slug
+    // slug는 primary key의 일부이므로 업데이트 대상에서 제외
+    // if (slug !== undefined) updateData.slug = slug
     if (publish !== undefined) updateData.publish = publish
     if (main_title !== undefined) updateData.main_title = main_title
     if (sub_title !== undefined) updateData.sub_title = sub_title
@@ -132,26 +167,20 @@ export async function PUT(
     if (s11_sabre_id !== undefined) updateData.s11_sabre_id = s11_sabre_id === '' ? null : s11_sabre_id
     if (s12_sabre_id !== undefined) updateData.s12_sabre_id = s12_sabre_id === '' ? null : s12_sabre_id
 
+    // Primary key가 (id, slug) 복합키이므로 둘 다 조건으로 사용
     const { data, error } = await supabase
       .from('select_hotel_blogs')
       .update(updateData)
-      .eq('id', Number(id))
+      .eq('id', id)
+      .eq('slug', slug)
       .select('*')
-      .maybeSingle()
+      .single()
 
     if (error) {
       console.error('호텔 블로그 수정 오류:', error)
       return NextResponse.json(
         { success: false, error: '호텔 블로그를 수정할 수 없습니다.' },
         { status: 500 }
-      )
-    }
-
-    if (!data) {
-      // 업데이트 대상이 없거나 여러 개인 경우 maybeSingle은 data가 null이 될 수 있음
-      return NextResponse.json(
-        { success: false, error: '해당 블로그를 찾을 수 없습니다.' },
-        { status: 404 }
       )
     }
 
@@ -176,6 +205,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const slug = searchParams.get('slug')
 
     if (!id) {
       return NextResponse.json(
@@ -186,17 +217,35 @@ export async function DELETE(
 
     const supabase = createServiceRoleClient()
 
-    const { error } = await supabase
-      .from('select_hotel_blogs')
-      .delete()
-      .eq('id', id)
+    // Primary key가 (id, slug) 복합키인 경우
+    if (slug) {
+      const { error } = await supabase
+        .from('select_hotel_blogs')
+        .delete()
+        .eq('id', id)
+        .eq('slug', slug)
 
-    if (error) {
-      console.error('호텔 블로그 삭제 오류:', error)
-      return NextResponse.json(
-        { success: false, error: '호텔 블로그를 삭제할 수 없습니다.' },
-        { status: 500 }
-      )
+      if (error) {
+        console.error('호텔 블로그 삭제 오류:', error)
+        return NextResponse.json(
+          { success: false, error: '호텔 블로그를 삭제할 수 없습니다.' },
+          { status: 500 }
+        )
+      }
+    } else {
+      // slug가 없는 경우 id로만 삭제 (해당 id의 모든 행 삭제)
+      const { error } = await supabase
+        .from('select_hotel_blogs')
+        .delete()
+        .eq('id', id)
+
+      if (error) {
+        console.error('호텔 블로그 삭제 오류:', error)
+        return NextResponse.json(
+          { success: false, error: '호텔 블로그를 삭제할 수 없습니다.' },
+          { status: 500 }
+        )
+      }
     }
 
     return NextResponse.json({
