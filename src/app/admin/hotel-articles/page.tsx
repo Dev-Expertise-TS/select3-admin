@@ -602,6 +602,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('basic_info')
 
   // 대표 이미지 URL을 Storage로 업로드
   const handleUploadMainImage = async () => {
@@ -689,18 +690,18 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden border-2 border-gray-300">
+      <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full h-[calc(100vh-2rem)] flex flex-col border-2 border-gray-300">
         {/* 헤더 */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-blue-600 p-2">
-              <Newspaper className="h-6 w-6 text-white" />
+              <Newspaper className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-lg font-bold text-gray-900">
                 {blog ? '블로그 수정' : '새 블로그 생성'}
               </h2>
-              <p className="text-sm text-gray-600">
+              <p className="text-xs text-gray-600">
                 {blog ? '블로그 정보를 수정합니다' : '새로운 블로그를 생성합니다'}
               </p>
             </div>
@@ -715,28 +716,108 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
         </div>
 
         {/* 폼 */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto max-h-[calc(95vh-140px)]">
-          {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center gap-2">
-                <div className="text-red-600">⚠️</div>
-                <p className="text-red-800">{error}</p>
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+          {/* 메시지 영역 */}
+          <div className="px-6 pt-4 flex-shrink-0">
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <div className="text-red-600">⚠️</div>
+                  <p className="text-red-800 text-sm">{error}</p>
+                </div>
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <div className="text-green-600">✅</div>
+                  <p className="text-green-800 text-sm">{successMessage}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 통합 탭 UI */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* 탭 헤더 */}
+            <div className="px-6 pb-2 flex-shrink-0">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-base font-medium text-gray-900">블로그 콘텐츠</h3>
+                  <p className="text-xs text-gray-600">탭을 선택하여 기본 정보 또는 각 섹션의 콘텐츠를 편집하세요</p>
+                </div>
+                {blog && (
+                  <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded">
+                    💡 각 섹션마다 개별 저장할 수 있습니다
+                  </span>
+                )}
               </div>
             </div>
-          )}
 
-          {successMessage && (
-            <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="flex items-center gap-2">
-                <div className="text-green-600">✅</div>
-                <p className="text-green-800">{successMessage}</p>
+            {/* 탭 버튼들 */}
+            <div className="px-6 flex-shrink-0 border-b border-gray-200">
+              <div className="flex flex-wrap gap-1">
+              {/* 기본 정보 탭 */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('basic_info')}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                  activeTab === 'basic_info'
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300"
+                )}
+              >
+                기본 정보
+              </button>
+
+              {/* 섹션 탭들 */}
+              {[
+                { key: 's1_contents', title: '섹션 1' },
+                { key: 's2_contents', title: '섹션 2' },
+                { key: 's3_contents', title: '섹션 3' },
+                { key: 's4_contents', title: '섹션 4' },
+                { key: 's5_contents', title: '섹션 5' },
+                { key: 's6_contents', title: '섹션 6' },
+                { key: 's7_contents', title: '섹션 7' },
+                { key: 's8_contents', title: '섹션 8' },
+                { key: 's9_contents', title: '섹션 9' },
+                { key: 's10_contents', title: '섹션 10' },
+                { key: 's11_contents', title: '섹션 11' },
+                { key: 's12_contents', title: '섹션 12' }
+              ].map(({ key, title }) => {
+                const hasContent = formData[key as keyof typeof formData]
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setActiveTab(key)}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium border-b-2 transition-colors relative",
+                      activeTab === key
+                        ? "border-blue-600 text-blue-600"
+                        : "border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300"
+                    )}
+                  >
+                    {title}
+                    {hasContent && (
+                      <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full" title="콘텐츠 있음" />
+                    )}
+                  </button>
+                )
+              })}
               </div>
             </div>
-          )}
 
-          {/* 기본 정보 */}
-          <div className="mb-8">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">기본 정보</h3>
+            {/* 탭 콘텐츠 영역 */}
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {/* 기본 정보 탭 콘텐츠 - 스크롤 가능 */}
+              <div className={cn(
+                "overflow-y-auto px-6 py-4",
+                activeTab === 'basic_info' ? 'flex-1' : 'hidden'
+              )}>
+                <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -878,52 +959,49 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                 )}
               </div>
             </div>
-          </div>
-
-          {/* 섹션별 내용 */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">섹션별 내용</h3>
-                <p className="text-sm text-gray-600">각 섹션을 클릭하여 펼치고 HTML 콘텐츠를 편집하세요</p>
+                </div>
               </div>
-              {blog && (
-                <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded">
-                  💡 각 섹션마다 개별 저장할 수 있습니다
-                </span>
-              )}
+
+              {/* 섹션 탭 콘텐츠 - 스크롤 없음 (에디터 내부 스크롤만 사용) */}
+              {[
+                { key: 's1_contents', sabreKey: 's1_sabre_id', title: '섹션 1' },
+                { key: 's2_contents', sabreKey: 's2_sabre_id', title: '섹션 2' },
+                { key: 's3_contents', sabreKey: 's3_sabre_id', title: '섹션 3' },
+                { key: 's4_contents', sabreKey: 's4_sabre_id', title: '섹션 4' },
+                { key: 's5_contents', sabreKey: 's5_sabre_id', title: '섹션 5' },
+                { key: 's6_contents', sabreKey: 's6_sabre_id', title: '섹션 6' },
+                { key: 's7_contents', sabreKey: 's7_sabre_id', title: '섹션 7' },
+                { key: 's8_contents', sabreKey: 's8_sabre_id', title: '섹션 8' },
+                { key: 's9_contents', sabreKey: 's9_sabre_id', title: '섹션 9' },
+                { key: 's10_contents', sabreKey: 's10_sabre_id', title: '섹션 10' },
+                { key: 's11_contents', sabreKey: 's11_sabre_id', title: '섹션 11' },
+                { key: 's12_contents', sabreKey: 's12_sabre_id', title: '섹션 12' }
+              ].map(({ key, sabreKey, title }) => (
+                <div 
+                  key={key} 
+                  className={cn(
+                    "flex-1 overflow-hidden px-6 py-4",
+                    activeTab === key ? 'flex flex-col' : 'hidden'
+                  )}
+                >
+                  <BlogSectionEditor
+                    title={title}
+                    contentKey={key}
+                    sabreKey={sabreKey}
+                    content={formData[key as keyof typeof formData] as string}
+                    sabreId={formData[sabreKey as keyof typeof formData] as string}
+                    blogId={blog?.id}
+                    blogSlug={blog?.slug}
+                    onContentChange={(k, v) => setFormData({ ...formData, [k]: v })}
+                    onSabreChange={(k, v) => setFormData({ ...formData, [k]: v })}
+                  />
+                </div>
+              ))}
             </div>
-            {[
-              { key: 's1_contents', sabreKey: 's1_sabre_id', title: '섹션 1' },
-              { key: 's2_contents', sabreKey: 's2_sabre_id', title: '섹션 2' },
-              { key: 's3_contents', sabreKey: 's3_sabre_id', title: '섹션 3' },
-              { key: 's4_contents', sabreKey: 's4_sabre_id', title: '섹션 4' },
-              { key: 's5_contents', sabreKey: 's5_sabre_id', title: '섹션 5' },
-              { key: 's6_contents', sabreKey: 's6_sabre_id', title: '섹션 6' },
-              { key: 's7_contents', sabreKey: 's7_sabre_id', title: '섹션 7' },
-              { key: 's8_contents', sabreKey: 's8_sabre_id', title: '섹션 8' },
-              { key: 's9_contents', sabreKey: 's9_sabre_id', title: '섹션 9' },
-              { key: 's10_contents', sabreKey: 's10_sabre_id', title: '섹션 10' },
-              { key: 's11_contents', sabreKey: 's11_sabre_id', title: '섹션 11' },
-              { key: 's12_contents', sabreKey: 's12_sabre_id', title: '섹션 12' }
-            ].map(({ key, sabreKey, title }) => (
-              <BlogSectionEditor
-                key={key}
-                title={title}
-                contentKey={key}
-                sabreKey={sabreKey}
-                content={formData[key as keyof typeof formData] as string}
-                sabreId={formData[sabreKey as keyof typeof formData] as string}
-                blogId={blog?.id}
-                blogSlug={blog?.slug}
-                onContentChange={(k, v) => setFormData({ ...formData, [k]: v })}
-                onSabreChange={(k, v) => setFormData({ ...formData, [k]: v })}
-              />
-            ))}
           </div>
 
           {/* 버튼 */}
-          <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
             <Button
               type="button"
               variant="outline"
@@ -966,16 +1044,16 @@ function BlogViewModal({ isOpen, onClose, blog }: BlogViewModalProps) {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border-2 border-gray-300">
+      <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full h-[calc(100vh-2rem)] flex flex-col border-2 border-gray-300">
         {/* 헤더 */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-blue-600 p-2">
-              <Newspaper className="h-6 w-6 text-white" />
+              <Newspaper className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">블로그 보기</h2>
-              <p className="text-sm text-gray-600">블로그 내용을 확인합니다</p>
+              <h2 className="text-lg font-bold text-gray-900">블로그 보기</h2>
+              <p className="text-xs text-gray-600">블로그 내용을 확인합니다</p>
             </div>
           </div>
           <Button
@@ -988,7 +1066,7 @@ function BlogViewModal({ isOpen, onClose, blog }: BlogViewModalProps) {
         </div>
 
         {/* 내용 */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+        <div className="flex-1 overflow-y-auto p-6">
           {/* 기본 정보 */}
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">
@@ -1095,7 +1173,7 @@ function BlogViewModal({ isOpen, onClose, blog }: BlogViewModalProps) {
         </div>
 
         {/* 푸터 */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
           <Button variant="outline" onClick={onClose} className="cursor-pointer">
             닫기
           </Button>

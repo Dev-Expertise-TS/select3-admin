@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { HotelAutocomplete } from '@/components/shared/hotel-autocomplete'
 import { cn } from '@/lib/utils'
-import { quillFormats, createQuillModules, EDITOR_HEIGHTS, EditorHeight } from '@/lib/quill-config'
+import { quillFormats, createQuillModules } from '@/lib/quill-config'
 import { useQuillImageUpload } from '@/hooks/use-quill-image-upload'
 import { ImageUploadDialog } from '@/components/shared/image-upload-dialog'
 
@@ -38,8 +38,6 @@ export function BlogSectionEditor({
   onContentChange,
   onSabreChange
 }: BlogSectionEditorProps) {
-  const [isExpanded, setIsExpanded] = useState(!!content)
-  const [editorHeight, setEditorHeight] = useState<EditorHeight>('medium')
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [hotelInfo, setHotelInfo] = useState<{ property_name_ko: string; property_name_en: string } | null>(null)
@@ -168,19 +166,10 @@ export function BlogSectionEditor({
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between p-3 bg-gray-50">
+    <div className="flex-1 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between p-3 bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-3">
           <h4 className="text-sm font-medium text-gray-700">{title}</h4>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="cursor-pointer text-xs"
-          >
-            {isExpanded ? '접기' : '편집하기'}
-          </Button>
           {content && (
             <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
               작성됨
@@ -193,14 +182,14 @@ export function BlogSectionEditor({
           )}
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex flex-col gap-1">
+          {/* 호텔 정보 표시 */}
+          <div className="flex-1 min-w-0">
             {sabreId && hotelInfo ? (
-              <div className="text-sm">
-                <span className="font-medium text-gray-700">Sabre ID: {sabreId}</span>
-                <span className="text-gray-500 mx-2">•</span>
-                <span className="text-gray-700">{hotelInfo.property_name_ko}</span>
+              <div className="text-sm text-gray-600 truncate">
+                <span className="font-medium text-gray-700">{hotelInfo.property_name_ko}</span>
                 <span className="text-gray-500 mx-2">•</span>
                 <span className="text-gray-500">{hotelInfo.property_name_en}</span>
+                <span className="text-gray-400 ml-2">({sabreId})</span>
               </div>
             ) : sabreId && loadingHotelInfo ? (
               <div className="text-sm text-gray-500">호텔 정보 로딩 중...</div>
@@ -209,95 +198,70 @@ export function BlogSectionEditor({
             ) : (
               <div className="text-sm text-gray-400">호텔 미연결</div>
             )}
-            <div className="w-64">
-              <HotelAutocomplete
-                value={sabreId}
-                onChange={(value) => {
-                  onSabreChange(sabreKey, value)
-                  setSaveSuccess(false)
-                }}
-                placeholder="호텔 검색..."
-              />
-            </div>
           </div>
-          {isExpanded && (
-            <>
-              <div className="flex items-center gap-1 border rounded px-2 py-1 bg-white">
-                <button
-                  type="button"
-                  onClick={() => setEditorHeight('small')}
-                  className={cn(
-                    "px-2 py-0.5 text-xs rounded",
-                    editorHeight === 'small' ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
-                  )}
-                  title="작게"
-                >
-                  S
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditorHeight('medium')}
-                  className={cn(
-                    "px-2 py-0.5 text-xs rounded",
-                    editorHeight === 'medium' ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
-                  )}
-                  title="보통"
-                >
-                  M
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditorHeight('large')}
-                  className={cn(
-                    "px-2 py-0.5 text-xs rounded",
-                    editorHeight === 'large' ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
-                  )}
-                  title="크게"
-                >
-                  L
-                </button>
-              </div>
-              {blogId && (
+          
+          {/* 입력 필드 */}
+          <div className="w-64">
+            <HotelAutocomplete
+              value={sabreId}
+              onChange={(value) => {
+                onSabreChange(sabreKey, value)
+                setSaveSuccess(false)
+              }}
+              placeholder="호텔 검색..."
+            />
+          </div>
+          {blogId && (
                 <Button
                   type="button"
                   size="sm"
                   onClick={handleSectionSave}
                   disabled={isSaving}
-                  className="bg-green-600 hover:bg-green-700 cursor-pointer"
+                  className="bg-blue-600 hover:bg-blue-700 cursor-pointer"
                 >
                   {isSaving ? (
                     <>
                       <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                      저장중
+                      저장 중...
                     </>
                   ) : (
-                    '저장'
+                    '섹션 저장'
                   )}
                 </Button>
               )}
-            </>
-          )}
         </div>
       </div>
       
-      {isExpanded && (
-        <div className="p-4 bg-white flex justify-center">
-          <div className="w-full max-w-4xl">
-            <ReactQuill
-              {...({ ref: quillRef } as any)}
-              key={`editor-${contentKey}`}
-              theme="snow"
-              defaultValue={editorContent || ''}
-              value={editorContent || ''}
-              onChange={onEditorChange}
-              modules={quillModules}
-              formats={quillFormats}
-              className="bg-white"
-              style={{ height: EDITOR_HEIGHTS[editorHeight], marginBottom: '42px' }}
-            />
-          </div>
+      {/* 에디터 영역 - 전체 높이 사용 */}
+      <div className="flex-1 overflow-hidden flex items-center justify-center bg-white p-4">
+        <div className="w-full max-w-4xl h-full flex flex-col">
+          <style jsx global>{`
+            .full-height-editor {
+              height: 100%;
+              display: flex;
+              flex-direction: column;
+            }
+            .full-height-editor .ql-container {
+              flex: 1;
+              overflow-y: auto;
+            }
+            .full-height-editor .ql-editor {
+              min-height: 100%;
+            }
+          `}</style>
+          <ReactQuill
+            {...({ ref: quillRef } as any)}
+            key={`editor-${contentKey}`}
+            theme="snow"
+            defaultValue={editorContent || ''}
+            value={editorContent || ''}
+            onChange={onEditorChange}
+            modules={quillModules}
+            formats={quillFormats}
+            className="bg-white full-height-editor"
+          />
         </div>
-      )}
+      </div>
       
       {/* 이미지 업로드 다이얼로그 */}
       <ImageUploadDialog
