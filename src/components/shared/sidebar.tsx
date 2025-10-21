@@ -28,6 +28,7 @@ import {
   ArrowRightLeft,
   Globe,
   Star,
+  Link as LinkIcon,
 } from 'lucide-react'
 
 interface NavItem {
@@ -67,6 +68,7 @@ const navSections: NavSection[] = [
       { label: '호텔 이미지 관리', href: '/admin/hotel-images', icon: Image, requiredRole: 'admin' },
       { label: '호텔 콘텐츠 관리', href: '/admin/hotel-content', icon: FileText, requiredRole: 'admin' },
       { label: '호텔 아티클 관리', href: '/admin/hotel-articles', icon: Newspaper, requiredRole: 'admin' },
+      { label: 'UTM 생성기', href: '/admin/utm-generator', icon: LinkIcon, requiredRole: 'admin' },
       { label: '맴버쉽 관리', href: '/admin/membership', icon: Users, requiredRole: 'admin' },
       { label: '관리자 관리', href: '/admin/users', icon: Users, requiredRole: 'admin' },
       { label: '데이터 마이그레이션', href: '/admin/data-migration', icon: ArrowRightLeft, requiredRole: 'admin' },
