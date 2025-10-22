@@ -1,14 +1,11 @@
 /**
  * Rate Plan 코드 검증 및 정규화 유틸리티
- * Supabase enum 타입과 호환되는 Rate Plan 코드를 처리
+ * 
+ * select_hotels 테이블의 rate_plan_code 컬럼은 TEXT 타입이며,
+ * 콤마로 구분된 문자열로 저장됩니다.
  */
 
-import { createServiceRoleClient } from '@/lib/supabase/server'
-
-// 기본 허용 Rate Plan 코드 (enum 조회 실패 시 폴백)
-const FALLBACK_RATE_PLAN_CODES = [
-  'API', 'ZP3', 'VMC', 'TLC', 'H01', 'S72', 'XLO', 'PPR', 'FAN', 'WMP', 'HPM', 'TID', 'STP'
-]
+import { RATE_PLAN_CODES } from '@/config/rate-plan-codes'
 
 export interface RatePlanValidationResult {
   allowedCodes: string[]
@@ -19,39 +16,11 @@ export interface RatePlanValidationResult {
 }
 
 /**
- * Supabase에서 Rate Plan 코드 enum 값들을 조회
+ * 허용된 Rate Plan 코드 목록 반환
  * @returns 허용된 Rate Plan 코드 배열
  */
-export async function getAllowedRatePlanCodes(): Promise<string[]> {
-  try {
-    const supabase = createServiceRoleClient()
-    
-    // pg_type에서 rate_plan_code enum의 oid 조회
-    const { data: typeData } = await supabase
-      .from('pg_type')
-      .select('oid')
-      .eq('typname', 'rate_plan_code')
-      .single()
-    
-    if (!typeData?.oid) {
-      return FALLBACK_RATE_PLAN_CODES
-    }
-    
-    // pg_enum에서 enum 값들 조회
-    const { data: enumData } = await supabase
-      .from('pg_enum')
-      .select('enumlabel')
-      .eq('enumtypid', typeData.oid)
-      .order('enumsortorder', { ascending: true })
-    
-    const enumValues = (enumData?.map((r: { enumlabel: string }) => r.enumlabel) || [])
-      .filter(Boolean)
-    
-    return enumValues.length > 0 ? enumValues : FALLBACK_RATE_PLAN_CODES
-  } catch (error) {
-    console.warn('Rate Plan 코드 enum 조회 실패, 폴백 값 사용:', error)
-    return FALLBACK_RATE_PLAN_CODES
-  }
+export function getAllowedRatePlanCodes(): string[] {
+  return [...RATE_PLAN_CODES]
 }
 
 /**

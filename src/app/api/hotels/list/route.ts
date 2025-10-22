@@ -97,24 +97,32 @@ export async function GET(request: NextRequest) {
       return normalizedHotel
     })
 
+    // Rate Plan Code 유효성 검사 헬퍼 함수
+    const hasRatePlanCodes = (codes: unknown): boolean => {
+      if (codes === null || codes === undefined) return false
+      if (Array.isArray(codes)) return codes.length > 0
+      if (typeof codes === 'string') return codes.trim().length > 0
+      return false
+    }
+
     // rate_plan_code 필터링 적용
     if (ratePlanFilter === 'has_codes') {
-      // rate_plan_code가 null이 아니고 빈 배열이 아닌 경우
-      filteredData = filteredData.filter((hotel) => {
-        const codes = hotel.rate_plan_code
-        return codes !== null && Array.isArray(codes) && codes.length > 0
-      })
+      // rate_plan_code가 null이 아니고 빈 배열/문자열이 아닌 경우
+      filteredData = filteredData.filter((hotel) => hasRatePlanCodes(hotel.rate_plan_code))
     } else if (ratePlanFilter === 'no_codes') {
-      // rate_plan_code가 null이거나 빈 배열인 경우
-      filteredData = filteredData.filter((hotel) => {
-        const codes = hotel.rate_plan_code
-        return codes === null || !Array.isArray(codes) || codes.length === 0
-      })
+      // rate_plan_code가 null이거나 빈 배열/문자열인 경우
+      filteredData = filteredData.filter((hotel) => !hasRatePlanCodes(hotel.rate_plan_code))
     } else if (ratePlanFilter === 'specific_code' && ratePlanCode) {
       // 특정 rate_plan_code를 포함하는 경우
       filteredData = filteredData.filter((hotel) => {
         const codes = hotel.rate_plan_code
-        return Array.isArray(codes) && codes.includes(ratePlanCode)
+        if (Array.isArray(codes)) {
+          return codes.includes(ratePlanCode)
+        }
+        if (typeof codes === 'string') {
+          return codes.includes(ratePlanCode)
+        }
+        return false
       })
     }
 

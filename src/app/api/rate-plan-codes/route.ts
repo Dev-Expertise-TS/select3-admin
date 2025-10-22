@@ -1,20 +1,15 @@
 import { NextResponse } from 'next/server';
 import { RatePlanCodesApiResponse } from '@/types/hotel';
+import { RATE_PLAN_CODES } from '@/config/rate-plan-codes';
 
 export async function GET() {
   try {
-    // 정적 rate plan code 값들 (Supabase pg_type 이슈 방지)
-    const ratePlanCodes = [
-      'API', 'ZP3', 'VMC', 'TLC', 'H01', 'S72', 'XLO', 'PPR', 
-      'FAN', 'WMP', 'HPM', 'TID', 'STP', 'BAR', 'RAC', 'PKG'
-    ];
-    
     return NextResponse.json<RatePlanCodesApiResponse>(
       {
         success: true,
-        data: ratePlanCodes,
+        data: [...RATE_PLAN_CODES],
         meta: {
-          count: ratePlanCodes.length
+          count: RATE_PLAN_CODES.length
         }
       },
       { 

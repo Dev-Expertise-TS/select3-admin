@@ -39,7 +39,7 @@ export async function PATCH(request: NextRequest) {
     const supabase = createServiceRoleClient();
 
     // 허용 가능한 Rate Plan 코드 조회
-    const allowedCodes = await getAllowedRatePlanCodes()
+    const allowedCodes = getAllowedRatePlanCodes()
     
     // 입력 검증 및 정규화
     const validationResult = validateAndNormalizeRatePlanCodes(body.rate_plan_code || [], allowedCodes)

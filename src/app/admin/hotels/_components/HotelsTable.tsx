@@ -71,27 +71,35 @@ export function HotelsTable() {
     return data
   }, [response])
 
+  // Rate Plan Code 유효성 검사 헬퍼 함수
+  const hasRatePlanCodes = (codes: string[] | string | null | undefined): boolean => {
+    if (codes === null || codes === undefined) return false
+    if (Array.isArray(codes)) return codes.length > 0
+    if (typeof codes === 'string') return codes.trim().length > 0
+    return false
+  }
+
   // 로컬 검색 및 필터 (모든 필터를 AND 조건으로 적용)
   const filteredHotels = useMemo(() => {
     let result = [...hotels]
 
     // Rate Plan Code 필터 적용
     if (ratePlanFilter === 'has_codes') {
-      result = result.filter((hotel) => {
-        const codes = hotel.rate_plan_code
-        return codes !== null && Array.isArray(codes) && codes.length > 0
-      })
+      result = result.filter((hotel) => hasRatePlanCodes(hotel.rate_plan_code))
     } else if (ratePlanFilter === 'no_codes') {
-      result = result.filter((hotel) => {
-        const codes = hotel.rate_plan_code
-        return codes === null || !Array.isArray(codes) || codes.length === 0
-      })
+      result = result.filter((hotel) => !hasRatePlanCodes(hotel.rate_plan_code))
     } else if (ratePlanFilter === 'specific_code' && specificCode.trim()) {
       result = result.filter((hotel) => {
         const codes = hotel.rate_plan_code
-        return Array.isArray(codes) && codes.some((code) => 
-          code.toLowerCase().includes(specificCode.toLowerCase())
-        )
+        if (Array.isArray(codes)) {
+          return codes.some((code) => 
+            code.toLowerCase().includes(specificCode.toLowerCase())
+          )
+        }
+        if (typeof codes === 'string') {
+          return codes.toLowerCase().includes(specificCode.toLowerCase())
+        }
+        return false
       })
     }
 
