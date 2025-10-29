@@ -25,10 +25,10 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await response.arrayBuffer()
     const buffer = new Uint8Array(arrayBuffer)
 
-    // 파일 크기 제한 (10MB)
-    if (buffer.length > 10 * 1024 * 1024) {
+    // 파일 크기 제한 (20MB)
+    if (buffer.length > 20 * 1024 * 1024) {
       return NextResponse.json(
-        { success: false, error: '파일 크기가 10MB를 초과합니다.' },
+        { success: false, error: '파일 크기가 20MB를 초과합니다.' },
         { status: 400 }
       )
     }
