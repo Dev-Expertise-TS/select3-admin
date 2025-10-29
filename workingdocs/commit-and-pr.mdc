@@ -5,27 +5,29 @@ alwaysApply: true
 
 Purpose: Standardize commit messages and PRs for clear history and reliable automation.
 
-### Conventional Commits
-- Format: `type(scope): subject`
+### Conventional Commits (한글 버전)
+- Format: `type(scope): 한글 제목`
 - Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`, `perf`, `style`, `build`, `ci`, `revert`
 - Scopes (examples): `app`, `api`, `features`, `ui`, `shared`, `lib`, `types`, `config`, `tests`
-- Subject: lower-case, imperative, max ~72 chars (no trailing period)
-- Body (optional): what/why (wrap at 72)
+- Subject: **한글로 작성**, 명령형, 최대 ~72자 (마침표 없음)
+- Body (optional): 무엇을/왜 (72자로 줄바꿈)
 - Footer (optional): `BREAKING CHANGE: ...`, `Closes #123`
 
-Examples:
-- `feat(ui): add shadcn-style button and input`
-- `refactor(route): replace [sabre_paragon] with [sabre]`
-- `fix(api): avoid or(...) for comma inputs in hotel search`
+Examples (한글):
+- `feat(ui): shadcn 스타일 버튼과 입력 컴포넌트 추가`
+- `refactor(route): [sabre_paragon]을 [sabre]로 변경`
+- `fix(api): 호텔 검색에서 콤마 입력 시 or(...) 사용 오류 수정`
+- `feat(topic-pages): 호텔 토픽 페이지 관리 기능 추가`
+- `refactor(api): 타입 안전성 개선 및 중복 코드 제거`
 
-### PR Title & Description
-- Title mirrors the main commit (Conventional). Example: `feat(hotels): benefits manager drag & drop`
-- Description sections:
-  - Context: why
-  - Changes: what (bullets)
-  - Screenshots/Recordings: if UI
-  - Risks/Trade-offs
-  - Checklist (below)
+### PR Title & Description (한글)
+- Title은 메인 커밋과 동일한 형식 (Conventional). 예시: `feat(hotels): 혜택 매니저 드래그 앤 드롭 추가`
+- Description 섹션:
+  - Context: 왜 (이유)
+  - Changes: 무엇을 (항목별)
+  - Screenshots/Recordings: UI 변경 시
+  - Risks/Trade-offs: 위험 요소/트레이드오프
+  - Checklist (아래 참조)
 
 ### PR Checklist (copy into PR)
 - [ ] Follows Conventional Commits

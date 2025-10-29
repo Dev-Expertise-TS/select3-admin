@@ -1,0 +1,41 @@
+# Cursor Rules for Select3 Admin
+
+## Commit Message Rules (커밋 메시지 규칙)
+
+**IMPORTANT: All commit messages MUST be written in Korean (한글).**
+
+### Format
+- `type(scope): 한글로 작성된 제목`
+- Type은 영어 유지: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`, `perf`, `style`, `build`, `ci`, `revert`
+- Scope는 영어 유지: `app`, `api`, `features`, `ui`, `shared`, `lib`, `types`, `config`, `tests`
+- Subject는 **반드시 한글**로 작성
+- 명령형으로 작성 (예: "추가", "수정", "개선")
+- 최대 72자
+- 마침표 없음
+
+### Examples (올바른 예시)
+```
+feat(topic-pages): 호텔 토픽 페이지 관리 기능 추가
+fix(api): 호텔 검색 필터링 로직 수정
+refactor(ui): 중복 코드 제거 및 타입 안전성 개선
+docs(readme): 설치 가이드 업데이트
+chore(deps): 패키지 의존성 업데이트
+style(format): 코드 포맷팅 적용
+test(api): 토픽 페이지 API 테스트 추가
+perf(query): 데이터베이스 쿼리 성능 최적화
+```
+
+### Bad Examples (잘못된 예시)
+```
+❌ feat(topic-pages): add hotel topic page management feature
+❌ fix: bug fix
+❌ refactor(ui): remove duplicate code.
+❌ feat: 새 기능 추가.
+```
+
+## General Rules
+- Always respond in Korean (한글로 응답)
+- Follow Conventional Commits format
+- Use Korean for commit message subjects
+- Keep type and scope in English
+
