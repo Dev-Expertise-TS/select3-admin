@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { MEDIA_BUCKET, DIR_ORIGINALS, DIR_PUBLIC } from '@/lib/media-naming'
+import { MEDIA_BUCKET, DIR_PUBLIC } from '@/lib/media-naming'
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,9 +22,10 @@ export async function POST(req: NextRequest) {
 
     const dir = fromPath.slice(0, idx) // e.g., public/slug
     const oldName = fromPath.slice(idx + 1)
-    const pathParts = dir.split('/') // [public|originals, slug]
-    if (pathParts.length !== 2 || (pathParts[0] !== DIR_PUBLIC && pathParts[0] !== DIR_ORIGINALS)) {
-      return NextResponse.json({ success: false, error: '지원하지 않는 경로입니다.' }, { status: 400 })
+    const pathParts = dir.split('/') // [public, slug]
+    if (pathParts.length !== 2 || (pathParts[0] !== DIR_PUBLIC)) {
+      // 파일명 변경은 public 폴더에서만 허용
+      return NextResponse.json({ success: false, error: 'public 폴더에서만 파일명 변경이 가능합니다.' }, { status: 400 })
     }
     const scope = pathParts[0]
     const slug = pathParts[1]
@@ -66,59 +67,29 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceRoleClient()
 
-    const moveOrCopy = async (src: string, dst: string) => {
+    // 중복 사전 검사: 동일 디렉터리에 toFilename 존재 여부 확인
+    const { data: existingList, error: listErr } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .list(dir, { limit: 1000 })
+    if (!listErr && existingList?.some((f) => f.name === toFilename)) {
+      return NextResponse.json({ success: false, error: '동일한 파일명이 이미 존재합니다.', code: 'DUPLICATE' }, { status: 409 })
+    }
+
+    const moveOrCopyPublic = async (src: string, dst: string) => {
       const mv = await supabase.storage.from(MEDIA_BUCKET).move(src, dst)
       if (!mv.error) return
+      // move 실패 시 복사 후 원본 public만 삭제 (originals는 다루지 않음)
       const dl = await supabase.storage.from(MEDIA_BUCKET).download(src)
       if (dl.error || !dl.data) throw new Error(`download failed: ${src}`)
-      const up = await supabase.storage.from(MEDIA_BUCKET).upload(dst, dl.data, { upsert: true })
+      const up = await supabase.storage.from(MEDIA_BUCKET).upload(dst, dl.data, { upsert: false })
       if (up.error) throw new Error(`upload failed: ${dst}`)
       const rm = await supabase.storage.from(MEDIA_BUCKET).remove([src])
       if (rm.error) throw new Error(`remove failed: ${src}`)
     }
 
-    // 1) 요청 파일 자체 변경
-    await moveOrCopy(fromPath, toPath)
-
-    // 2) 동기화: 같은 slug/sabre/seq를 공유하는 counterparts 모두 변경
-    const originalsPrefix = `${DIR_ORIGINALS}/${slug}`
-    const publicPrefix = `${DIR_PUBLIC}/${slug}`
-
-    const [origList, pubList] = await Promise.all([
-      supabase.storage.from(MEDIA_BUCKET).list(originalsPrefix, { limit: 1000 }),
-      supabase.storage.from(MEDIA_BUCKET).list(publicPrefix, { limit: 1000 }),
-    ])
-
-    const tasks: Array<Promise<void>> = []
-    // originals: ..._{seqOld}.ext -> ..._{seqNew}.ext (파일명 전체는 slug_sabre_seq.ext 규격 유지)
-    if (!origList.error) {
-      for (const f of origList.data || []) {
-        const name = f.name
-        if (!name.includes(`_${sabreOld}_`)) continue
-        if (name.includes(`_${seqOld}.`)) {
-          const dst = `${originalsPrefix}/${name.replace(`_${seqOld}.`, `_${seqNew}.`)}`
-          if (`${originalsPrefix}/${name}` !== dst) tasks.push(moveOrCopy(`${originalsPrefix}/${name}`, dst))
-        }
-      }
-    }
-
-    // public: ..._{seqOld}_{width}w.ext 및 ..._{seqOld}.ext → ..._{seqNew}_... / ..._{seqNew}.ext
-    if (!pubList.error) {
-      for (const f of pubList.data || []) {
-        const name = f.name
-        if (!name.includes(`_${sabreOld}_`)) continue
-        if (name.includes(`_${seqOld}_`) || name.includes(`_${seqOld}.`)) {
-          const dst = `${publicPrefix}/${name
-            .replace(`_${seqOld}_`, `_${seqNew}_`)
-            .replace(`_${seqOld}.`, `_${seqNew}.`)}`
-          if (`${publicPrefix}/${name}` !== dst) tasks.push(moveOrCopy(`${publicPrefix}/${name}`, dst))
-        }
-      }
-    }
-
-    await Promise.all(tasks)
-
-    return NextResponse.json({ success: true, data: { fromPath, toPath, sabre: sabreOld, fromSeq: seqOld, toSeq: seqNew } })
+    // Public 파일만 이름 변경
+    await moveOrCopyPublic(fromPath, toPath)
+    return NextResponse.json({ success: true, data: { fromPath, toPath } })
   } catch (error) {
     console.error('[hotel-images/rename] error', error)
     return NextResponse.json({ success: false, error: '서버 오류가 발생했습니다.' }, { status: 500 })

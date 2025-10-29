@@ -32,21 +32,7 @@ export async function DELETE(request: NextRequest) {
     const deleteResults: string[] = [];
     const errors: string[] = [];
 
-    // 1. originals 폴더의 이미지 삭제
-    if (sabreId && fileName) {
-      const originalsPath = `hotel-images/${sabreId}/originals/${fileName}`;
-      const { error: originalsError } = await supabase.storage
-        .from("hotel-media")
-        .remove([originalsPath]);
-
-      if (originalsError) {
-        console.error(`Originals 삭제 오류 (${originalsPath}):`, originalsError);
-        errors.push(`Originals: ${originalsError.message}`);
-      } else {
-        console.log(`✓ Originals 삭제 완료: ${originalsPath}`);
-        deleteResults.push(`Originals: ${originalsPath}`);
-      }
-    }
+    // originals 폴더 이미지는 절대 삭제하지 않음 (요구사항)
 
     // 2. public 폴더의 이미지 삭제
     if (sabreId && fileName) {
@@ -64,31 +50,16 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    // 3. 원래 요청된 경로가 originals나 public이 아닌 경우 해당 경로도 삭제
-    if (!filePath.includes('/originals/') && !filePath.includes('/public/')) {
-      const { error: originalPathError } = await supabase.storage
-        .from("hotel-media")
-        .remove([filePath]);
+    // public/originals 이외 경로는 삭제하지 않음 (예상치 못한 삭제 방지)
 
-      if (originalPathError) {
-        console.error(`원본 경로 삭제 오류 (${filePath}):`, originalPathError);
-        errors.push(`원본 경로: ${originalPathError.message}`);
-      } else {
-        console.log(`✓ 원본 경로 삭제 완료: ${filePath}`);
-        deleteResults.push(`원본 경로: ${filePath}`);
-      }
-    }
-
-    // 4. select_hotel_media 테이블에서 레코드 삭제
+    // 4. select_hotel_media 테이블에서 레코드 삭제 (public 경로만 대상)
     if (sabreId && fileName) {
-      // 파일명으로 레코드 찾기 (originals와 public 경로 모두 확인)
-      const originalsPath = `hotel-images/${sabreId}/originals/${fileName}`;
       const publicPath = `hotel-images/${sabreId}/public/${fileName}`;
 
       const { error: dbError } = await supabase
         .from('select_hotel_media')
         .delete()
-        .or(`media_url.eq.${originalsPath},media_url.eq.${publicPath},media_url.eq.${filePath}`)
+        .or(`media_url.eq.${publicPath},media_url.eq.${filePath}`)
         .eq('sabre_id', sabreId);
 
       if (dbError) {

@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       ext: normalizedExt
     });
     
-    console.log(`[upload] 생성된 파일명: ${fileName} (seq: ${seq}, 기존 파일: ${existingCount}개)`);
+    console.log(`[upload] 생성된 파일명: ${fileName} (seq: ${seq}, 사용 중인 번호 개수: ${usedSeq.size}개)`);
 
     // 파일을 ArrayBuffer로 변환
     const arrayBuffer = await file.arrayBuffer();

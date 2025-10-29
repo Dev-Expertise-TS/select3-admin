@@ -1,23 +1,7 @@
 'use client'
 
 import React, { useState, FormEvent, useEffect, useRef } from 'react'
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from '@dnd-kit/sortable'
-import { arrayMove } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+// dnd-kit 관련 코드는 제거하여 단순한 리스트 렌더링으로 변경
 import { useRouter, useSearchParams } from 'next/navigation'
 import { 
   Search, 
@@ -37,8 +21,7 @@ import {
   ImageIcon,
   Plus,
   Trash2,
-  Upload,
-  GripVertical
+  Upload
 } from 'lucide-react'
 import Link from 'next/link'
 import NextImage from 'next/image'
@@ -93,43 +76,27 @@ interface StorageImage {
 
 // dnd-kit Sortable 카드 컴포넌트 (훅 규칙을 위해 최상위에서 정의)
 const SortableImageCard: React.FC<{
-  id: string
   image: StorageImage
   hotelId: string
   hotel: HotelSearchResult
   onDelete: () => Promise<void> | void
   onRenameSuccess: (params: { oldPath: string; newPath: string; newName: string }) => void
-}> = ({ id, image, hotelId, hotel, onDelete, onRenameSuccess }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.85 : 1,
-  }
+  hotelVersion: number
+}> = ({ image, hotelId, hotel, onDelete, onRenameSuccess, hotelVersion }) => {
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-row items-center min-h-[110px] bg-white pr-3"
-    >
+    <div className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-row items-center min-h-[110px] bg-white pr-3">
       {/* 왼쪽: 드래그 핸들 전용 컬럼 */}
-      <div className="w-7 shrink-0 h-full border-r bg-white flex items-center justify-center">
-        <button
-          className="p-1 text-gray-500 hover:text-gray-700 cursor-grab active:cursor-grabbing"
-          aria-label="순서 변경 드래그 핸들"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-      </div>
+      {/* 핸들 제거: 드래그 앤 드롭 기능 삭제 */}
       {/* 미리보기 */}
       <div className="min-w-[100px] max-w-[110px] min-h-[90px] max-h-[90px] bg-gray-100 flex items-center justify-center">
         {(() => {
-          const ver = image.lastModified ? new Date(image.lastModified).getTime() : Date.now()
-          const cacheSafeUrl = image.url
-            ? (image.url.includes('?') ? `${image.url}&v=${ver}` : `${image.url}?v=${ver}`)
-            : image.url
+          const v = image.lastModified ? new Date(image.lastModified).getTime() : Date.now()
+          const addParam = (url: string, key: string, value: string | number) => url.includes('?') ? `${url}&${key}=${value}` : `${url}?${key}=${value}`
+          let cacheSafeUrl = image.url || ''
+          if (cacheSafeUrl) {
+            cacheSafeUrl = addParam(cacheSafeUrl, 'hv', hotelVersion)
+            cacheSafeUrl = addParam(cacheSafeUrl, 'v', v)
+          }
           return (
             <NextImage
           unoptimized
@@ -185,42 +152,47 @@ const SortableImageCard: React.FC<{
                           }
                           const idx = currentPath.lastIndexOf('/')
                           const curName = idx >= 0 ? currentPath.slice(idx + 1) : currentPath
-                          const toFilename = prompt('새 파일명을 입력하세요 (확장자 포함)', curName) || ''
-                          const trimmed = toFilename.trim()
-                          if (!trimmed) return
-                          const dir = idx >= 0 ? currentPath.slice(0, idx) : ''
-                          const newPath = dir ? `${dir}/${trimmed}` : trimmed
-                          try {
-                            const res = await fetch('/api/hotel-images/rename', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ fromPath: currentPath, toFilename: trimmed })
-                            })
-                            if (!res.ok) {
-                              alert('파일명 변경 요청이 실패했습니다.')
-                              return
-                            }
-                            const data = await res.json()
-                            if (!data.success) {
-                              alert(data.error || '파일명 변경에 실패했습니다.')
-                              return
-                            }
-                            alert('파일명이 변경되었습니다.')
-                            // 낙관적 UI 업데이트
-                            onRenameSuccess({ oldPath: currentPath, newPath, newName: trimmed })
-                            // 재조회는 비차단 + 재시도
-                            const reload = async (attempt = 1) => {
-                              try {
-                                await new Promise((r) => setTimeout(r, 400))
-                                onLoadStorageImages(hotelId, String(hotel.sabre_id))
-                              } catch (e) {
-                                if (attempt < 3) reload(attempt + 1)
-                                else console.warn('[image-rename] reload failed after retries', e)
+                          let next = curName
+                          while (true) {
+                            const toFilename = prompt('새 파일명을 입력하세요 (확장자 포함)', next)
+                            if (!toFilename) return
+                            const trimmed = toFilename.trim()
+                            if (!trimmed) return
+                            const dir = idx >= 0 ? currentPath.slice(0, idx) : ''
+                            const newPath = dir ? `${dir}/${trimmed}` : trimmed
+                            try {
+                              const res = await fetch('/api/hotel-images/rename', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ fromPath: currentPath, toFilename: trimmed })
+                              })
+                              if (!res.ok) {
+                                if (res.status === 409) {
+                                  alert('동일한 파일명이 이미 존재합니다. 다른 파일명을 입력하세요.')
+                                  next = trimmed
+                                  continue
+                                }
+                                alert('파일명 변경 요청이 실패했습니다.')
+                                return
                               }
+                              const data = await res.json()
+                              if (!data.success) {
+                                if (data.code === 'DUPLICATE') {
+                                  alert('동일한 파일명이 이미 존재합니다. 다른 파일명을 입력하세요.')
+                                  next = trimmed
+                                  continue
+                                }
+                                alert(data.error || '파일명 변경에 실패했습니다.')
+                                return
+                              }
+                              alert('파일명이 변경되었습니다.')
+                              onRenameSuccess({ oldPath: currentPath, newPath, newName: trimmed })
+                              return
+                            } catch (e) {
+                              console.warn('[image-rename] request error', e)
+                              alert('요청 중 오류가 발생했습니다.')
+                              return
                             }
-                            reload()
-                          } catch (e) {
-                            console.warn('[image-rename] request error', e)
                           }
                         }}
                       >
@@ -299,14 +271,22 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
   
   // DB 동기화 상태
   const [syncing, setSyncing] = useState(false)
+  const [hotelVersion, setHotelVersion] = useState<number>(1)
 
-  // dnd-kit sensors (훅은 최상위에서 호출)
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
+  // 호텔 캐시 버전 조회
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const qs = `sabreId=${encodeURIComponent(String(hotel.sabre_id))}`
+        const res = await fetch(`/api/hotel-images/version?${qs}`, { cache: 'no-store' })
+        const json = await res.json()
+        if (json?.success) setHotelVersion(json.data?.version ?? 1)
+      } catch {}
+    }
+    fetchVersion()
+  }, [hotel.sabre_id])
 
-  // 로컬 이미지 리스트 (낙관적 업데이트)
+  // 로컬 이미지 리스트 (드래그 앤 드롭 제거: 단순 렌더)
   const [localImages, setLocalImages] = useState<StorageImage[]>(state?.storageImages || [])
   useEffect(() => {
     setLocalImages(state?.storageImages || [])
@@ -655,8 +635,8 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   </>
                 )}
               </Button>
-              <div className="flex gap-2">
-                <Button
+            <div className="flex gap-2">
+              <Button
                   type="button"
                   className="bg-green-600 hover:bg-green-700"
                   onClick={handleFileSelectClick}
@@ -673,6 +653,32 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                     </>
                   )}
                 </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const payload = { sabreId: String(hotel.sabre_id) }
+                    const res = await fetch('/api/hotel-images/version', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload)
+                    })
+                    const json = await res.json()
+                    if (!res.ok || !json.success) {
+                      alert(json.error || '캐시 초기화에 실패했습니다.')
+                      return
+                    }
+                    setHotelVersion(json.data.version)
+                    // 최신 썸네일을 보기 위해 목록 재조회(비차단)
+                    try { onLoadStorageImages(hotelId, String(hotel.sabre_id)) } catch {}
+                  } catch {
+                    alert('캐시 초기화 요청 중 오류가 발생했습니다.')
+                  }
+                }}
+              >
+                캐시 초기화
+              </Button>
                 <Button
                   type="button"
                   className="bg-blue-600 hover:bg-blue-700"
@@ -695,143 +701,64 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
 
           {/* SortableItem 컴포넌트는 파일 상단에 정의됨 (훅 규칙 위반 방지) */}
 
-          {/* 이미지 리스트 (1열, dnd-kit 정렬) */}
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={async (event) => {
-              const { active, over } = event
-              if (!active || !over) return
-              if (active.id === over.id) return
-              const list = localImages || []
-              const fromIndex = (() => {
-                const aid = String(active.id)
-                const idx = Number(aid.split('::').pop())
-                return Number.isFinite(idx) ? idx : -1
-              })()
-              const toIndex = (() => {
-                const oid = String(over.id)
-                const idx = Number(oid.split('::').pop())
-                return Number.isFinite(idx) ? idx : -1
-              })()
-              if (fromIndex < 0 || toIndex < 0) return
-              const from = list[fromIndex]
-              const to = list[toIndex]
-
-              // 낙관적 UI 업데이트
-              setLocalImages((prev) => {
-                if (!prev) return prev
-                return arrayMove(prev, fromIndex, toIndex)
-              })
-              try {
-                const orderedPaths = (list || [])
-                  .map((img) => (img as any).storagePath || (img as any).path || img.name)
-                const res = await fetch('/api/hotel-images/reorder/bulk', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ orderedPaths })
-                })
-                if (!res.ok) {
-                  // 실패 시 원복 + 사용자 알림
-                  setLocalImages((prev) => (prev ? arrayMove(prev, toIndex, fromIndex) : prev))
-                  alert('이미지 순서 변경 요청이 실패했습니다.')
-                  return
-                }
-                const data = await res.json()
-                if (!data.success) {
-                  setLocalImages((prev) => (prev ? arrayMove(prev, toIndex, fromIndex) : prev))
-                  alert(data.error || '이미지 순서 변경에 실패했습니다.')
-                  return
-                }
-                // 성공: 알림은 생략(자주 발생). 재조회는 비차단 + 지연 재시도
-                const reload = async (attempt = 1) => {
-                  try {
-                    await new Promise((r) => setTimeout(r, 400))
-                    onLoadStorageImages(hotelId, String(hotel.sabre_id))
-                  } catch (e) {
-                    if (attempt < 3) reload(attempt + 1)
-                    else console.warn('[image-reorder] reload failed after retries', e)
+          {/* 이미지 리스트 (드래그 앤 드롭 제거) */}
+          <div className="space-y-3">
+            {localImages.map((image, _index) => (
+              <SortableImageCard
+                key={(image as any).storagePath || (image as any).path || image.name || _index}
+                image={image}
+                hotelId={hotelId}
+                hotel={hotel}
+                hotelVersion={hotelVersion}
+                onRenameSuccess={({ oldPath, newPath, newName }) => {
+                  setLocalImages((prev) => {
+                    if (!prev) return prev
+                    const now = Date.now()
+                    return prev.map((img) => {
+                      const sp = (img as any).storagePath || (img as any).path || img.name
+                      if (sp !== oldPath) return img
+                      let newUrl = img.url
+                      if (newUrl && typeof newUrl === 'string') {
+                        const replaced = newUrl.replace(/[^/]+(?=($|\?))/, newName)
+                        newUrl = replaced + (replaced.includes('?') ? `&v=${now}` : `?v=${now}`)
+                      }
+                      const updated: any = { ...img, name: newName, url: newUrl }
+                      ;(updated as any).storagePath = newPath
+                      ;(updated as any).path = newPath
+                      const m = newName.match(/_(\d+)_([0-9]{2})\./)
+                      if (m) {
+                        const seq = Number(m[2])
+                        if (!Number.isNaN(seq)) (updated as any).seq = seq
+                      }
+                      return updated
+                    })
+                  })
+                }}
+                onDelete={async () => {
+                  if (!confirm(`정말로 ${image.name}을(를) 삭제하시겠습니까?`)) return;
+                  const pathToDelete = (image as { path?: string; storagePath?: string }).path || (image as { path?: string; storagePath?: string }).storagePath;
+                  if (!pathToDelete) {
+                    alert('파일 경로를 찾을 수 없습니다.');
+                    return;
                   }
-                }
-                reload()
-              } catch (e) {
-                console.warn('[image-reorder] request error', e)
-                setLocalImages((prev) => (prev ? arrayMove(prev, toIndex, fromIndex) : prev))
-              }
-            }}
-          >
-            <SortableContext
-              items={(localImages || []).map((img, idx) => {
-                const sp = (img as any).storagePath || (img as any).path || img.name
-                return `${sp}::${idx}`
-              })}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-3">
-                {localImages.map((image, _index) => {
-                  const sp = (image as any).storagePath || (image as any).path || image.name
-                  const id = `${sp}::${_index}`
-                  return (
-                  <SortableImageCard
-                    key={id}
-                    id={id}
-                    image={image}
-                    hotelId={hotelId}
-                    hotel={hotel}
-                    onRenameSuccess={({ oldPath, newPath, newName }) => {
-                      setLocalImages((prev) => {
-                        if (!prev) return prev
-                        const now = Date.now()
-                        return prev.map((img) => {
-                          const sp = (img as any).storagePath || (img as any).path || img.name
-                          if (sp !== oldPath) return img
-                          // 업데이트된 URL (cache-busting)
-                          let newUrl = img.url
-                          if (newUrl && typeof newUrl === 'string') {
-                            const urlObj = newUrl
-                            const replaced = urlObj.replace(/[^/]+(?=($|\?))/, newName)
-                            newUrl = replaced + (replaced.includes('?') ? `&v=${now}` : `?v=${now}`)
-                          }
-                          const updated: any = { ...img, name: newName, url: newUrl }
-                          ;(updated as any).storagePath = newPath
-                          ;(updated as any).path = newPath
-                          // seq 텍스트도 필요 시 갱신
-                          const m = newName.match(/_(\d+)_([0-9]{2})\./)
-                          if (m) {
-                            const seq = Number(m[2])
-                            if (!Number.isNaN(seq)) (updated as any).seq = seq
-                          }
-                          return updated
-                        })
-                      })
-                    }}
-                    onDelete={async () => {
-                      if (!confirm(`정말로 ${image.name}을(를) 삭제하시겠습니까?`)) return;
-                      const pathToDelete = (image as { path?: string; storagePath?: string }).path || (image as { path?: string; storagePath?: string }).storagePath;
-                      if (!pathToDelete) {
-                        alert('파일 경로를 찾을 수 없습니다.');
-                        return;
-                      }
-                      try {
-                        const res = await fetch(`/api/hotel-images/delete?filePath=${encodeURIComponent(pathToDelete)}`, {
-                          method: 'DELETE',
-                        });
-                        const data = await res.json();
-                        if (data.success) {
-                          alert('이미지가 삭제되었습니다.');
-                          onLoadStorageImages(hotelId, String(hotel.sabre_id));
-                        } else {
-                          alert(`삭제 실패: ${data.error}`);
-                        }
-                      } catch {
-                        alert('삭제 중 오류가 발생했습니다.');
-                      }
-                    }}
-                  />
-                )}) || []}
-              </div>
-            </SortableContext>
-          </DndContext>
+                  try {
+                    const res = await fetch(`/api/hotel-images/delete?filePath=${encodeURIComponent(pathToDelete)}`, {
+                      method: 'DELETE',
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      alert('이미지가 삭제되었습니다.');
+                      onLoadStorageImages(hotelId, String(hotel.sabre_id));
+                    } else {
+                      alert(`삭제 실패: ${data.error}`);
+                    }
+                  } catch {
+                    alert('삭제 중 오류가 발생했습니다.');
+                  }
+                }}
+              />
+            ))}
+          </div>
             
             {/* 이미지가 없는 경우 */}
             {(!state.storageImages || state.storageImages.length === 0) && (
