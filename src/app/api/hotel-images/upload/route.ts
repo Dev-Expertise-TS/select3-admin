@@ -48,21 +48,38 @@ export async function POST(request: NextRequest) {
     // slug 정규화
     const normalizedSlug = normalizeSlug(hotel.slug);
     
-    // 기존 이미지 개수 확인하여 seq 번호 결정
+    // 기존 파일들 스캔하여 사용 중인 seq 집합 생성 (public + originals 모두)
     const originalsCheckPath = `${DIR_ORIGINALS}/${normalizedSlug}`;
-    const { data: existingFiles } = await supabase.storage
-      .from(MEDIA_BUCKET)
-      .list(originalsCheckPath, { limit: 1000 });
-    
-    const existingCount = existingFiles?.length || 0;
-    const seq = existingCount + 1;
+    const publicCheckPath = `${DIR_PUBLIC}/${normalizedSlug}`;
+    const [{ data: origList }, { data: pubList }] = await Promise.all([
+      supabase.storage.from(MEDIA_BUCKET).list(originalsCheckPath, { limit: 1000 }),
+      supabase.storage.from(MEDIA_BUCKET).list(publicCheckPath, { limit: 1000 })
+    ]);
+    const usedSeq = new Set<number>();
+    const rxSeq = new RegExp(`^${normalizedSlug}_(?:${sabreId})_([0-9]{2})(?:\\.|_)`);
+    for (const f of (origList || [])) {
+      const m = f.name.match(rxSeq);
+      if (m) {
+        const n = Number(m[1]);
+        if (Number.isFinite(n)) usedSeq.add(n);
+      }
+    }
+    for (const f of (pubList || [])) {
+      const m = f.name.match(rxSeq);
+      if (m) {
+        const n = Number(m[1]);
+        if (Number.isFinite(n)) usedSeq.add(n);
+      }
+    }
+    let seq = 1;
+    while (usedSeq.has(seq)) seq++;
     
     // 파일 확장자 추출 및 정규화
     const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     const normalizedExt = (fileExtension === 'jpeg' ? 'jpg' : fileExtension) as ImageFormat;
     
     // 원본 파일명 생성 (규칙: {hotel_slug}_{sabreId}_{seq}.{ext})
-    const fileName = buildOriginalFilename({
+    let fileName = buildOriginalFilename({
       hotelSlug: normalizedSlug,
       sabreId: sabreId,
       seq: seq,
@@ -78,15 +95,28 @@ export async function POST(request: NextRequest) {
     const uploadResults: { folder: string; path: string; success: boolean; error?: string }[] = [];
 
     // 1. Public 폴더에 업로드
-    const publicPath = `${DIR_PUBLIC}/${normalizedSlug}/${fileName}`;
+    let publicPath = `${DIR_PUBLIC}/${normalizedSlug}/${fileName}`;
     console.log(`[upload] Public 폴더에 업로드 시도: ${publicPath}`);
     
-    const { data: publicUploadData, error: publicUploadError } = await supabase.storage
-      .from(MEDIA_BUCKET)
-      .upload(publicPath, buffer, {
-        contentType: file.type,
-        upsert: false,
-      });
+    let publicUploadData, publicUploadError: any;
+    {
+      // 충돌 시 seq 증가하며 재시도 (최대 5회)
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const res = await supabase.storage
+          .from(MEDIA_BUCKET)
+          .upload(publicPath, buffer, { contentType: file.type, upsert: false });
+        publicUploadData = res.data; publicUploadError = res.error;
+        if (!publicUploadError) break;
+        if (publicUploadError?.status === 400 || publicUploadError?.statusCode === '409' || /exists/i.test(publicUploadError?.message || '')) {
+          seq++;
+          fileName = buildOriginalFilename({ hotelSlug: normalizedSlug, sabreId: sabreId, seq, ext: normalizedExt });
+          publicPath = `${DIR_PUBLIC}/${normalizedSlug}/${fileName}`;
+          console.warn('[upload] Public 충돌, 다음 seq로 재시도:', publicPath);
+          continue;
+        }
+        break;
+      }
+    }
 
     if (publicUploadError) {
       console.error("Public 폴더 업로드 오류:", publicUploadError);

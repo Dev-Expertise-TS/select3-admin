@@ -19,6 +19,7 @@ const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n))
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as unknown
+    console.log('[reorder] request body:', body)
 
     if (!body || typeof body !== 'object') {
       return NextResponse.json({ success: false, error: '잘못된 요청 본문입니다.' }, { status: 400 })
@@ -28,20 +29,34 @@ export async function POST(req: NextRequest) {
 
     // helper to move with fallback (some SDKs support move, else copy+remove)
     const moveObject = async (fromPath: string, toPath: string) => {
+      console.log('[reorder] moveObject start:', { fromPath, toPath })
       // try move API if available via RPC
       const { error: moveError } = await supabase.storage.from(MEDIA_BUCKET).move(fromPath, toPath)
-      if (!moveError) return { ok: true as const }
+      if (!moveError) {
+        console.log('[reorder] move ok:', { fromPath, toPath })
+        return { ok: true as const }
+      }
 
       // fallback: download -> upload -> remove (not ideal for large files, but safe)
       const { data: downloadData, error: downloadErr } = await supabase.storage.from(MEDIA_BUCKET).download(fromPath)
-      if (downloadErr || !downloadData) return { ok: false as const, error: new Error(`download failed: ${fromPath} -> ${toPath}: ${downloadErr?.message || 'unknown'}`) }
+      if (downloadErr || !downloadData) {
+        console.error('[reorder] download failed:', { fromPath, toPath, error: downloadErr?.message })
+        return { ok: false as const, error: new Error(`download failed: ${fromPath} -> ${toPath}: ${downloadErr?.message || 'unknown'}`) }
+      }
 
       const { error: uploadErr } = await supabase.storage.from(MEDIA_BUCKET).upload(toPath, downloadData, { upsert: true })
-      if (uploadErr) return { ok: false as const, error: new Error(`upload failed: ${fromPath} -> ${toPath}: ${uploadErr.message}`) }
+      if (uploadErr) {
+        console.error('[reorder] upload failed:', { fromPath, toPath, error: uploadErr.message })
+        return { ok: false as const, error: new Error(`upload failed: ${fromPath} -> ${toPath}: ${uploadErr.message}`) }
+      }
 
       const { error: removeErr } = await supabase.storage.from(MEDIA_BUCKET).remove([fromPath])
-      if (removeErr) return { ok: false as const, error: new Error(`remove failed: ${fromPath}: ${removeErr.message}`) }
+      if (removeErr) {
+        console.error('[reorder] remove failed:', { fromPath, error: removeErr.message })
+        return { ok: false as const, error: new Error(`remove failed: ${fromPath}: ${removeErr.message}`) }
+      }
 
+      console.log('[reorder] fallback copy+remove ok:', { fromPath, toPath })
       return { ok: true as const }
     }
 
@@ -65,6 +80,7 @@ export async function POST(req: NextRequest) {
 
       const a = parsePath(fromPath)
       const b = parsePath(toPath)
+      console.log('[reorder] parsed paths:', { a, b })
       if (!a || !b) {
         return NextResponse.json({ success: false, error: '경로 형식이 올바르지 않습니다.' }, { status: 400 })
       }
@@ -94,6 +110,7 @@ export async function POST(req: NextRequest) {
         supabase.storage.from(MEDIA_BUCKET).list(originalsPrefix, { limit: 1000 }),
         supabase.storage.from(MEDIA_BUCKET).list(publicPrefix, { limit: 1000 }),
       ])
+      console.log('[reorder] listed:', { originalsPrefix, publicPrefix, originalsCount: origRes.data?.length || 0, publicCount: pubRes.data?.length || 0 })
       if (origRes.error) {
         return NextResponse.json({ success: false, error: '원본 파일 목록 조회 실패' }, { status: 500 })
       }
@@ -163,6 +180,18 @@ export async function POST(req: NextRequest) {
       }
 
       const plan = Array.from(planMap.values())
+      console.log('[reorder] plan size:', plan.length)
+      if (plan.length === 0) {
+        return NextResponse.json({ success: true, data: { changed: false } })
+      }
+      // pre-clean tmp targets
+      for (const p of plan) {
+        if (!p.toTmp) continue
+        const { error: preRm } = await supabase.storage.from(MEDIA_BUCKET).remove([p.toTmp])
+        if (preRm) {
+          console.log('[reorder] pre-clean tmp remove (ignore):', { toTmp: p.toTmp, error: preRm.message })
+        }
+      }
       // Execute plan
       for (const p of plan) {
         if (!p.toTmp) continue
@@ -179,7 +208,7 @@ export async function POST(req: NextRequest) {
         const r = await moveObject(p.toTmp, p.to)
         if (!r.ok) return NextResponse.json({ success: false, error: `최종 이동 실패: ${p.toTmp} -> ${p.to}: ${(r as any).error?.message || 'unknown'}` }, { status: 500 })
       }
-
+      console.log('[reorder] success swap:', { fromPath, toPath })
       return NextResponse.json({ success: true, data: { changed: true, fromPath, toPath } })
     }
 
@@ -260,6 +289,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Execute moves: first all toTmp (for fromSeq items), then swap targets, then tmp->final
+    if (plan.length === 0) {
+      return NextResponse.json({ success: true, data: { changed: false } })
+    }
     // 1) move fromToken files to tmp
     for (const p of plan) {
       if (!p.toTmp) continue
