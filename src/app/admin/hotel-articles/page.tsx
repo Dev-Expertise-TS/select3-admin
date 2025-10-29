@@ -1073,6 +1073,43 @@ function BlogViewModal({ isOpen, onClose, blog }: BlogViewModalProps) {
 
         {/* 내용 */}
         <div className="flex-1 overflow-y-auto p-6">
+          <style jsx global>{`
+            .blog-view-content ul {
+              list-style-type: disc !important;
+              margin-left: 1.5em !important;
+              margin-bottom: 1.2em !important;
+            }
+            .blog-view-content ol {
+              list-style-type: decimal !important;
+              margin-left: 1.5em !important;
+              margin-bottom: 1.2em !important;
+            }
+            .blog-view-content li {
+              margin-bottom: 0.4em !important;
+              line-height: 1.8 !important;
+            }
+            .blog-view-content p {
+              margin-bottom: 1.2em !important;
+              line-height: 1.8 !important;
+            }
+            .blog-view-content h1,
+            .blog-view-content h2,
+            .blog-view-content h3,
+            .blog-view-content h4,
+            .blog-view-content h5,
+            .blog-view-content h6 {
+              margin-top: 1.5em !important;
+              margin-bottom: 0.8em !important;
+              line-height: 1.6 !important;
+            }
+            .blog-view-content blockquote {
+              margin: 1.5em 0 !important;
+              padding: 0.8em 1.2em !important;
+              border-left: 4px solid #e5e7eb !important;
+              background-color: #f9fafb !important;
+              line-height: 1.7 !important;
+            }
+          `}</style>
           {/* 기본 정보 */}
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">
@@ -1158,7 +1195,11 @@ function BlogViewModal({ isOpen, onClose, blog }: BlogViewModalProps) {
                     )}
                   </div>
                   <div 
-                    className="prose prose-sm max-w-none text-gray-600"
+                    className="prose prose-sm max-w-none text-gray-600 blog-view-content"
+                    style={{
+                      lineHeight: '1.8',
+                      fontSize: '14px'
+                    }}
                     dangerouslySetInnerHTML={{ __html: content }}
                   />
                 </div>

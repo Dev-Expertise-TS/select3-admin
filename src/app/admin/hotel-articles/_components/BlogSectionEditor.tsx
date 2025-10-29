@@ -247,6 +247,34 @@ export function BlogSectionEditor({
             }
             .full-height-editor .ql-editor {
               min-height: 100%;
+              line-height: 1.8 !important;
+            }
+            .full-height-editor .ql-editor p {
+              margin-bottom: 1.2em !important;
+              line-height: 1.8 !important;
+            }
+            .full-height-editor .ql-editor h1,
+            .full-height-editor .ql-editor h2,
+            .full-height-editor .ql-editor h3,
+            .full-height-editor .ql-editor h4,
+            .full-height-editor .ql-editor h5,
+            .full-height-editor .ql-editor h6 {
+              margin-top: 1.5em !important;
+              margin-bottom: 0.8em !important;
+              line-height: 1.6 !important;
+            }
+            .full-height-editor .ql-editor ul,
+            .full-height-editor .ql-editor ol {
+              margin-bottom: 1.2em !important;
+            }
+            .full-height-editor .ql-editor li {
+              margin-bottom: 0.4em !important;
+              line-height: 1.8 !important;
+            }
+            .full-height-editor .ql-editor blockquote {
+              margin: 1.5em 0 !important;
+              padding: 0.8em 1.2em !important;
+              line-height: 1.7 !important;
             }
           `}</style>
           <ReactQuill
