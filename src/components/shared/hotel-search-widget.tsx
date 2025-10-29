@@ -1,6 +1,23 @@
 'use client'
 
 import React, { useState, FormEvent, useEffect, useRef } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { 
   Search, 
@@ -20,7 +37,8 @@ import {
   ImageIcon,
   Plus,
   Trash2,
-  Upload
+  Upload,
+  GripVertical
 } from 'lucide-react'
 import Link from 'next/link'
 import NextImage from 'next/image'
@@ -71,6 +89,129 @@ interface StorageImage {
   seq: number
   isPublic?: boolean
   storagePath?: string
+}
+
+// dnd-kit Sortable 카드 컴포넌트 (훅 규칙을 위해 최상위에서 정의)
+const SortableImageCard: React.FC<{
+  id: string
+  image: StorageImage
+  hotelId: string
+  hotel: HotelSearchResult
+  onDelete: () => Promise<void> | void
+}> = ({ id, image, hotelId, hotel, onDelete }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.85 : 1,
+  }
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-row items-center min-h-[110px] bg-white pr-3"
+    >
+      {/* 왼쪽: 드래그 핸들 전용 컬럼 */}
+      <div className="w-7 shrink-0 h-full border-r bg-white flex items-center justify-center">
+        <button
+          className="p-1 text-gray-500 hover:text-gray-700 cursor-grab active:cursor-grabbing"
+          aria-label="순서 변경 드래그 핸들"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      </div>
+      {/* 미리보기 */}
+      <div className="min-w-[100px] max-w-[110px] min-h-[90px] max-h-[90px] bg-gray-100 flex items-center justify-center">
+        <NextImage
+          unoptimized
+          src={image.url}
+          alt={`${image.name} 미리보기`}
+          width={90}
+          height={90}
+          className="w-[90px] h-auto object-contain rounded"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement
+            target.style.display = 'none'
+            const parent = target.parentElement
+            if (parent) {
+              parent.innerHTML = '<div class=\'w-full h-full flex items-center justify-center text-gray-400\'><span class=\'text-sm\'>이미지 로드 실패</span></div>'
+            }
+          }}
+        />
+      </div>
+      {/* 오른쪽: 정보 및 관리 */}
+      <div className="flex-1 flex flex-row items-center justify-between pl-5 py-2 gap-4">
+        {/* 이미지 정보 묶음 */}
+        <div className="flex flex-col gap-1 flex-1 min-w-0">
+          <div className="flex gap-3 items-center">
+            <div className="w-7 h-7 bg-blue-100 rounded flex items-center justify-center">
+              <span className="text-xs font-medium text-blue-600">{String(image.seq).padStart(2, '0')}</span>
+            </div>
+            <span className="text-sm font-medium text-gray-900 truncate" title={image.name}>{image.name}</span>
+          </div>
+          <div className="flex flex-row flex-wrap gap-3 text-xs text-gray-600">
+            <span>크기: <span className="font-mono">{image.size ? `${(image.size / 1024).toFixed(1)} KB` : 'N/A'}</span></span>
+            <span>타입: <span className="font-mono">{image.contentType?.split('/')[1]?.toUpperCase() || 'N/A'}</span></span>
+            <span>수정: <span className="font-mono">{image.lastModified ? new Date(image.lastModified).toLocaleDateString('ko-KR') : 'N/A'}</span></span>
+            <span>경로: <span className="font-mono">{image.storagePath}</span></span>
+          </div>
+          {image.url && (
+            <a href={image.url} target="_blank" rel="noopener noreferrer" className="block text-xs text-blue-700 underline font-mono break-all mt-1">{image.url}</a>
+          )}
+        </div>
+                    {/* 액션 버튼 (이름 변경, 삭제) */}
+                    <div className="flex flex-col items-end gap-2 mr-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="w-20 text-gray-700 hover:text-gray-900"
+                        onClick={async () => {
+                          const currentPath = (image as any).storagePath || (image as any).path
+                          if (!currentPath) {
+                            alert('파일 경로를 찾을 수 없습니다.')
+                            return
+                          }
+                          const idx = currentPath.lastIndexOf('/')
+                          const curName = idx >= 0 ? currentPath.slice(idx + 1) : currentPath
+                          const toFilename = prompt('새 파일명을 입력하세요 (확장자 포함)', curName) || ''
+                          const trimmed = toFilename.trim()
+                          if (!trimmed) return
+                          try {
+                            const res = await fetch('/api/hotel-images/rename', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ fromPath: currentPath, toFilename: trimmed })
+                            })
+                            const data = await res.json()
+                            if (data.success) {
+                              alert('파일명이 변경되었습니다.')
+                              onLoadStorageImages(hotelId, String(hotel.sabre_id))
+                            } else {
+                              alert(data.error || '파일명 변경에 실패했습니다.')
+                            }
+                          } catch {
+                            alert('파일명 변경 중 오류가 발생했습니다.')
+                          }
+                        }}
+                      >
+                        이름 변경
+                      </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-16 text-red-600 hover:text-red-700 hover:bg-red-50 mr-1"
+            onClick={onDelete}
+          >
+            <Trash2 className="h-3 w-3 mr-1" />삭제
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 interface ImageManagementPanelProps {
@@ -131,6 +272,18 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
   
   // DB 동기화 상태
   const [syncing, setSyncing] = useState(false)
+
+  // dnd-kit sensors (훅은 최상위에서 호출)
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  // 로컬 이미지 리스트 (낙관적 업데이트)
+  const [localImages, setLocalImages] = useState<StorageImage[]>(state?.storageImages || [])
+  useEffect(() => {
+    setLocalImages(state?.storageImages || [])
+  }, [state?.storageImages])
 
   const uploadFromUrls = async () => {
     const sabreId = String(hotel.sabre_id || '')
@@ -513,152 +666,92 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
               />
             </div>
 
-            {/* 이미지 그리드 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {state.storageImages?.map((image, _index) => (
-                <div key={`${hotelId}-${image.name ?? 'noname'}-${String(image.seq ?? _index)}`} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                  {/* 헤더 */}
-                  <div className="p-3 bg-gray-50 border-b">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center">
-                          <span className="text-xs font-medium text-blue-600">
-                            {String(image.seq).padStart(2, "0")}
-                          </span>
-                        </div>
-                        <span className="text-sm font-medium text-gray-900 truncate">
-                          {image.name}
-                        </span>
-                      </div>
-                      <div className="flex gap-1">
-                        {image.role && (
-                          <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
-                            {image.role}
-                          </span>
-                        )}
-                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-                          Public
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+          {/* SortableItem 컴포넌트는 파일 상단에 정의됨 (훅 규칙 위반 방지) */}
 
-                  {/* 이미지 미리보기 */}
-                  <div className="aspect-video bg-gray-100">
-                    <NextImage
-                      unoptimized
-                      src={image.url}
-                      alt={`${image.name} 미리보기`}
-                      width={400}
-                      height={300}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.style.display = 'none'
-                        const parent = target.parentElement
-                        if (parent) {
-                          parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><span class="text-sm">이미지 로드 실패</span></div>'
+          {/* 이미지 리스트 (1열, dnd-kit 정렬) */}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={async (event) => {
+              const { active, over } = event
+              if (!active || !over) return
+              if (active.id === over.id) return
+              const list = localImages || []
+              const fromIndex = list.findIndex((img) => ((img as any).storagePath || (img as any).path || img.name) === (active.id as string))
+              const toIndex = list.findIndex((img) => ((img as any).storagePath || (img as any).path || img.name) === (over.id as string))
+              if (fromIndex < 0 || toIndex < 0) return
+              const from = list[fromIndex]
+              const to = list[toIndex]
+
+              // 낙관적 UI 업데이트
+              setLocalImages((prev) => {
+                if (!prev) return prev
+                return arrayMove(prev, fromIndex, toIndex)
+              })
+              try {
+                const res = await fetch('/api/hotel-images/reorder', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    fromPath: (from as any).storagePath || (from as any).path,
+                    toPath: (to as any).storagePath || (to as any).path,
+                  })
+                })
+                const data = await res.json()
+                if (!data.success) {
+                  alert(data.error || '이미지 순서 변경에 실패했습니다.')
+                  return
+                }
+                onLoadStorageImages(hotelId, String(hotel.sabre_id))
+              } catch {
+                alert('드래그 앤 드롭 처리 중 오류가 발생했습니다.')
+                // 실패 시 원복
+                setLocalImages((prev) => {
+                  if (!prev) return prev
+                  return arrayMove(prev, toIndex, fromIndex)
+                })
+              }
+            }}
+          >
+            <SortableContext
+              items={(localImages || []).map((img) => (img as any).storagePath || (img as any).path || img.name)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-3">
+                {localImages.map((image, _index) => (
+                  <SortableImageCard
+                    key={(image as any).storagePath || (image as any).path || image.name}
+                    id={(image as any).storagePath || (image as any).path || image.name}
+                    image={image}
+                    hotelId={hotelId}
+                    hotel={hotel}
+                    onDelete={async () => {
+                      if (!confirm(`정말로 ${image.name}을(를) 삭제하시겠습니까?`)) return;
+                      const pathToDelete = (image as { path?: string; storagePath?: string }).path || (image as { path?: string; storagePath?: string }).storagePath;
+                      if (!pathToDelete) {
+                        alert('파일 경로를 찾을 수 없습니다.');
+                        return;
+                      }
+                      try {
+                        const res = await fetch(`/api/hotel-images/delete?filePath=${encodeURIComponent(pathToDelete)}`, {
+                          method: 'DELETE',
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          alert('이미지가 삭제되었습니다.');
+                          onLoadStorageImages(hotelId, String(hotel.sabre_id));
+                        } else {
+                          alert(`삭제 실패: ${data.error}`);
                         }
-                      }}
-                    />
-                  </div>
-
-                  {/* 파일 정보 */}
-                  <div className="p-3">
-                    <div className="space-y-1 text-xs text-gray-600">
-                      <div className="flex justify-between">
-                        <span>크기:</span>
-                        <span className="font-mono">
-                          {image.size ? `${(image.size / 1024).toFixed(1)} KB` : 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>타입:</span>
-                        <span className="font-mono">
-                          {image.contentType?.split('/')[1]?.toUpperCase() || 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>수정일:</span>
-                        <span>
-                          {image.lastModified ? new Date(image.lastModified).toLocaleDateString('ko-KR') : 'N/A'}
-                        </span>
-                      </div>
-                    </div>
-                    {/* Sabre ID & 경로 표시 (겹치지 않게 카드 하단 텍스트로) */}
-                    <div className="mt-2 text-[11px] text-gray-600">
-                      <div>Sabre ID: <span className="font-mono text-gray-800">{String(hotel.sabre_id)}</span></div>
-                      {image.storagePath && (
-                        <div className="break-all">경로: <span className="font-mono text-gray-800">{image.storagePath}</span></div>
-                      )}
-                    </div>
-
-                    {/* 이미지 전체 URL */}
-                    {image.url && (
-                      <div className="mt-2 p-2 bg-blue-50 rounded text-xs border border-blue-200">
-                        <div className="text-blue-600 font-medium mb-1">이미지 URL:</div>
-                        <a
-                          href={image.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-blue-700 hover:text-blue-900 break-all underline cursor-pointer"
-                          title="클릭하여 새 창에서 이미지 보기"
-                        >
-                          {image.url}
-                        </a>
-                      </div>
-                    )}
-
-                    {/* Storage 경로 */}
-                    {image.storagePath && (
-                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                        <div className="text-gray-500 mb-1">Storage 경로:</div>
-                        <div className="font-mono text-gray-700 break-all">
-                          {image.storagePath}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 삭제 버튼 */}
-                    <div className="mt-3">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={async () => {
-                          if (!confirm(`정말로 ${image.name}을(를) 삭제하시겠습니까?`)) return;
-                          
-                          const pathToDelete = (image as { path?: string; storagePath?: string }).path || (image as { path?: string; storagePath?: string }).storagePath;
-                          if (!pathToDelete) {
-                            alert('파일 경로를 찾을 수 없습니다.');
-                            return;
-                          }
-
-                          try {
-                            const res = await fetch(`/api/hotel-images/delete?filePath=${encodeURIComponent(pathToDelete)}`, {
-                              method: 'DELETE',
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                              alert('이미지가 삭제되었습니다.');
-                              onLoadStorageImages(hotelId, String(hotel.sabre_id));
-                            } else {
-                              alert(`삭제 실패: ${data.error}`);
-                            }
-                          } catch {
-                            alert('삭제 중 오류가 발생했습니다.');
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        삭제
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )) || []}
-            </div>
+                      } catch {
+                        alert('삭제 중 오류가 발생했습니다.');
+                      }
+                    }}
+                  />
+                )) || []}
+              </div>
+            </SortableContext>
+          </DndContext>
             
             {/* 이미지가 없는 경우 */}
             {(!state.storageImages || state.storageImages.length === 0) && (
