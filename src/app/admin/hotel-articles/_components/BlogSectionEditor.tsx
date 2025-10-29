@@ -122,11 +122,6 @@ export function BlogSectionEditor({
 
   // 섹션별 저장
   const handleSectionSave = async () => {
-    if (!blogId) {
-      alert('블로그를 먼저 생성해주세요.')
-      return
-    }
-
     if (!blogSlug) {
       alert('블로그 slug가 필요합니다.')
       return
@@ -137,13 +132,18 @@ export function BlogSectionEditor({
       // 현재 에디터 내용 먼저 부모에게 전달
       onContentChange(contentKey, editorContent)
       
-      const response = await fetch(`/api/hotel-articles/${blogId}`, {
-        method: 'PUT',
+      // blogId가 있으면 PUT, 없으면 POST (slug 기준 upsert)
+      const url = blogId ? `/api/hotel-articles/${blogId}` : '/api/hotel-articles'
+      const method = blogId ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           slug: blogSlug,
+          main_title: 'Untitled', // POST 시 필수 필드
           [contentKey]: editorContent,
           [sabreKey]: sabreId || null
         })
@@ -211,7 +211,7 @@ export function BlogSectionEditor({
               placeholder="호텔 검색..."
             />
           </div>
-          {blogId && (
+          {blogSlug && (
                 <Button
                   type="button"
                   size="sm"

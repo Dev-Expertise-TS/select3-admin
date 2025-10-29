@@ -550,6 +550,7 @@ interface BlogModalProps {
 
 function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
   const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [currentBlog, setCurrentBlog] = useState<HotelBlog | null>(blog || null)
   
   // 날짜를 datetime-local 형식으로 변환하는 함수
   const formatDateTimeLocal = (dateString: string) => {
@@ -647,8 +648,8 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
     setSuccessMessage(null)
 
     try {
-      const url = blog ? `/api/hotel-articles/${blog.id}` : '/api/hotel-articles'
-      const method = blog ? 'PUT' : 'POST'
+      const url = currentBlog ? `/api/hotel-articles/${currentBlog.id}` : '/api/hotel-articles'
+      const method = currentBlog ? 'PUT' : 'POST'
 
       // datetime-local 형식을 ISO 형식으로 변환
       const submitData = {
@@ -667,7 +668,12 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
       const result = await response.json()
 
       if (result.success) {
-        const message = blog ? '블로그가 성공적으로 저장되었습니다.' : '블로그가 성공적으로 생성되었습니다.'
+        // POST 응답으로 받은 블로그 데이터로 currentBlog 업데이트
+        if (result.data) {
+          setCurrentBlog(result.data)
+        }
+        
+        const message = currentBlog ? '블로그가 성공적으로 저장되었습니다.' : '블로그가 성공적으로 생성되었습니다.'
         setSuccessMessage(message)
         
         // 알림 표시
@@ -699,10 +705,10 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">
-                {blog ? '블로그 수정' : '새 블로그 생성'}
+                {currentBlog ? '블로그 수정' : '새 블로그 생성'}
               </h2>
               <p className="text-xs text-gray-600">
-                {blog ? '블로그 정보를 수정합니다' : '새로운 블로그를 생성합니다'}
+                {currentBlog ? '블로그 정보를 수정합니다' : '새로운 블로그를 생성합니다'}
               </p>
             </div>
           </div>
@@ -747,7 +753,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                   <h3 className="text-base font-medium text-gray-900">블로그 콘텐츠</h3>
                   <p className="text-xs text-gray-600">탭을 선택하여 기본 정보 또는 각 섹션의 콘텐츠를 편집하세요</p>
                 </div>
-                {blog && (
+                {currentBlog && (
                   <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded">
                     💡 각 섹션마다 개별 저장할 수 있습니다
                   </span>
@@ -990,8 +996,8 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                     sabreKey={sabreKey}
                     content={formData[key as keyof typeof formData] as string}
                     sabreId={formData[sabreKey as keyof typeof formData] as string}
-                    blogId={blog?.id}
-                    blogSlug={blog?.slug}
+                    blogId={currentBlog?.id}
+                    blogSlug={currentBlog?.slug || formData.slug}
                     onContentChange={(k, v) => setFormData({ ...formData, [k]: v })}
                     onSabreChange={(k, v) => setFormData({ ...formData, [k]: v })}
                   />
