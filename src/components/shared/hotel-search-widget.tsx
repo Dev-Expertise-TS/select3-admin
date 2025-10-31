@@ -168,7 +168,9 @@ const SortableImageCard: React.FC<{
                               })
                               if (!res.ok) {
                                 if (res.status === 409) {
-                                  alert('동일한 파일명이 이미 존재합니다. 다른 파일명을 입력하세요.')
+                                  const errorData = await res.json().catch(() => ({}))
+                                  const errorMessage = errorData.error || '동일한 파일명이 이미 존재합니다.'
+                                  alert(`${errorMessage}\n\n다른 파일명을 입력하세요.`)
                                   next = trimmed
                                   continue
                                 }
@@ -178,7 +180,8 @@ const SortableImageCard: React.FC<{
                               const data = await res.json()
                               if (!data.success) {
                                 if (data.code === 'DUPLICATE') {
-                                  alert('동일한 파일명이 이미 존재합니다. 다른 파일명을 입력하세요.')
+                                  const errorMessage = data.error || '동일한 파일명이 이미 존재합니다.'
+                                  alert(`${errorMessage}\n\n다른 파일명을 입력하세요.`)
                                   next = trimmed
                                   continue
                                 }
@@ -658,21 +661,51 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                 variant="outline"
                 onClick={async () => {
                   try {
-                    const payload = { sabreId: String(hotel.sabre_id) }
+                    const sabreIdStr = String(hotel.sabre_id)
+                    
+                    // 1. Storage와 DB 동기화 (select_hotel_media 테이블과 Storage public 폴더 동기화)
+                    console.log('[캐시 초기화] Storage와 DB 동기화 시작...')
+                    const syncRes = await fetch('/api/hotel-images/sync-to-db', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ sabreId: sabreIdStr })
+                    })
+                    const syncJson = await syncRes.json()
+                    
+                    if (!syncRes.ok || !syncJson.success) {
+                      console.warn('[캐시 초기화] 동기화 실패:', syncJson.error)
+                      // 동기화 실패해도 버전 증가는 진행
+                    } else {
+                      console.log('[캐시 초기화] 동기화 완료:', syncJson.message)
+                    }
+                    
+                    // 2. 버전 증가 (캐시 무효화)
+                    const payload = { sabreId: sabreIdStr }
                     const res = await fetch('/api/hotel-images/version', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(payload)
                     })
                     const json = await res.json()
+                    
                     if (!res.ok || !json.success) {
                       alert(json.error || '캐시 초기화에 실패했습니다.')
                       return
                     }
+                    
                     setHotelVersion(json.data.version)
-                    // 최신 썸네일을 보기 위해 목록 재조회(비차단)
-                    try { onLoadStorageImages(hotelId, String(hotel.sabre_id)) } catch {}
-                  } catch {
+                    
+                    // 3. 최신 썸네일을 보기 위해 목록 재조회(비차단)
+                    try { onLoadStorageImages(hotelId, sabreIdStr) } catch {}
+                    
+                    // 성공 메시지 표시
+                    if (syncJson.success) {
+                      alert(`캐시 초기화 완료\n\n${syncJson.message || 'Storage와 DB가 동기화되었습니다.'}`)
+                    } else {
+                      alert('캐시 초기화 완료 (동기화는 일부 실패했을 수 있습니다)')
+                    }
+                  } catch (err) {
+                    console.error('[캐시 초기화] 오류:', err)
                     alert('캐시 초기화 요청 중 오류가 발생했습니다.')
                   }
                 }}
