@@ -1,4 +1,3 @@
-
 export type ImageFormat = "jpg" | "jpeg" | "webp" | "avif" | "png";
 
 /**
@@ -102,19 +101,19 @@ export type PublicNameParams = {
 };
 
 export const buildPublicFilename = (p: PublicNameParams): string => {
-  const { hotelSlug, sabreId = "na", seq = 1, width, format = "avif" } = p;
+  // 단일 이미지 정책: Public도 Originals와 동일한 파일명 사용
+  const { hotelSlug, sabreId = "na", seq = 1, format = "jpg" } = p;
 
   // 슬러그 정규화
   const normalizedSlug = normalizeSlug(hotelSlug);
   if (!isValidToken(normalizedSlug))
     throw new Error(`Invalid hotelSlug after normalization: ${hotelSlug} -> ${normalizedSlug}`);
   if (!isValidToken(sabreId)) throw new Error(`Invalid sabreId: ${sabreId}`);
-  if (!(width > 0)) throw new Error(`width must be > 0`);
   const ext = normalizeFormat(format);
 
   const seqToken = pad2(seq);
 
-  return `${normalizedSlug}_${sabreId}_${seqToken}_${width}w.${ext}`;
+  return `${normalizedSlug}_${sabreId}_${seqToken}.${ext}`;
 };
 
 /**
@@ -135,3 +134,4 @@ export const buildPublicPath = (hotelSlug: string, filename: string) => {
     throw new Error(`Invalid hotelSlug after normalization: ${hotelSlug} -> ${normalizedSlug}`);
   return `${DIR_PUBLIC}/${normalizedSlug}/${filename}`;
 };
+

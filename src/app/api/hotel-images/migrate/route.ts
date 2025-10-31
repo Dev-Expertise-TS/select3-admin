@@ -91,13 +91,13 @@ export async function POST(request: NextRequest) {
           ext,
         });
 
-        // 공개 파일명 생성 (1600px 기준)
+        // 공개 파일명 생성 (단일 해상도)
         const publicFilename = buildPublicFilename({
           hotelSlug,
           sabreId: sabreId || "na",
           seq,
-          width: 1600,
-          format: "avif",
+          width: 0, // 사용 안함
+          format: ext,
         });
 
         // 원본 파일 경로

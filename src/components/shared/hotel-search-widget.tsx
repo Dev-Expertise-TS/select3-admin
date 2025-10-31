@@ -295,6 +295,9 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
     setLocalImages(state?.storageImages || [])
   }, [state?.storageImages])
 
+  // 다중 선택 상태
+  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set())
+
   const uploadFromUrls = async () => {
     const sabreId = String(hotel.sabre_id || '')
     
@@ -659,27 +662,13 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
               <Button
                 type="button"
                 variant="outline"
+                disabled={syncing}
                 onClick={async () => {
                   try {
+                    setSyncing(true)
                     const sabreIdStr = String(hotel.sabre_id)
                     
-                    // 1. Storage와 DB 동기화 (select_hotel_media 테이블과 Storage public 폴더 동기화)
-                    console.log('[캐시 초기화] Storage와 DB 동기화 시작...')
-                    const syncRes = await fetch('/api/hotel-images/sync-to-db', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ sabreId: sabreIdStr })
-                    })
-                    const syncJson = await syncRes.json()
-                    
-                    if (!syncRes.ok || !syncJson.success) {
-                      console.warn('[캐시 초기화] 동기화 실패:', syncJson.error)
-                      // 동기화 실패해도 버전 증가는 진행
-                    } else {
-                      console.log('[캐시 초기화] 동기화 완료:', syncJson.message)
-                    }
-                    
-                    // 2. 버전 증가 (캐시 무효화)
+                    // 1. 버전 증가 (캐시 무효화)
                     const payload = { sabreId: sabreIdStr }
                     const res = await fetch('/api/hotel-images/version', {
                       method: 'POST',
@@ -695,22 +684,26 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                     
                     setHotelVersion(json.data.version)
                     
-                    // 3. 최신 썸네일을 보기 위해 목록 재조회(비차단)
+                    // 2. 최신 썸네일을 보기 위해 목록 재조회(비차단)
                     try { onLoadStorageImages(hotelId, sabreIdStr) } catch {}
                     
-                    // 성공 메시지 표시
-                    if (syncJson.success) {
-                      alert(`캐시 초기화 완료\n\n${syncJson.message || 'Storage와 DB가 동기화되었습니다.'}`)
-                    } else {
-                      alert('캐시 초기화 완료 (동기화는 일부 실패했을 수 있습니다)')
-                    }
+                    alert('캐시 초기화 완료')
                   } catch (err) {
                     console.error('[캐시 초기화] 오류:', err)
                     alert('캐시 초기화 요청 중 오류가 발생했습니다.')
+                  } finally {
+                    setSyncing(false)
                   }
                 }}
               >
-                캐시 초기화
+                {syncing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    처리 중...
+                  </>
+                ) : (
+                  '캐시 초기화'
+                )}
               </Button>
                 <Button
                   type="button"
@@ -734,15 +727,87 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
 
           {/* SortableItem 컴포넌트는 파일 상단에 정의됨 (훅 규칙 위반 방지) */}
 
+          {/* 다중 선택 헤더 */}
+          {localImages && localImages.length > 0 && (
+            <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg mb-3">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedImages.size === localImages.length && localImages.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedImages(new Set(localImages.map((img, idx) => 
+                          (img as any).storagePath || (img as any).path || img.name || String(idx)
+                        )))
+                      } else {
+                        setSelectedImages(new Set())
+                      }
+                    }}
+                    className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    전체 선택 ({selectedImages.size}개 선택됨)
+                  </span>
+                </label>
+              </div>
+              {selectedImages.size > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={async () => {
+                    if (!confirm(`선택한 ${selectedImages.size}개의 이미지를 삭제하시겠습니까?`)) return;
+                    try {
+                      const pathsToDelete = Array.from(selectedImages)
+                      const promises = pathsToDelete.map(path =>
+                        fetch(`/api/hotel-images/delete?filePath=${encodeURIComponent(path)}`, {
+                          method: 'DELETE',
+                        }).then(res => res.json())
+                      )
+                      const results = await Promise.all(promises)
+                      const successCount = results.filter(r => r.success).length
+                      const failCount = results.length - successCount
+                      alert(`${successCount}개 이미지 삭제 완료${failCount > 0 ? ` (${failCount}개 실패)` : ''}`)
+                      setSelectedImages(new Set())
+                      onLoadStorageImages(hotelId, String(hotel.sabre_id))
+                    } catch {
+                      alert('다중 삭제 중 오류가 발생했습니다.')
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> 선택 삭제
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* 이미지 리스트 (드래그 앤 드롭 제거) */}
           <div className="space-y-3">
             {localImages.map((image, _index) => (
-              <SortableImageCard
-                key={(image as any).storagePath || (image as any).path || image.name || _index}
-                image={image}
-                hotelId={hotelId}
-                hotel={hotel}
-                hotelVersion={hotelVersion}
+              <div key={(image as any).storagePath || (image as any).path || image.name || _index} className="relative">
+                <label className="absolute top-3 left-3 z-10 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedImages.has((image as any).storagePath || (image as any).path || image.name || String(_index))}
+                    onChange={(e) => {
+                      const path = (image as any).storagePath || (image as any).path || image.name || String(_index)
+                      if (e.target.checked) {
+                        setSelectedImages(new Set([...selectedImages, path]))
+                      } else {
+                        const newSet = new Set(selectedImages)
+                        newSet.delete(path)
+                        setSelectedImages(newSet)
+                      }
+                    }}
+                    className="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                  />
+                </label>
+                <SortableImageCard
+                  image={image}
+                  hotelId={hotelId}
+                  hotel={hotel}
+                  hotelVersion={hotelVersion}
                 onRenameSuccess={({ oldPath, newPath, newName }) => {
                   setLocalImages((prev) => {
                     if (!prev) return prev
@@ -790,6 +855,7 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   }
                 }}
               />
+              </div>
             ))}
           </div>
             

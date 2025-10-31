@@ -43,6 +43,16 @@ export async function POST(request: NextRequest) {
     const normalizedSlug = normalizeSlug(hotel.slug);
     console.log(`[sync-to-db] 동기화 시작: Sabre ID ${sabreId}, Slug: ${normalizedSlug}`);
 
+    // 경로 정의
+    const originalsPaths = [
+      `${DIR_ORIGINALS}/${normalizedSlug}`,
+      `hotel-images/${sabreId}/originals`
+    ];
+    const publicPaths = [
+      `${DIR_PUBLIC}/${normalizedSlug}`,
+      `hotel-images/${sabreId}/public`
+    ];
+
     // 1. 기존 레코드 삭제
     const { error: deleteError } = await supabase
       .from("select_hotel_media")
@@ -69,47 +79,44 @@ export async function POST(request: NextRequest) {
       folder: 'public' | 'originals';
     }> = [];
 
-    // Public 폴더 확인 (두 가지 경로)
-    const publicPaths = [
-      `${DIR_PUBLIC}/${normalizedSlug}`,
-      `hotel-images/${sabreId}/public`
-    ];
-
+    // Public 폴더 이미지 추가
+    let foundPublicPath: string | null = null;
+    let publicFiles: any[] = [];
+    
     for (const publicPath of publicPaths) {
-      const { data: publicFiles, error: publicError } = await supabase.storage
+      const { data: files, error: publicError } = await supabase.storage
         .from(MEDIA_BUCKET)
         .list(publicPath, { limit: 1000 });
-
-      if (!publicError && publicFiles && publicFiles.length > 0) {
-        console.log(`[sync-to-db] Public 폴더 발견: ${publicPath}, ${publicFiles.length}개 파일`);
-        
-        publicFiles.forEach((file) => {
-          if (file.name && !file.name.includes('.emptyFolderPlaceholder') && !file.name.startsWith('.')) {
-            const fullPath = `${publicPath}/${file.name}`;
-            const { data: urlData } = supabase.storage
-              .from(MEDIA_BUCKET)
-              .getPublicUrl(fullPath);
-
-            allImages.push({
-              name: file.name,
-              path: fullPath,
-              url: urlData.publicUrl,
-              size: (file as { metadata?: { size?: number } }).metadata?.size,
-              contentType: (file as { metadata?: { mimetype?: string } }).metadata?.mimetype,
-              folder: 'public'
-            });
-          }
-        });
-        break; // 첫 번째로 발견된 경로 사용
+      
+      if (!publicError && files && files.length > 0) {
+        foundPublicPath = publicPath;
+        publicFiles = files;
+        console.log(`[sync-to-db] Public 폴더 발견: ${publicPath}, ${files.length}개 파일`);
+        break;
       }
     }
 
-    // Originals 폴더 확인 (두 가지 경로)
-    const originalsPaths = [
-      `${DIR_ORIGINALS}/${normalizedSlug}`,
-      `hotel-images/${sabreId}/originals`
-    ];
+    if (foundPublicPath && publicFiles.length > 0) {
+      publicFiles.forEach((file) => {
+        if (file.name && !file.name.includes('.emptyFolderPlaceholder') && !file.name.startsWith('.')) {
+          const fullPath = `${foundPublicPath}/${file.name}`;
+          const { data: urlData } = supabase.storage
+            .from(MEDIA_BUCKET)
+            .getPublicUrl(fullPath);
 
+          allImages.push({
+            name: file.name,
+            path: fullPath,
+            url: urlData.publicUrl,
+            size: (file as { metadata?: { size?: number } }).metadata?.size,
+            contentType: (file as { metadata?: { mimetype?: string } }).metadata?.mimetype,
+            folder: 'public'
+          });
+        }
+      });
+    }
+
+    // Originals 폴더 확인 (두 가지 경로)
     for (const originalsPath of originalsPaths) {
       const { data: originalsFiles, error: originalsError } = await supabase.storage
         .from(MEDIA_BUCKET)

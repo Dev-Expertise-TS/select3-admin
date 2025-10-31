@@ -72,7 +72,22 @@ export async function GET(request: NextRequest) {
               .from("hotel-media")
               .getPublicUrl(`${storagePath}/${file.name}`);
 
-            const seq = parseInt(file.name.match(/(\d+)/)?.[1] || String(index + 1));
+            // 파일명에서 정확한 seq 추출: {slug}_{sabreId}_{seq}_{width}w.{ext}
+            // 예: sofitel-legend-the-grand-amsterdam_30708_21_1600w.avif → seq = 21
+            let seq = 0
+            const seqMatch = file.name.match(/_(\d+)_\d+w\./)
+            if (seqMatch) {
+              seq = parseInt(seqMatch[1], 10)
+            } else {
+              // width 없이 _{width}w 패턴이 없는 경우: {slug}_{sabreId}_{seq}.{ext}
+              const seqMatch2 = file.name.match(/_(\d+)\./)
+              if (seqMatch2) {
+                seq = parseInt(seqMatch2[1], 10)
+              } else {
+                seq = index + 1
+              }
+            }
+            
             const role = file.name.toLowerCase().includes('main') || file.name.toLowerCase().includes('primary') ? 'main' : undefined;
 
             images.push({
@@ -86,6 +101,9 @@ export async function GET(request: NextRequest) {
             });
           }
         });
+        
+        // seq 숫자 순서로 정렬
+        images.sort((a, b) => a.seq - b.seq)
       }
     }
 
