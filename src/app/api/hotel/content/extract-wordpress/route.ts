@@ -256,20 +256,34 @@ export async function POST(request: NextRequest) {
     // Supabase 클라이언트 생성
     const supabase = createServiceRoleClient()
 
-    // select_hotels 테이블에 property_details upsert (HTML 형식 그대로)
-    const { data, error } = await supabase
+    // 먼저 해당 호텔이 존재하는지 확인
+    const { data: existingHotel } = await supabase
       .from('select_hotels')
-      .upsert(
-        {
-          sabre_id: sabre_id,
-          property_details: cleanContent
-        },
-        {
-          onConflict: 'sabre_id'
-        }
-      )
       .select('sabre_id, property_details')
+      .eq('sabre_id', sabre_id)
       .single()
+
+    // select_hotels 테이블에 property_details upsert (HTML 형식 그대로)
+    let data, error
+    
+    if (existingHotel) {
+      // 기존 호텔이 있으면 update만 수행 (slug 문제 없음)
+      const result = await supabase
+        .from('select_hotels')
+        .update({ property_details: cleanContent })
+        .eq('sabre_id', sabre_id)
+        .select('sabre_id, property_details')
+        .single()
+      
+      data = result.data
+      error = result.error
+    } else {
+      // 기존 호텔이 없으면 새로 생성하지 않고 에러 반환
+      return NextResponse.json(
+        { success: false, error: `Sabre ID ${sabre_id}에 해당하는 호텔이 존재하지 않습니다. 먼저 호텔을 생성해주세요.` },
+        { status: 404 }
+      )
+    }
 
     if (error) {
       console.error('데이터베이스 저장 오류:', error)
