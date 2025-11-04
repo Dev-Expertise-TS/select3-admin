@@ -85,12 +85,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    console.log('[블로그 API] 받은 데이터:', body)
+    console.log('[블로그 API] brand_id_connect (문자열):', body.brand_id_connect)
+    console.log('[블로그 API] brand_id_connect 타입:', typeof body.brand_id_connect)
+    
     const {
       slug,
       publish = false,
       main_title,
       sub_title,
       main_image,
+      brand_id_connect,
       s1_contents,
       s2_contents,
       s3_contents,
@@ -143,6 +148,16 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString()
       }
 
+      // brand_id_connect 업데이트 (TEXT 타입: 쉼표 구분 문자열)
+      if (brand_id_connect !== undefined) {
+        console.log('[블로그 API] brand_id_connect 업데이트:', brand_id_connect)
+        console.log('[블로그 API] brand_id_connect 타입:', typeof brand_id_connect)
+        // 빈 문자열이면 null로 저장
+        updateData.brand_id_connect = brand_id_connect && brand_id_connect.trim() ? brand_id_connect : null
+      } else {
+        console.log('[블로그 API] brand_id_connect는 undefined')
+      }
+
       // undefined가 아닌 필드만 업데이트
       if (s1_contents !== undefined) updateData.s1_contents = s1_contents || ''
       if (s2_contents !== undefined) updateData.s2_contents = s2_contents || ''
@@ -169,6 +184,8 @@ export async function POST(request: NextRequest) {
       if (s11_sabre_id !== undefined) updateData.s11_sabre_id = s11_sabre_id || null
       if (s12_sabre_id !== undefined) updateData.s12_sabre_id = s12_sabre_id || null
 
+      console.log('[블로그 API] 업데이트할 데이터:', updateData)
+      
       const { data, error } = await supabase
         .from('select_hotel_blogs')
         .update(updateData)
@@ -178,12 +195,16 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (error) {
-        console.error('호텔 블로그 업데이트 오류:', error)
+        console.error('[블로그 API] 업데이트 오류:', error)
+        console.error('[블로그 API] 에러 상세:', JSON.stringify(error, null, 2))
         return NextResponse.json(
-          { success: false, error: '호텔 블로그를 업데이트할 수 없습니다.' },
+          { success: false, error: '호텔 블로그를 업데이트할 수 없습니다.', details: error.message },
           { status: 500 }
         )
       }
+
+      console.log('[블로그 API] 업데이트 성공! 저장된 데이터:', data)
+      console.log('[블로그 API] 저장된 brand_id_connect:', data?.brand_id_connect)
 
       return NextResponse.json({
         success: true,
@@ -201,6 +222,7 @@ export async function POST(request: NextRequest) {
           main_title,
           sub_title: sub_title || '',
           main_image: main_image || '',
+          brand_id_connect: brand_id_connect && brand_id_connect.trim() ? brand_id_connect : null,
           s1_contents: s1_contents || '',
           s2_contents: s2_contents || '',
           s3_contents: s3_contents || '',

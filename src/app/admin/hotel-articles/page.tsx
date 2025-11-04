@@ -26,6 +26,7 @@ interface HotelBlog {
   main_title: string
   sub_title: string
   main_image: string
+  brand_id_connect: string | null // 브랜드 ID 쉼표 구분 문자열 (TEXT)
   s1_contents: string
   s2_contents: string
   s3_contents: string
@@ -574,6 +575,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
     main_title: blog?.main_title || '',
     sub_title: blog?.sub_title || '',
     main_image: blog?.main_image || '',
+    brand_id_connect: blog?.brand_id_connect || '',
     updated_at: blog?.updated_at ? formatDateTimeLocal(blog.updated_at) : '',
     s1_contents: blog?.s1_contents || '',
     s2_contents: blog?.s2_contents || '',
@@ -604,6 +606,49 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('basic_info')
+  
+  // 브랜드 관련 상태
+  const [brands, setBrands] = useState<Array<{ brand_id: number; brand_name_en: string; brand_name_ko: string | null }>>([])
+  const [showBrandModal, setShowBrandModal] = useState(false)
+  // TEXT 타입: 쉼표로 구분된 문자열을 배열로 변환
+  const [selectedBrandIds, setSelectedBrandIds] = useState<number[]>(() => {
+    if (!blog?.brand_id_connect) return []
+    return blog.brand_id_connect.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
+  })
+  const [loadingBrands, setLoadingBrands] = useState(false)
+
+  // 브랜드 목록 불러오기
+  useEffect(() => {
+    const loadBrands = async () => {
+      setLoadingBrands(true)
+      try {
+        console.log('[브랜드 로딩] API 호출 시작...')
+        const response = await fetch('/api/hotel-articles/brands')
+        const result = await response.json()
+        console.log('[브랜드 로딩] API 응답:', result)
+        
+        if (result.success) {
+          console.log('[브랜드 로딩] 성공! 브랜드 개수:', result.data?.length || 0)
+          setBrands(result.data || [])
+        } else {
+          console.error('[브랜드 로딩] 실패:', result.error)
+        }
+      } catch (err) {
+        console.error('[브랜드 로딩] 오류:', err)
+      } finally {
+        setLoadingBrands(false)
+      }
+    }
+    loadBrands()
+  }, [])
+
+  // 브랜드 선택 저장 (배열을 쉼표 구분 문자열로 변환)
+  const handleSaveBrands = () => {
+    const brandIdsString = selectedBrandIds.length > 0 ? selectedBrandIds.join(',') : ''
+    console.log('[브랜드 선택] 저장할 brand_id_connect:', brandIdsString)
+    setFormData({ ...formData, brand_id_connect: brandIdsString })
+    setShowBrandModal(false)
+  }
 
   // 대표 이미지 URL을 Storage로 업로드
   const handleUploadMainImage = async () => {
@@ -657,6 +702,9 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
         updated_at: formData.updated_at ? new Date(formData.updated_at).toISOString() : undefined
       }
 
+      console.log('[블로그 저장] 전송 데이터:', submitData)
+      console.log('[블로그 저장] brand_id_connect (문자열):', submitData.brand_id_connect)
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -666,11 +714,29 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
       })
 
       const result = await response.json()
+      console.log('[블로그 저장] 응답:', result)
 
       if (result.success) {
+        console.log('[블로그 저장] 성공! 저장된 데이터:', result.data)
+        console.log('[블로그 저장] 저장된 brand_id_connect:', result.data?.brand_id_connect)
+        
         // POST 응답으로 받은 블로그 데이터로 currentBlog 업데이트
         if (result.data) {
           setCurrentBlog(result.data)
+          
+          // formData를 저장된 데이터로 완전히 동기화
+          setFormData({
+            ...formData,
+            brand_id_connect: result.data.brand_id_connect || '',
+            slug: result.data.slug,
+            publish: result.data.publish,
+            main_title: result.data.main_title,
+            sub_title: result.data.sub_title,
+            main_image: result.data.main_image,
+            updated_at: result.data.updated_at ? formatDateTimeLocal(result.data.updated_at) : formData.updated_at
+          })
+          
+          console.log('[블로그 저장] formData 동기화 완료. brand_id_connect:', result.data.brand_id_connect || '')
         }
         
         const message = currentBlog ? '블로그가 성공적으로 저장되었습니다.' : '블로그가 성공적으로 생성되었습니다.'
@@ -682,7 +748,9 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
         // 블로그 목록 새로고침
         onSave()
       } else {
+        console.error('[블로그 저장] 실패:', result.error)
         setError(result.error || '저장에 실패했습니다.')
+        alert('저장 실패: ' + (result.error || '알 수 없는 오류'))
       }
     } catch (err) {
       console.error('저장 오류:', err)
@@ -824,7 +892,7 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                 activeTab === 'basic_info' ? 'flex-1' : 'hidden'
               )}>
                 <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Slug *
@@ -863,8 +931,60 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                   </Button>
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  브랜드 연결
+                </label>
+                <div className="space-y-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      // 문자열을 배열로 변환
+                      const ids = formData.brand_id_connect 
+                        ? formData.brand_id_connect.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
+                        : []
+                      setSelectedBrandIds(ids)
+                      setShowBrandModal(true)
+                    }}
+                    className="cursor-pointer w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    브랜드 선택 ({formData.brand_id_connect ? formData.brand_id_connect.split(',').filter(s => s.trim()).length : 0}개)
+                  </Button>
+                  {/* 선택된 브랜드 태그 표시 */}
+                  {formData.brand_id_connect && formData.brand_id_connect.trim() && (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.brand_id_connect.split(',').map((idStr) => {
+                        const brandId = parseInt(idStr.trim(), 10)
+                        if (isNaN(brandId)) return null
+                        const brand = brands.find(b => b.brand_id === brandId)
+                        return brand ? (
+                          <span 
+                            key={brandId}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-200"
+                          >
+                            {brand.brand_name_en}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const ids = formData.brand_id_connect.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
+                                const newIds = ids.filter(id => id !== brandId)
+                                setFormData({ ...formData, brand_id_connect: newIds.join(',') })
+                              }}
+                              className="ml-1 text-blue-600 hover:text-blue-800 font-bold"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ) : null
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="mt-4 flex items-center">
+            <div className="mt-4">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -1033,6 +1153,80 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
             </Button>
           </div>
         </form>
+
+        {/* 브랜드 선택 모달 */}
+        {showBrandModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => setShowBrandModal(false)}>
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b">
+                <h3 className="text-lg font-semibold">브랜드 선택</h3>
+                <p className="text-sm text-gray-600 mt-1">연결할 브랜드를 선택하세요 (복수 선택 가능)</p>
+              </div>
+              
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                {loadingBrands ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <span className="ml-2 text-gray-600">브랜드 목록을 불러오는 중...</span>
+                  </div>
+                ) : brands.length === 0 ? (
+                  <div className="text-center py-12 text-gray-600">
+                    <p>등록된 브랜드가 없습니다.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {brands.map((brand) => (
+                      <label
+                        key={brand.brand_id}
+                        className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedBrandIds.includes(brand.brand_id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedBrandIds([...selectedBrandIds, brand.brand_id])
+                            } else {
+                              setSelectedBrandIds(selectedBrandIds.filter(id => id !== brand.brand_id))
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{brand.brand_name_en}</div>
+                          {brand.brand_name_ko && (
+                            <div className="text-sm text-gray-500">{brand.brand_name_ko}</div>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-6 border-t flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedBrandIds(formData.brand_id_connect || [])
+                    setShowBrandModal(false)
+                  }}
+                  className="cursor-pointer"
+                >
+                  취소
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveBrands}
+                  className="cursor-pointer bg-blue-600 hover:bg-blue-700"
+                >
+                  선택 완료 ({selectedBrandIds.length}개)
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

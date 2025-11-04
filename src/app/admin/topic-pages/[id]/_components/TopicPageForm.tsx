@@ -23,6 +23,7 @@ const topicPageToFormData = (page?: TopicPage) => ({
   intro_rich_ko: page?.intro_rich_ko || '',
   hashtags: page?.hashtags?.join(', ') || '',
   status: page?.status || 'draft' as const,
+  publish: page?.publish ?? false,
   publish_at: page?.publish_at ? new Date(page.publish_at).toISOString().slice(0, 16) : '',
   // SEO 필드
   seo_title_ko: page?.seo_title_ko || '',
@@ -146,6 +147,7 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
         intro_rich_ko: formData.intro_rich_ko.trim() || null,
         hashtags: formData.hashtags ? formData.hashtags.split(',').map(s => s.trim()).filter(Boolean) : [],
         status: formData.status,
+        publish: formData.publish,
         publish_at: formData.publish_at ? new Date(formData.publish_at).toISOString() : null,
         // SEO 필드
         seo_title_ko: formData.seo_title_ko.trim() || null,
@@ -338,8 +340,8 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
           />
         </div>
 
-        {/* 상태 & 발행일 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* 상태 & 배포 & 발행일 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               상태
@@ -353,6 +355,26 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
               <option value="published">발행됨</option>
               <option value="archived">보관됨</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              배포 여부
+            </label>
+            <div className="flex items-center h-10">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.publish}
+                  onChange={(e) => setFormData({ ...formData, publish: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                <span className="ms-3 text-sm font-medium text-gray-900">
+                  {formData.publish ? '배포됨' : '미배포'}
+                </span>
+              </label>
+            </div>
           </div>
 
           <div>

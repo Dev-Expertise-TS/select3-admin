@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
         intro_rich_ko: body.intro_rich_ko || null,
         hashtags: body.hashtags || null,
         status: body.status || 'draft',
+        publish: body.publish ?? false,
         publish_at: body.publish_at || null,
       })
       .select()

@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const status = searchParams.get('status') // draft, published, archived
     const search = searchParams.get('search') // slug, title_ko 검색
+    const publishedOnly = searchParams.get('publishedOnly') === 'true' // 배포된 것만
 
     const supabase = await createClient()
 
@@ -23,6 +24,11 @@ export async function GET(request: NextRequest) {
         hotel_count:select_topic_page_hotels(count)
       `)
       .order('created_at', { ascending: false })
+
+    // 배포 여부 필터 (publishedOnly가 true면 publish=true만)
+    if (publishedOnly) {
+      query = query.eq('publish', true)
+    }
 
     // 상태 필터
     if (status && status !== 'all') {

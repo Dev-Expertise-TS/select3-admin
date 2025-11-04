@@ -15,6 +15,7 @@ export interface TopicPage {
   intro_rich_ko: string | null
   hashtags: string[] | null
   status: 'draft' | 'published' | 'archived'
+  publish: boolean // 배포 여부
   publish_at: string | null // timestamp
   created_at: string // timestamp
   updated_at: string // timestamp
@@ -103,6 +104,7 @@ export interface CreateTopicPageRequest {
   intro_rich_ko?: string
   hashtags?: string[]
   status?: 'draft' | 'published' | 'archived'
+  publish?: boolean
   publish_at?: string
   // SEO 필드
   seo_title_ko?: string

@@ -86,6 +86,7 @@ export async function PUT(
       main_title,
       sub_title,
       main_image,
+      brand_id_connect,
       updated_at,
       s1_contents,
       s2_contents,
@@ -130,6 +131,9 @@ export async function PUT(
 
     const supabase = createServiceRoleClient()
 
+    console.log('[블로그 PUT] 받은 데이터:', body)
+    console.log('[블로그 PUT] brand_id_connect (문자열):', brand_id_connect)
+
     // 업데이트할 데이터 준비
     const updateData: Record<string, unknown> = {
       updated_at: updated_at || new Date().toISOString()
@@ -141,6 +145,12 @@ export async function PUT(
     if (main_title !== undefined) updateData.main_title = main_title
     if (sub_title !== undefined) updateData.sub_title = sub_title
     if (main_image !== undefined) updateData.main_image = main_image
+    if (brand_id_connect !== undefined) {
+      console.log('[블로그 PUT] brand_id_connect 업데이트:', brand_id_connect)
+      updateData.brand_id_connect = brand_id_connect && typeof brand_id_connect === 'string' && brand_id_connect.trim()
+        ? brand_id_connect
+        : null
+    }
     if (s1_contents !== undefined) updateData.s1_contents = s1_contents
     if (s2_contents !== undefined) updateData.s2_contents = s2_contents
     if (s3_contents !== undefined) updateData.s3_contents = s3_contents
@@ -183,6 +193,9 @@ export async function PUT(
         { status: 500 }
       )
     }
+
+    console.log('[블로그 PUT] 저장된 데이터:', data)
+    console.log('[블로그 PUT] 저장된 brand_id_connect:', data?.brand_id_connect)
 
     return NextResponse.json({
       success: true,

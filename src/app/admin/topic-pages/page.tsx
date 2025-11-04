@@ -165,6 +165,9 @@ export default function TopicPagesPage() {
                   상태
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  배포
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   호텔 수
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -181,13 +184,13 @@ export default function TopicPagesPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                     데이터를 불러오는 중...
                   </td>
                 </tr>
               ) : topicPages.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                     {searchInput ? '검색 결과가 없습니다.' : '생성된 토픽 페이지가 없습니다.'}
                   </td>
                 </tr>
@@ -202,6 +205,16 @@ export default function TopicPagesPage() {
                     </td>
                     <td className="px-4 py-3">
                       {getStatusBadge(page.status || 'draft')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn(
+                        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+                        page.publish
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-800"
+                      )}>
+                        {page.publish ? '배포됨' : '미배포'}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-gray-900">{page.hotel_count || 0}개</span>
