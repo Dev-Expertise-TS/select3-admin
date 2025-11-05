@@ -12,10 +12,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('select_tags')
-      .select(`
-        *,
-        category:select_tag_categories(*)
-      `)
+      .select('*')
       .order('weight', { ascending: false })
       .order('name_ko', { ascending: true })
 

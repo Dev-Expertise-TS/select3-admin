@@ -342,6 +342,7 @@ export function RegionsManager({ initialItems }: Props) {
         { key: 'city_ko', label: '도시(한)', width: '100px' },
         { key: 'city_en', label: '도시(영)', width: '100px' },
         { key: 'city_code', label: '도시코드', width: '80px' },
+        { key: 'city_slug', label: '도시 슬러그', width: '100px' },
         { key: 'country_ko', label: '국가(한)', width: '90px', isParent: true },
         { key: 'country_en', label: '국가(영)', width: '90px', isParent: true },
         { key: 'country_code', label: '국가코드', width: '70px', isParent: true },

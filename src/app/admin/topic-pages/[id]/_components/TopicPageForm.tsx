@@ -5,8 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Save, Sparkles, Wand2 } from 'lucide-react'
 import { TopicPage } from '@/types/topic-page'
-import { CityMultiSelector } from '@/components/shared/city-multi-selector'
-import { TagMultiSelector } from '@/components/shared/tag-multi-selector'
+import { MultiSelectField } from '@/components/shared/multi-select-field'
 
 interface TopicPageFormProps {
   topicPage?: TopicPage
@@ -50,6 +49,75 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
   const [formData, setFormData] = useState(() => topicPageToFormData(topicPage))
   const [isGeneratingSeo, setIsGeneratingSeo] = useState(false)
   const [isGeneratingIntro, setIsGeneratingIntro] = useState(false)
+
+  // 도시 목록 로드 함수
+  const fetchCities = async () => {
+    const res = await fetch('/api/regions?type=city&pageSize=1000&status=active')
+    if (!res.ok) throw new Error('도시 목록 조회 실패')
+    const result = await res.json()
+    if (result.success && result.data) {
+      return result.data.map((city: any) => ({
+        id: String(city.id),
+        label: city.city_ko || city.city_en || '',
+        sublabel: city.city_en || undefined,
+      }))
+    }
+    return []
+  }
+
+  // 태그 목록 로드 함수 (동행인)
+  const fetchCompanionTags = async () => {
+    // 1. 카테고리 조회
+    const categoryRes = await fetch('/api/hashtags/categories')
+    if (!categoryRes.ok) throw new Error('카테고리 조회 실패')
+    const categoryResult = await categoryRes.json()
+    
+    if (categoryResult.success && categoryResult.data) {
+      const category = categoryResult.data.find((cat: any) => cat.slug === 'companions')
+      if (!category) return []
+      
+      // 2. 태그 조회
+      const tagsRes = await fetch(`/api/hashtags/tags?categoryId=${category.id}&isActive=true`)
+      if (!tagsRes.ok) throw new Error('태그 조회 실패')
+      const tagsResult = await tagsRes.json()
+      
+      if (tagsResult.success && tagsResult.data) {
+        return tagsResult.data.map((tag: any) => ({
+          id: tag.id,
+          label: tag.name_ko || tag.name_en || '',
+          sublabel: tag.name_en || undefined,
+        }))
+      }
+    }
+    return []
+  }
+
+  // 태그 목록 로드 함수 (스타일)
+  const fetchStyleTags = async () => {
+    // 1. 카테고리 조회
+    const categoryRes = await fetch('/api/hashtags/categories')
+    if (!categoryRes.ok) throw new Error('카테고리 조회 실패')
+    const categoryResult = await categoryRes.json()
+    
+    if (categoryResult.success && categoryResult.data) {
+      const category = categoryResult.data.find((cat: any) => cat.slug === 'style')
+      if (!category) return []
+      
+      // 2. 태그 조회
+      const tagsRes = await fetch(`/api/hashtags/tags?categoryId=${category.id}&isActive=true`)
+      if (!tagsRes.ok) throw new Error('태그 조회 실패')
+      const tagsResult = await tagsRes.json()
+      
+      if (tagsResult.success && tagsResult.data) {
+        return tagsResult.data.map((tag: any) => ({
+          id: tag.id,
+          label: tag.name_ko || tag.name_en || '',
+          sublabel: tag.name_en || undefined,
+        }))
+      }
+    }
+    return []
+  }
 
   useEffect(() => {
     if (topicPage && !isNew) {
@@ -327,41 +395,37 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
         </div>
 
         {/* 도시 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            도시 (1개 또는 복수 선택)
-          </label>
-          <CityMultiSelector
-            value={formData.where_cities}
-            onChange={(cities) => setFormData({ ...formData, where_cities: cities })}
-          />
-        </div>
+        <MultiSelectField
+          label="도시"
+          value={formData.where_cities}
+          onChange={(cities) => setFormData({ ...formData, where_cities: cities })}
+          placeholder="도시를 선택하세요"
+          modalTitle="도시 선택"
+          fetchItems={fetchCities}
+          emptyMessage="등록된 도시가 없습니다."
+        />
 
         {/* 동행인 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            동행인
-          </label>
-          <TagMultiSelector
-            categorySlug="companions"
-            value={formData.companions}
-            onChange={(companions) => setFormData({ ...formData, companions })}
-            placeholder="동행인 태그 검색..."
-          />
-        </div>
+        <MultiSelectField
+          label="동행인"
+          value={formData.companions}
+          onChange={(companions) => setFormData({ ...formData, companions })}
+          placeholder="동행인을 선택하세요"
+          modalTitle="동행인 선택"
+          fetchItems={fetchCompanionTags}
+          emptyMessage="등록된 동행인 태그가 없습니다."
+        />
 
         {/* 스타일 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            스타일
-          </label>
-          <TagMultiSelector
-            categorySlug="style"
-            value={formData.styles}
-            onChange={(styles) => setFormData({ ...formData, styles })}
-            placeholder="스타일 태그 검색..."
-          />
-        </div>
+        <MultiSelectField
+          label="스타일"
+          value={formData.styles}
+          onChange={(styles) => setFormData({ ...formData, styles })}
+          placeholder="스타일을 선택하세요"
+          modalTitle="스타일 선택"
+          fetchItems={fetchStyleTags}
+          emptyMessage="등록된 스타일 태그가 없습니다."
+        />
 
         {/* 히어로 이미지 URL */}
         <div>

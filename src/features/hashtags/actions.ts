@@ -162,18 +162,16 @@ export async function deleteCategory(id: string): Promise<ActionResult> {
 // ========================================
 
 /**
- * 태그 목록 조회
+ * 태그 목록 조회 (외래 키 없이)
  */
 export async function getTags(categoryId?: string, search?: string): Promise<ActionResult<Tag[]>> {
   try {
     const supabase = createServiceRoleClient()
 
+    // 1. 태그 조회
     let query = supabase
       .from('select_tags')
-      .select(`
-        *,
-        category:select_tag_categories(*)
-      `)
+      .select('*')
       .order('weight', { ascending: false })
       .order('name_ko', { ascending: true })
 
@@ -185,14 +183,28 @@ export async function getTags(categoryId?: string, search?: string): Promise<Act
       query = query.or(`name_ko.ilike.%${search}%,name_en.ilike.%${search}%,slug.ilike.%${search}%`)
     }
 
-    const { data, error } = await query
+    const { data: tags, error } = await query
 
     if (error) {
       console.error('태그 조회 오류:', error)
       return { success: false, error: '태그를 조회할 수 없습니다.' }
     }
 
-    return { success: true, data: data as Tag[] }
+    // 2. 카테고리 정보 별도 조회
+    const { data: categories } = await supabase
+      .from('select_tag_categories')
+      .select('*')
+
+    // 3. 카테고리 정보를 태그에 매핑
+    const tagsWithCategory = tags?.map(tag => {
+      const category = categories?.find(cat => cat.id === tag.category_id)
+      return {
+        ...tag,
+        category: category || null
+      }
+    }) || []
+
+    return { success: true, data: tagsWithCategory as any }
   } catch (err) {
     console.error('태그 조회 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
@@ -339,26 +351,16 @@ export async function deleteTag(id: string): Promise<ActionResult> {
 // ========================================
 
 /**
- * 호텔-태그 매핑 조회 (호텔 정보 포함)
+ * 호텔-태그 매핑 조회 (외래 키 없이, 별도 조회 후 매핑)
  */
 export async function getHotelTags(sabreId?: string, tagId?: string): Promise<ActionResult<HotelTagMap[]>> {
   try {
     const supabase = createServiceRoleClient()
 
+    // 1. 매핑 데이터 조회
     let query = supabase
       .from('select_hotel_tags_map')
-      .select(`
-        *,
-        tag:select_tags(
-          *,
-          category:select_tag_categories(*)
-        ),
-        hotel:select_hotels!select_hotel_tags_map_sabre_id_fkey(
-          sabre_id,
-          property_name_ko,
-          property_name_en
-        )
-      `)
+      .select('*')
 
     if (sabreId) {
       query = query.eq('sabre_id', sabreId)
@@ -368,14 +370,50 @@ export async function getHotelTags(sabreId?: string, tagId?: string): Promise<Ac
       query = query.eq('tag_id', tagId)
     }
 
-    const { data, error } = await query
+    const { data: mappings, error } = await query
 
     if (error) {
       console.error('호텔-태그 매핑 조회 오류:', error)
       return { success: false, error: '호텔-태그 매핑을 조회할 수 없습니다.' }
     }
 
-    return { success: true, data: data as HotelTagMap[] }
+    if (!mappings || mappings.length === 0) {
+      return { success: true, data: [] }
+    }
+
+    // 2. 태그 정보 조회
+    const tagIds = [...new Set(mappings.map(m => m.tag_id))]
+    const { data: tags } = await supabase
+      .from('select_tags')
+      .select('*')
+      .in('id', tagIds)
+
+    // 3. 카테고리 정보 조회
+    const { data: categories } = await supabase
+      .from('select_tag_categories')
+      .select('*')
+
+    // 4. 호텔 정보 조회
+    const sabreIds = [...new Set(mappings.map(m => m.sabre_id))]
+    const { data: hotels } = await supabase
+      .from('select_hotels')
+      .select('sabre_id, property_name_ko, property_name_en')
+      .in('sabre_id', sabreIds)
+
+    // 5. 데이터 매핑
+    const mappingsWithDetails = mappings.map(mapping => {
+      const tag = tags?.find(t => t.id === mapping.tag_id)
+      const category = tag ? categories?.find(c => c.id === tag.category_id) : null
+      const hotel = hotels?.find(h => h.sabre_id === mapping.sabre_id)
+
+      return {
+        ...mapping,
+        tag: tag ? { ...tag, category } : null,
+        hotel: hotel || null
+      }
+    })
+
+    return { success: true, data: mappingsWithDetails as any }
   } catch (err) {
     console.error('호텔-태그 매핑 조회 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
