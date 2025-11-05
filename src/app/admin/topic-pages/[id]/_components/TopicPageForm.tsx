@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Save, Sparkles } from 'lucide-react'
-import { TopicPage, CreateTopicPageRequest, UpdateTopicPageRequest } from '@/types/topic-page'
+import { Save, Sparkles, Wand2 } from 'lucide-react'
+import { TopicPage } from '@/types/topic-page'
+import { CityMultiSelector } from '@/components/shared/city-multi-selector'
+import { TagMultiSelector } from '@/components/shared/tag-multi-selector'
 
 interface TopicPageFormProps {
   topicPage?: TopicPage
@@ -16,12 +18,12 @@ const topicPageToFormData = (page?: TopicPage) => ({
   slug: page?.slug || '',
   title_ko: page?.title_ko || '',
   where_countries: page?.where_countries?.join(', ') || '',
-  where_cities: page?.where_cities?.join(', ') || '',
-  companions: page?.companions?.join(', ') || '',
-  styles: page?.styles?.join(', ') || '',
+  where_cities: page?.where_cities || [],
+  companions: page?.companions || [],
+  styles: page?.styles || [],
   hero_image_url: page?.hero_image_url || '',
   intro_rich_ko: page?.intro_rich_ko || '',
-  hashtags: page?.hashtags?.join(', ') || '',
+  hashtags: page?.hashtags || [],
   status: page?.status || 'draft' as const,
   publish: page?.publish ?? false,
   publish_at: page?.publish_at ? new Date(page.publish_at).toISOString().slice(0, 16) : '',
@@ -47,12 +49,80 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState(() => topicPageToFormData(topicPage))
   const [isGeneratingSeo, setIsGeneratingSeo] = useState(false)
+  const [isGeneratingIntro, setIsGeneratingIntro] = useState(false)
 
   useEffect(() => {
     if (topicPage && !isNew) {
       setFormData(topicPageToFormData(topicPage))
     }
   }, [topicPage, isNew])
+
+  // 해시태그 자동 업데이트
+  useEffect(() => {
+    const autoHashtags = [
+      ...formData.where_cities,
+      ...formData.companions,
+      ...formData.styles,
+    ]
+    
+    // 배열 비교: 길이와 모든 요소가 같은지 확인
+    const isSame = 
+      formData.hashtags.length === autoHashtags.length &&
+      formData.hashtags.every((tag, index) => tag === autoHashtags[index])
+    
+    if (!isSame) {
+      setFormData((prev) => ({ ...prev, hashtags: autoHashtags }))
+    }
+  }, [formData.where_cities, formData.companions, formData.styles, formData.hashtags])
+
+  // AI로 소개글 생성
+  const handleGenerateIntro = async () => {
+    if (!formData.title_ko.trim()) {
+      alert('제목을 먼저 입력해주세요.')
+      return
+    }
+
+    if (formData.intro_rich_ko.trim() && !confirm('기존 소개글을 AI로 덮어쓰시겠습니까?')) {
+      return
+    }
+
+    setIsGeneratingIntro(true)
+
+    try {
+      const res = await fetch('/api/topic-pages/generate-intro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title_ko: formData.title_ko.trim(),
+          where_cities: formData.where_cities,
+          companions: formData.companions,
+          styles: formData.styles,
+        }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || '소개글 생성 실패')
+      }
+
+      const result = await res.json()
+
+      if (result.success && result.data?.intro_rich_ko) {
+        setFormData({
+          ...formData,
+          intro_rich_ko: result.data.intro_rich_ko,
+        })
+        alert('AI로 소개글이 생성되었습니다.')
+      } else {
+        throw new Error('소개글 생성 결과가 없습니다.')
+      }
+    } catch (error) {
+      console.error('소개글 생성 오류:', error)
+      alert(`소개글 생성 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
+    } finally {
+      setIsGeneratingIntro(false)
+    }
+  }
 
   // AI로 SEO 생성
   const handleGenerateSeo = async () => {
@@ -140,12 +210,12 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
         slug: formData.slug.trim(),
         title_ko: formData.title_ko.trim(),
         where_countries: formData.where_countries ? formData.where_countries.split(',').map(s => s.trim()).filter(Boolean) : [],
-        where_cities: formData.where_cities ? formData.where_cities.split(',').map(s => s.trim()).filter(Boolean) : [],
-        companions: formData.companions ? formData.companions.split(',').map(s => s.trim()).filter(Boolean) : [],
-        styles: formData.styles ? formData.styles.split(',').map(s => s.trim()).filter(Boolean) : [],
+        where_cities: formData.where_cities || [],
+        companions: formData.companions || [],
+        styles: formData.styles || [],
         hero_image_url: formData.hero_image_url.trim() || null,
         intro_rich_ko: formData.intro_rich_ko.trim() || null,
-        hashtags: formData.hashtags ? formData.hashtags.split(',').map(s => s.trim()).filter(Boolean) : [],
+        hashtags: formData.hashtags || [],
         status: formData.status,
         publish: formData.publish,
         publish_at: formData.publish_at ? new Date(formData.publish_at).toISOString() : null,
@@ -259,42 +329,37 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
         {/* 도시 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            도시 (쉼표로 구분)
+            도시 (1개 또는 복수 선택)
           </label>
-          <input
-            type="text"
+          <CityMultiSelector
             value={formData.where_cities}
-            onChange={(e) => setFormData({ ...formData, where_cities: e.target.value })}
-            placeholder="파리, 로마, 바르셀로나"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(cities) => setFormData({ ...formData, where_cities: cities })}
           />
         </div>
 
         {/* 동행인 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            동행인 (쉼표로 구분)
+            동행인
           </label>
-          <input
-            type="text"
+          <TagMultiSelector
+            categorySlug="companions"
             value={formData.companions}
-            onChange={(e) => setFormData({ ...formData, companions: e.target.value })}
-            placeholder="연인, 친구, 가족"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(companions) => setFormData({ ...formData, companions })}
+            placeholder="동행인 태그 검색..."
           />
         </div>
 
         {/* 스타일 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            스타일 (쉼표로 구분)
+            스타일
           </label>
-          <input
-            type="text"
+          <TagMultiSelector
+            categorySlug="style"
             value={formData.styles}
-            onChange={(e) => setFormData({ ...formData, styles: e.target.value })}
-            placeholder="럭셔리, 로맨틱, 휴양"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(styles) => setFormData({ ...formData, styles })}
+            placeholder="스타일 태그 검색..."
           />
         </div>
 
@@ -314,30 +379,58 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
 
         {/* 소개글 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            소개글 (Rich Text)
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              소개글 (Rich Text)
+            </label>
+            <button
+              type="button"
+              onClick={handleGenerateIntro}
+              disabled={isGeneratingIntro}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-green-600 to-teal-600 text-white text-xs hover:from-green-700 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              {isGeneratingIntro ? 'AI 생성 중...' : 'AI로 작성'}
+            </button>
+          </div>
           <textarea
             value={formData.intro_rich_ko}
             onChange={(e) => setFormData({ ...formData, intro_rich_ko: e.target.value })}
-            placeholder="토픽 페이지 소개글..."
+            placeholder="토픽 페이지 소개글... (또는 AI로 자동 생성)"
             rows={4}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          <p className="text-xs text-gray-500 mt-1">
+            도시, 동행인, 스타일 정보를 입력한 후 'AI로 작성' 버튼을 누르면 자동으로 소개글이 생성됩니다.
+          </p>
         </div>
 
-        {/* 해시태그 */}
+        {/* 해시태그 (자동 생성) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            해시태그 (쉼표로 구분)
+            해시태그 (자동 생성)
           </label>
-          <input
-            type="text"
-            value={formData.hashtags}
-            onChange={(e) => setFormData({ ...formData, hashtags: e.target.value })}
-            placeholder="럭셔리호텔, 유럽여행, 로맨틱"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
+            {formData.hashtags.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {formData.hashtags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded-full text-sm"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                도시, 동행인, 스타일을 선택하면 자동으로 해시태그가 생성됩니다.
+              </p>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            위에서 입력한 도시와 태그들이 자동으로 해시태그로 표시됩니다.
+          </p>
         </div>
 
         {/* 상태 & 배포 & 발행일 */}

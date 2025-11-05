@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { FileText, Save, ArrowLeft, Plus } from 'lucide-react'
 import Link from 'next/link'
-import { TopicPageApiResponse, TopicPageWithHotels } from '@/types/topic-page'
+import { TopicPageWithHotels } from '@/types/topic-page'
+import { getTopicPage } from '@/features/topic-pages/actions'
 import { TopicPageForm } from './_components/TopicPageForm'
 import { TopicPageHotelsManager } from './_components/TopicPageHotelsManager'
 
@@ -14,24 +14,29 @@ export default function TopicPageDetailPage() {
   const router = useRouter()
   const pageId = params.id as string
   const isNew = pageId === 'new'
-  const queryClient = useQueryClient()
+  const [topicPage, setTopicPage] = useState<TopicPageWithHotels | undefined>(undefined)
+  const [isLoading, setIsLoading] = useState(!isNew)
 
   // 토픽 페이지 조회
-  const { data: response, isLoading } = useQuery({
-    queryKey: ['topic-page', pageId],
-    queryFn: async () => {
-      if (isNew) return null
-      const res = await fetch(`/api/topic-pages?id=${pageId}`)
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || '토픽 페이지 조회 실패')
-      }
-      return res.json() as Promise<TopicPageApiResponse>
-    },
-    enabled: !isNew,
-  })
+  useEffect(() => {
+    if (isNew) return
 
-  const topicPage = response?.data as TopicPageWithHotels | undefined
+    const loadTopicPage = async () => {
+      setIsLoading(true)
+      try {
+        const result = await getTopicPage(pageId, undefined)
+        if (result.success && result.data) {
+          setTopicPage(result.data as TopicPageWithHotels)
+        }
+      } catch (err) {
+        console.error('토픽 페이지 로드 오류:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadTopicPage()
+  }, [pageId, isNew])
 
   if (isLoading) {
     return (

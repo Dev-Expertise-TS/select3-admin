@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Megaphone, Plus, Save, X, Loader2, AlertCircle, CheckCircle, Edit, Trash2, MapPin } from "lucide-react"
 import HotelQuickSearch from "@/components/shared/hotel-quick-search"
-import { savePromotion, deletePromotion, addHotelToPromotion, removeHotelFromPromotion } from "@/features/promotions/actions"
+import { savePromotion, deletePromotion, addHotelToPromotion, removeHotelFromPromotion, getPromotions, getPromotionMappedHotels } from "@/features/promotions/actions"
 
 interface Promotion {
   id: number
@@ -204,10 +204,9 @@ export function PromotionManager() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/promotions/list")
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || "목록을 불러오지 못했습니다.")
-      setPromotions(data.data.promotions as Promotion[])
+      const result = await getPromotions()
+      if (!result.success || !result.data) throw new Error(result.error || "목록을 불러오지 못했습니다.")
+      setPromotions(result.data.promotions as Promotion[])
     } catch (err) {
       setError(err instanceof Error ? err.message : "데이터 로드 중 오류가 발생했습니다.")
     } finally {
@@ -225,10 +224,9 @@ export function PromotionManager() {
   const loadAllMappedHotels = async () => {
     setAllMappedLoading(true)
     try {
-      const res = await fetch('/api/promotions/mapped-hotels')
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || '매핑된 호텔 목록을 불러오지 못했습니다.')
-      setAllMappedHotels(data.data ?? [])
+      const result = await getPromotionMappedHotels()
+      if (!result.success || !result.data) throw new Error(result.error || '매핑된 호텔 목록을 불러오지 못했습니다.')
+      setAllMappedHotels(result.data as MappedHotel[])
     } catch (err) {
       setError(err instanceof Error ? err.message : '매핑된 호텔 조회 중 오류가 발생했습니다.')
     } finally {

@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Plus, Search, Edit, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { FileText, Plus, Search, Edit, Trash2, Wand2, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { TopicPageWithHotels, TopicPageApiResponse } from '@/types/topic-page'
+import { TopicPageWithHotels } from '@/types/topic-page'
+import { getTopicPagesList, deleteTopicPage } from '@/features/topic-pages/actions'
+import { Button } from '@/components/ui/button'
 
 type StatusFilter = 'all' | 'draft' | 'published' | 'archived'
 
@@ -31,52 +32,52 @@ const getStatusBadge = (status: string) => {
 export default function TopicPagesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchInput, setSearchInput] = useState('')
-  const queryClient = useQueryClient()
+  const [topicPages, setTopicPages] = useState<TopicPageWithHotels[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [showCustomModal, setShowCustomModal] = useState(false)
 
   // 토픽 페이지 목록 조회
-  const { data: response, isLoading } = useQuery({
-    queryKey: ['topic-pages-list', statusFilter, searchInput],
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      if (statusFilter !== 'all') params.set('status', statusFilter)
-      if (searchInput.trim()) params.set('search', searchInput.trim())
-
-      const url = `/api/topic-pages/list?${params.toString()}`
-      const res = await fetch(url)
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || '토픽 페이지 목록 조회 실패')
+  const loadTopicPages = async () => {
+    setIsLoading(true)
+    try {
+      const result = await getTopicPagesList(
+        statusFilter !== 'all' ? statusFilter : undefined,
+        searchInput.trim() || undefined,
+        false
+      )
+      if (result.success && result.data) {
+        setTopicPages(result.data as TopicPageWithHotels[])
       }
-      return res.json() as Promise<TopicPageApiResponse>
-    },
-  })
+    } catch (err) {
+      console.error('토픽 페이지 로드 오류:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
-  const topicPages = (response?.data || []) as TopicPageWithHotels[]
+  useEffect(() => {
+    loadTopicPages()
+  }, [statusFilter, searchInput])
 
-  // 삭제 mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/topic-pages?id=${id}`, {
-        method: 'DELETE',
-      })
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || '삭제 실패')
+  const handleDelete = async (id: string, title: string) => {
+    if (!confirm(`"${title}" 토픽 페이지를 삭제하시겠습니까?\n연결된 호텔 정보도 함께 삭제됩니다.`)) return
+
+    setIsDeleting(true)
+    try {
+      const result = await deleteTopicPage(id)
+      if (result.success) {
+        alert('토픽 페이지가 삭제되었습니다.')
+        loadTopicPages()
+      } else {
+        alert(`삭제 실패: ${result.error}`)
       }
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['topic-pages-list'] })
-      alert('토픽 페이지가 삭제되었습니다.')
-    },
-    onError: (error: Error) => {
-      alert(`삭제 실패: ${error.message}`)
-    },
-  })
-
-  const handleDelete = (id: string, title: string) => {
-    if (confirm(`"${title}" 토픽 페이지를 삭제하시겠습니까?\n연결된 호텔 정보도 함께 삭제됩니다.`)) {
-      deleteMutation.mutate(id)
+    } catch (err) {
+      console.error('삭제 오류:', err)
+      alert('삭제 중 오류가 발생했습니다.')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -97,14 +98,74 @@ export default function TopicPagesPage() {
             </p>
           </div>
         </div>
-        <Link
-          href="/admin/topic-pages/new"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          새 토픽 페이지
-        </Link>
+        <div className="flex gap-3">
+          <Button
+            onClick={async () => {
+              if (!confirm('태그와 카테고리를 기반으로 토픽 페이지를 자동 생성하시겠습니까?\n이 작업은 1~2분 정도 소요됩니다.')) return
+              
+              setIsGenerating(true)
+              try {
+                const response = await fetch('/api/topic-pages/generate-from-tags', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                })
+                
+                const result = await response.json()
+                
+                if (result.success) {
+                  alert(`✅ 토픽 페이지 생성 완료!\n- 생성된 페이지: ${result.data.created}개\n- 건너뛴 페이지: ${result.data.skipped}개`)
+                  loadTopicPages()
+                } else {
+                  alert(`생성 실패: ${result.error}`)
+                }
+              } catch (err) {
+                console.error('토픽 페이지 생성 오류:', err)
+                alert('토픽 페이지 생성 중 오류가 발생했습니다.')
+              } finally {
+                setIsGenerating(false)
+              }
+            }}
+            disabled={isGenerating}
+            className="cursor-pointer bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                생성 중...
+              </>
+            ) : (
+              <>
+                <Wand2 className="h-4 w-4 mr-2" />
+                태그 기반 페이지 생성
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={() => setShowCustomModal(true)}
+            className="cursor-pointer bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            직접 태그 조합 페이지 생성
+          </Button>
+          <Link
+            href="/admin/topic-pages/new"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            새 토픽 페이지
+          </Link>
+        </div>
       </div>
+      
+      {showCustomModal && (
+        <CustomTopicPageModal
+          onClose={() => setShowCustomModal(false)}
+          onSuccess={() => {
+            setShowCustomModal(false)
+            loadTopicPages()
+          }}
+        />
+      )}
 
       {/* 필터 & 검색 */}
       <div className="rounded-lg border bg-white p-4 space-y-4">
@@ -240,7 +301,7 @@ export default function TopicPagesPage() {
                         </Link>
                         <button
                           onClick={() => handleDelete(page.id, page.title_ko)}
-                          disabled={deleteMutation.isPending}
+                          disabled={isDeleting}
                           className="p-2 rounded-md text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
                           title="삭제"
                         >
@@ -254,6 +315,324 @@ export default function TopicPagesPage() {
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// 직접 태그 조합 페이지 생성 모달
+interface CustomTopicPageModalProps {
+  onClose: () => void
+  onSuccess: () => void
+}
+
+function CustomTopicPageModal({ onClose, onSuccess }: CustomTopicPageModalProps) {
+  const [categories, setCategories] = useState<any[]>([])
+  const [allTags, setAllTags] = useState<any[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(false)
+  const [tagsLoading, setTagsLoading] = useState(false)
+  
+  const [formData, setFormData] = useState({
+    slug: '',
+    title_ko: '',
+    intro_ko: '',
+  })
+
+  // 카테고리 로드
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await fetch('/api/hashtags/categories')
+        const result = await response.json()
+        if (result.success && result.data) {
+          setCategories(result.data.filter((cat: any) => cat.slug !== 'ai-extracted'))
+        }
+      } catch (err) {
+        console.error('카테고리 로드 오류:', err)
+      }
+    }
+    loadCategories()
+  }, [])
+
+  // 선택된 카테고리 변경 시 태그 로드
+  useEffect(() => {
+    if (selectedCategories.size === 0) {
+      setAllTags([])
+      return
+    }
+
+    const loadTags = async () => {
+      setTagsLoading(true)
+      try {
+        // 선택된 모든 카테고리의 태그 로드
+        const tagPromises = Array.from(selectedCategories).map(async (categoryId) => {
+          const response = await fetch(`/api/hashtags/tags?category_id=${categoryId}`)
+          const result = await response.json()
+          return result.success ? result.data.filter((tag: any) => tag.is_active) : []
+        })
+        
+        const tagsArrays = await Promise.all(tagPromises)
+        const mergedTags = tagsArrays.flat()
+        
+        // 중복 제거 (id 기준)
+        const uniqueTags = Array.from(
+          new Map(mergedTags.map((tag: any) => [tag.id, tag])).values()
+        )
+        
+        setAllTags(uniqueTags)
+      } catch (err) {
+        console.error('태그 로드 오류:', err)
+      } finally {
+        setTagsLoading(false)
+      }
+    }
+    loadTags()
+  }, [selectedCategories])
+  
+  const handleToggleCategory = (categoryId: string) => {
+    const newSelected = new Set(selectedCategories)
+    if (newSelected.has(categoryId)) {
+      newSelected.delete(categoryId)
+    } else {
+      newSelected.add(categoryId)
+    }
+    setSelectedCategories(newSelected)
+  }
+
+  const handleToggleTag = (tagId: string) => {
+    const newSelected = new Set(selectedTags)
+    if (newSelected.has(tagId)) {
+      newSelected.delete(tagId)
+    } else {
+      newSelected.add(tagId)
+    }
+    setSelectedTags(newSelected)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (selectedTags.size === 0) {
+      alert('최소 1개 이상의 태그를 선택해주세요.')
+      return
+    }
+
+    if (!formData.slug || !formData.title_ko) {
+      alert('Slug와 제목은 필수입니다.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const selectedTagObjects = allTags.filter((tag) => selectedTags.has(tag.id))
+      const tagNames = selectedTagObjects.map((tag) => tag.name_ko)
+
+      const response = await fetch('/api/topic-pages/generate-custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: formData.slug,
+          title_ko: formData.title_ko,
+          intro_ko: formData.intro_ko,
+          tag_ids: Array.from(selectedTags),
+          tag_names: tagNames,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        alert(`✅ 토픽 페이지 생성 완료!\n- 연결된 호텔: ${result.data.connectedHotels}개`)
+        onSuccess()
+      } else {
+        alert(`생성 실패: ${result.error}`)
+      }
+    } catch (err) {
+      console.error('페이지 생성 오류:', err)
+      alert('페이지 생성 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-semibold">직접 태그 조합 페이지 생성</h3>
+          <p className="text-sm text-gray-600 mt-1">원하는 태그를 선택하여 커스텀 토픽 페이지를 생성합니다.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col h-full">
+          <div className="p-6 space-y-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
+            {/* 기본 정보 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Slug *</label>
+                <input
+                  type="text"
+                  value={formData.slug}
+                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                  placeholder="french-style-hotels"
+                  className="w-full px-3 py-2 border rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">제목 (한글) *</label>
+                <input
+                  type="text"
+                  value={formData.title_ko}
+                  onChange={(e) => setFormData({ ...formData, title_ko: e.target.value })}
+                  placeholder="프랑스 스타일 호텔"
+                  className="w-full px-3 py-2 border rounded-md"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">소개 글</label>
+              <textarea
+                value={formData.intro_ko}
+                onChange={(e) => setFormData({ ...formData, intro_ko: e.target.value })}
+                placeholder="페이지 소개 내용을 입력하세요..."
+                rows={3}
+                className="w-full px-3 py-2 border rounded-md"
+              />
+            </div>
+
+            {/* 카테고리 선택 (복수) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                카테고리 선택 ({selectedCategories.size}개 선택됨)
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3 border rounded-lg bg-gray-50">
+                {categories.map((cat) => (
+                  <label
+                    key={cat.id}
+                    className={cn(
+                      "flex items-center gap-2 p-3 rounded border cursor-pointer transition-colors",
+                      selectedCategories.has(cat.id)
+                        ? "bg-blue-50 border-blue-300"
+                        : "bg-white hover:bg-gray-50"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.has(cat.id)}
+                      onChange={() => handleToggleCategory(cat.id)}
+                      className="rounded"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{cat.name_ko}</span>
+                      <span className="text-xs text-gray-500">{cat.name_en}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 태그 선택 */}
+            {selectedCategories.size > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  태그 선택 ({selectedTags.size}개 선택됨)
+                </label>
+                {tagsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                  </div>
+                ) : allTags.length === 0 ? (
+                  <div className="text-sm text-gray-500 py-4">선택한 카테고리에 활성 태그가 없습니다.</div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* 카테고리별로 그룹화하여 표시 */}
+                    {categories
+                      .filter((cat) => selectedCategories.has(cat.id))
+                      .map((cat) => {
+                        const categoryTags = allTags.filter((tag: any) => tag.category_id === cat.id)
+                        if (categoryTags.length === 0) return null
+                        
+                        return (
+                          <div key={cat.id}>
+                            <div className="text-sm font-medium text-gray-700 mb-2">
+                              {cat.name_ko} ({categoryTags.length}개)
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                              {categoryTags.map((tag: any) => (
+                                <label
+                                  key={tag.id}
+                                  className={cn(
+                                    "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors",
+                                    selectedTags.has(tag.id)
+                                      ? "bg-purple-50 border-purple-300"
+                                      : "bg-white hover:bg-gray-50"
+                                  )}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedTags.has(tag.id)}
+                                    onChange={() => handleToggleTag(tag.id)}
+                                    className="rounded"
+                                  />
+                                  <span className="text-sm">{tag.name_ko}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 선택된 태그 미리보기 */}
+            {selectedTags.size > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">선택된 태그</label>
+                <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg border">
+                  {allTags
+                    .filter((tag) => selectedTags.has(tag.id))
+                    .map((tag) => (
+                      <span
+                        key={tag.id}
+                        className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium"
+                      >
+                        {tag.name_ko}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="p-6 border-t flex justify-end gap-3">
+            <Button type="button" variant="outline" onClick={onClose} className="cursor-pointer">
+              취소
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading || selectedTags.size === 0}
+              className="cursor-pointer bg-blue-600 hover:bg-blue-700"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  생성 중...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  페이지 생성
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   )

@@ -82,12 +82,12 @@ export async function POST(request: NextRequest) {
     // Public 폴더 이미지 추가
     let foundPublicPath: string | null = null;
     let publicFiles: any[] = [];
-    
+
     for (const publicPath of publicPaths) {
       const { data: files, error: publicError } = await supabase.storage
         .from(MEDIA_BUCKET)
         .list(publicPath, { limit: 1000 });
-      
+
       if (!publicError && files && files.length > 0) {
         foundPublicPath = publicPath;
         publicFiles = files;
@@ -97,23 +97,23 @@ export async function POST(request: NextRequest) {
     }
 
     if (foundPublicPath && publicFiles.length > 0) {
-      publicFiles.forEach((file) => {
-        if (file.name && !file.name.includes('.emptyFolderPlaceholder') && !file.name.startsWith('.')) {
+        publicFiles.forEach((file) => {
+          if (file.name && !file.name.includes('.emptyFolderPlaceholder') && !file.name.startsWith('.')) {
           const fullPath = `${foundPublicPath}/${file.name}`;
-          const { data: urlData } = supabase.storage
-            .from(MEDIA_BUCKET)
-            .getPublicUrl(fullPath);
+            const { data: urlData } = supabase.storage
+              .from(MEDIA_BUCKET)
+              .getPublicUrl(fullPath);
 
-          allImages.push({
-            name: file.name,
-            path: fullPath,
-            url: urlData.publicUrl,
-            size: (file as { metadata?: { size?: number } }).metadata?.size,
-            contentType: (file as { metadata?: { mimetype?: string } }).metadata?.mimetype,
-            folder: 'public'
-          });
-        }
-      });
+            allImages.push({
+              name: file.name,
+              path: fullPath,
+              url: urlData.publicUrl,
+              size: (file as { metadata?: { size?: number } }).metadata?.size,
+              contentType: (file as { metadata?: { mimetype?: string } }).metadata?.mimetype,
+              folder: 'public'
+            });
+          }
+        });
     }
 
     // Originals 폴더 확인 (두 가지 경로)

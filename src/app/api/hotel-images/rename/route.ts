@@ -93,12 +93,12 @@ export async function POST(req: NextRequest) {
         
         if (duplicateFile) {
           console.log(`[파일명 변경] 중복 발견: ${toFilename}`)
-          return NextResponse.json({ 
-            success: false, 
-            error: `동일한 파일명이 이미 존재합니다: ${toFilename}`, 
-            code: 'DUPLICATE' 
-          }, { status: 409 })
-        }
+            return NextResponse.json({ 
+              success: false, 
+              error: `동일한 파일명이 이미 존재합니다: ${toFilename}`, 
+              code: 'DUPLICATE' 
+            }, { status: 409 })
+          }
       }
     }
 
@@ -132,9 +132,9 @@ export async function POST(req: NextRequest) {
 
     // file_path나 storage_path로도 찾기
     const { data: pathRecords } = await supabase
-      .from('select_hotel_media')
-      .select('*')
-      .eq('sabre_id', sabreOld)
+        .from('select_hotel_media')
+        .select('*')
+        .eq('sabre_id', sabreOld)
       .or(`file_path.eq.${fromPath},storage_path.eq.${fromPath}`)
 
     // 중복 제거 (id 기준)

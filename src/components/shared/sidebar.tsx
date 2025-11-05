@@ -29,6 +29,7 @@ import {
   Globe,
   Star,
   Link as LinkIcon,
+  Hash,
 } from 'lucide-react'
 
 interface NavItem {
@@ -68,6 +69,7 @@ const navSections: NavSection[] = [
       { label: '호텔 이미지 관리', href: '/admin/hotel-images', icon: Image, requiredRole: 'admin' },
       { label: '호텔 콘텐츠 관리', href: '/admin/hotel-content', icon: FileText, requiredRole: 'admin' },
       { label: '호텔 아티클 관리', href: '/admin/hotel-articles', icon: Newspaper, requiredRole: 'admin' },
+      { label: '해시태그 관리', href: '/admin/hashtags', icon: Hash, requiredRole: 'admin' },
       { label: '호텔 토픽 페이지 관리', href: '/admin/topic-pages', icon: FileText, requiredRole: 'admin' },
       { label: 'UTM 생성기', href: '/admin/utm-generator', icon: LinkIcon, requiredRole: 'admin' },
       { label: '맴버쉽 관리', href: '/admin/membership', icon: Users, requiredRole: 'admin' },
@@ -156,13 +158,13 @@ export function Sidebar() {
                         className={cn(
                           'group flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors',
                           isActive
-                            ? 'bg-primary/10 text-primary'
+                            ? 'bg-blue-50 text-blue-700 font-semibold border-l-4 border-blue-600 -ml-px pl-2'
                             : 'text-foreground hover:bg-muted/70'
                         )}
                         aria-current={isActive ? 'page' : undefined}
                       >
                         {Icon ? (
-                          <Icon className={cn('h-4 w-4', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
+                          <Icon className={cn('h-4 w-4', isActive ? 'text-blue-600' : 'text-muted-foreground group-hover:text-foreground')} />
                         ) : null}
                         <span>{item.label}</span>
                       </Link>

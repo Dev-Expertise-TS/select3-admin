@@ -623,24 +623,6 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
             
             {/* 업로드 및 동기화 버튼 */}
             <div className="flex justify-between items-center gap-2 mb-4">
-              <Button
-                type="button"
-                variant="outline"
-                className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                onClick={syncStorageToDb}
-                disabled={syncing || fileUploading}
-              >
-                {syncing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    동기화 중...
-                  </>
-                ) : (
-                  <>
-                    <Database className="h-4 w-4 mr-2" /> Storage → DB 일괄 동기화
-                  </>
-                )}
-              </Button>
             <div className="flex gap-2">
               <Button
                   type="button"
@@ -658,6 +640,14 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                       <Upload className="h-4 w-4 mr-2" /> 로컬 파일 업로드
                     </>
                   )}
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={() => setUrlModalOpen(true)}
+                  disabled={syncing || fileUploading}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> 이미지 URL로 업로드
                 </Button>
               <Button
                 type="button"
@@ -705,14 +695,24 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   '캐시 초기화'
                 )}
               </Button>
-                <Button
-                  type="button"
-                  className="bg-blue-600 hover:bg-blue-700"
-                  onClick={() => setUrlModalOpen(true)}
-                  disabled={syncing || fileUploading}
-                >
-                  <Plus className="h-4 w-4 mr-2" /> 이미지 URL로 업로드
-                </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                onClick={syncStorageToDb}
+                disabled={syncing || fileUploading}
+              >
+                {syncing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    동기화 중...
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-4 w-4 mr-2" /> Storage → DB 일괄 동기화
+                  </>
+                )}
+              </Button>
               </div>
               {/* 숨겨진 파일 input */}
               <input
@@ -803,11 +803,11 @@ const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                     className="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500"
                   />
                 </label>
-                <SortableImageCard
-                  image={image}
-                  hotelId={hotelId}
-                  hotel={hotel}
-                  hotelVersion={hotelVersion}
+              <SortableImageCard
+                image={image}
+                hotelId={hotelId}
+                hotel={hotel}
+                hotelVersion={hotelVersion}
                 onRenameSuccess={({ oldPath, newPath, newName }) => {
                   setLocalImages((prev) => {
                     if (!prev) return prev

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { User as UserType } from '@/types/auth'
 import { cn } from '@/lib/utils'
 import { AuthGuard } from '@/components/shared/auth-guard'
-import { updateUser, deleteUser as deleteUserAction } from '@/features/users/actions'
+import { getUsers, updateUser, deleteUser as deleteUserAction } from '@/features/users/actions'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserType[]>([])
@@ -49,19 +49,20 @@ export default function AdminUsersPage() {
     }
   }
 
-  // 사용자 목록 조회
+  // 사용자 목록 조회 (Server Actions 사용)
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/users/list')
-      const result = await response.json()
+      setError('')
+      const result = await getUsers()
 
-      if (result.success) {
-        setUsers(result.data || [])
+      if (result.success && result.data) {
+        setUsers(result.data)
       } else {
         setError(result.error || '사용자 목록을 가져오는데 실패했습니다.')
       }
-    } catch {
+    } catch (err) {
+      console.error('사용자 목록 조회 오류:', err)
       setError('사용자 목록을 가져오는데 실패했습니다.')
     } finally {
       setLoading(false)
