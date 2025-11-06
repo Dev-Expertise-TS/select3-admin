@@ -7,7 +7,7 @@ export type ChainFormData = {
   chain_id?: number
   name_kr?: string | null
   name_en?: string | null
-  slug?: string | null
+  chain_slug?: string | null
   chain_sort_order?: number | null
   status?: string | null
 }
@@ -35,16 +35,16 @@ export async function saveChain(formData: FormData): Promise<ActionResult<ChainF
   const chainId = formData.get('chain_id') ? Number(formData.get('chain_id')) : undefined
   const nameKr = formData.get('name_kr') as string || null
   const nameEn = formData.get('name_en') as string || null
-  const slug = formData.get('slug') as string || null
+  const chainSlug = formData.get('chain_slug') as string || null
   const status = ((formData.get('status') as string) || 'active').trim()
   
-  console.log('[chain-brand] saveChain input:', { chainId, nameKr, nameEn, slug, status })
+  console.log('[chain-brand] saveChain input:', { chainId, nameKr, nameEn, chainSlug, status })
   
   // hotel_chains 테이블의 실제 컬럼명 사용
   const chainData: Record<string, unknown> = {
     chain_name_ko: nameKr,
     chain_name_en: nameEn,
-    slug: slug,
+    chain_slug: chainSlug,
     status: status,
   }
 
@@ -75,7 +75,7 @@ export async function saveChain(formData: FormData): Promise<ActionResult<ChainF
     chain_id: dbData.chain_id as number,
     name_kr: (dbData.chain_name_ko as string) || null,
     name_en: (dbData.chain_name_en as string) || null,
-    slug: (dbData.slug as string) || null,
+    chain_slug: (dbData.chain_slug as string) || null,
     chain_sort_order: (dbData.chain_sort_order as number) || null,
     status: ((dbData.status as string) || 'active').trim()
   }
@@ -89,14 +89,14 @@ export async function createChain(formData: FormData): Promise<ActionResult<Chai
 
   const nameKr = formData.get('name_kr') as string || null
   const nameEn = formData.get('name_en') as string || null
-  const slug = formData.get('slug') as string || null
+  const chainSlug = formData.get('chain_slug') as string || null
   const status = ((formData.get('status') as string) || 'active').trim()
   
   // hotel_chains 테이블의 실제 컬럼명 사용
   const chainData: Record<string, unknown> = {
     chain_name_ko: nameKr,
     chain_name_en: nameEn,
-    slug: slug,
+    chain_slug: chainSlug,
     status: status,
   }
 
@@ -117,7 +117,7 @@ export async function createChain(formData: FormData): Promise<ActionResult<Chai
     chain_id: dbData.chain_id as number,
     name_kr: (dbData.chain_name_ko as string) || null,
     name_en: (dbData.chain_name_en as string) || null,
-    slug: (dbData.slug as string) || null,
+    chain_slug: (dbData.chain_slug as string) || null,
     chain_sort_order: (dbData.chain_sort_order as number) || null,
     status: ((dbData.status as string) || 'active').trim()
   }

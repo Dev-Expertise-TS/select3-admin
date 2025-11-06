@@ -29,7 +29,7 @@ export type Chain = {
   chain_id: number
   name_kr: string | null
   name_en: string | null
-  slug: string | null
+  chain_slug: string | null
   chain_sort_order?: number | null
   status?: string | null
 }
@@ -174,8 +174,14 @@ function SortableBrandRow({
             type="text"
             value={String(editingData.brand_slug ?? '')}
             onChange={(e) => onFieldChange('brand_slug', e.target.value)}
+            onFocus={(e) => {
+              // 포커스 시 값이 비어있다면 브랜드(영문)으로부터 자동 생성
+              if (!e.target.value && editingData.name_en) {
+                onFieldChange('brand_slug', slugify(String(editingData.name_en)))
+              }
+            }}
             className="w-full border rounded px-2 py-1 text-xs font-mono text-gray-700"
-            placeholder="brand-slug"
+            placeholder="brand-slug (포커스 시 자동 생성)"
           />
         </td>
         <td className="border p-2">
@@ -334,10 +340,10 @@ function SortableChainRow({
         <td className="border p-2">
           <input
             type="text"
-            value={String(editingData.slug ?? '')}
-            onChange={(e) => onFieldChange('slug', e.target.value)}
-            className="w-full border rounded px-2 py-1 text-xs"
-            placeholder="slug"
+            value={String(editingData.chain_slug ?? '')}
+            onChange={(e) => onFieldChange('chain_slug', e.target.value)}
+            className="w-full border rounded px-2 py-1 text-xs font-mono text-gray-700"
+            placeholder="chain-slug"
           />
         </td>
         <td className="border p-2">
@@ -374,7 +380,7 @@ function SortableChainRow({
       <td className="border p-2 text-center text-sm">{chain.chain_sort_order ?? '-'}</td>
       <td className="border p-2 text-sm">{chain.name_kr || '-'}</td>
       <td className="border p-2 text-sm">{chain.name_en || '-'}</td>
-      <td className="border p-2 text-sm">{chain.slug || '-'}</td>
+      <td className="border p-2 text-sm font-mono text-gray-700">{chain.chain_slug || '-'}</td>
       <td className="border p-2 text-center">
         <span className={`px-2 py-1 rounded text-xs font-medium ${chain.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
           {chain.status === 'active' ? '활성' : '비활성'}
@@ -516,6 +522,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     fd.append('chain_id', String(brand.chain_id ?? ''))
     fd.append('name_kr', String(brand.name_kr ?? ''))
     fd.append('name_en', String(brand.name_en ?? ''))
+    fd.append('brand_slug', String(brand.brand_slug ?? ''))
     fd.append('status', String(brand.status ?? 'active'))
     
     console.log('[ChainBrandTabs] Saving brand with FormData:', {
@@ -523,6 +530,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
       chain_id: fd.get('chain_id'),
       name_kr: fd.get('name_kr'),
       name_en: fd.get('name_en'),
+      brand_slug: fd.get('brand_slug'),
       status: fd.get('status')
     })
     
@@ -536,6 +544,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
         brand_id: res.data.brand_id || brand.brand_id,
         name_kr: res.data.name_kr ?? brand.name_kr,
         name_en: res.data.name_en ?? brand.name_en,
+        brand_slug: res.data.brand_slug ?? brand.brand_slug,
         chain_id: res.data.chain_id ?? brand.chain_id,
         brand_sort_order: res.data.brand_sort_order ?? brand.brand_sort_order,
         status: res.data.status ?? brand.status
@@ -564,14 +573,14 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     fd.append('chain_id', String(chain.chain_id))
     fd.append('name_kr', String(chain.name_kr ?? ''))
     fd.append('name_en', String(chain.name_en ?? ''))
-    fd.append('slug', String(chain.slug ?? ''))
+    fd.append('chain_slug', String(chain.chain_slug ?? ''))
     fd.append('status', String(chain.status ?? 'active'))
     
     console.log('[ChainBrandTabs] Saving chain with FormData:', {
       chain_id: fd.get('chain_id'),
       name_kr: fd.get('name_kr'),
       name_en: fd.get('name_en'),
-      slug: fd.get('slug'),
+      chain_slug: fd.get('chain_slug'),
       status: fd.get('status')
     })
     
@@ -585,7 +594,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
         chain_id: res.data.chain_id || chain.chain_id,
         name_kr: res.data.name_kr ?? chain.name_kr,
         name_en: res.data.name_en ?? chain.name_en,
-        slug: res.data.slug ?? chain.slug,
+        chain_slug: res.data.chain_slug ?? chain.chain_slug,
         chain_sort_order: res.data.chain_sort_order ?? chain.chain_sort_order,
         status: res.data.status ?? chain.status
       }
@@ -619,6 +628,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     fd.append('chain_id', String(editingBrandData.chain_id ?? ''))
     fd.append('name_kr', String(editingBrandData.name_kr ?? ''))
     fd.append('name_en', String(editingBrandData.name_en ?? ''))
+    fd.append('brand_slug', String(editingBrandData.brand_slug ?? ''))
     fd.append('status', String(editingBrandData.status ?? 'active'))
 
     const res = editingBrandId === 'new' ? await createBrand(fd) : await saveBrand(fd)
@@ -636,6 +646,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
           brand_id: res.data.brand_id || 0,
           name_kr: res.data.name_kr ?? null,
           name_en: res.data.name_en ?? null,
+          brand_slug: res.data.brand_slug ?? null,
           chain_id: res.data.chain_id ?? null,
           brand_sort_order: res.data.brand_sort_order ?? null,
           status: res.data.status ?? 'active'
@@ -647,6 +658,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
           brand_id: res.data.brand_id || (editingBrandId as number),
           name_kr: res.data.name_kr ?? null,
           name_en: res.data.name_en ?? null,
+          brand_slug: res.data.brand_slug ?? null,
           chain_id: res.data.chain_id ?? null,
           brand_sort_order: res.data.brand_sort_order ?? null,
           status: res.data.status ?? 'active'
@@ -679,7 +691,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     }
     fd.append('name_kr', String(editingChainData.name_kr ?? ''))
     fd.append('name_en', String(editingChainData.name_en ?? ''))
-    fd.append('slug', String(editingChainData.slug ?? ''))
+    fd.append('chain_slug', String(editingChainData.chain_slug ?? ''))
     fd.append('status', String(editingChainData.status ?? 'active'))
 
     const res = editingChainId === 'new' ? await createChain(fd) : await saveChain(fd)
@@ -697,7 +709,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
           chain_id: res.data.chain_id || 0,
           name_kr: res.data.name_kr ?? null,
           name_en: res.data.name_en ?? null,
-          slug: res.data.slug ?? null,
+          chain_slug: res.data.chain_slug ?? null,
           chain_sort_order: res.data.chain_sort_order ?? null,
           status: res.data.status ?? 'active'
         }
@@ -708,7 +720,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
           chain_id: res.data.chain_id || (editingChainId as number),
           name_kr: res.data.name_kr ?? null,
           name_en: res.data.name_en ?? null,
-          slug: res.data.slug ?? null,
+          chain_slug: res.data.chain_slug ?? null,
           chain_sort_order: res.data.chain_sort_order ?? null,
           status: res.data.status ?? 'active'
         }
@@ -851,8 +863,17 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
             type="text"
             value={String(editingBrandData.brand_slug ?? '')}
             onChange={(e) => setEditingBrandData(prev => ({ ...prev, brand_slug: e.target.value }))}
+            onFocus={(e) => {
+              // 포커스 시 값이 비어있다면 브랜드(영문)으로부터 자동 생성
+              if (!e.target.value && editingBrandData.name_en) {
+                setEditingBrandData(prev => ({ 
+                  ...prev, 
+                  brand_slug: slugify(String(editingBrandData.name_en))
+                }))
+              }
+            }}
             className="w-full border rounded px-2 py-1 text-xs font-mono text-gray-700"
-            placeholder="brand-slug"
+            placeholder="brand-slug (포커스 시 자동 생성)"
           />
         </td>
         <td className="border p-2">
@@ -922,10 +943,10 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
         <td className="border p-2">
           <input
             type="text"
-            value={String(editingChainData.slug ?? '')}
-            onChange={(e) => setEditingChainData(prev => ({ ...prev, slug: e.target.value }))}
-            className="w-full border rounded px-2 py-1 text-xs"
-            placeholder="slug"
+            value={String(editingChainData.chain_slug ?? '')}
+            onChange={(e) => setEditingChainData(prev => ({ ...prev, chain_slug: e.target.value }))}
+            className="w-full border rounded px-2 py-1 text-xs font-mono text-gray-700"
+            placeholder="chain-slug"
           />
         </td>
         <td className="border p-2">
@@ -1066,7 +1087,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                       <th className="border p-2 text-center" style={{ width: '70px' }}>순서</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>체인(한글)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>체인(영문)</th>
-                      <th className="border p-2 text-left" style={{ width: '150px' }}>Slug</th>
+                      <th className="border p-2 text-left" style={{ width: '150px' }}>Chain Slug</th>
                       <th className="border p-2 text-center" style={{ width: '90px' }}>상태</th>
                       <th className="border p-2 text-left" style={{ width: '200px' }}>작업</th>
                     </tr>
