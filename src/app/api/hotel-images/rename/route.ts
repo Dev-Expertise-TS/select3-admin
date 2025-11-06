@@ -24,13 +24,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: '경로 형식이 잘못되었습니다.' }, { status: 400 })
     }
 
-    const dir = fromPath.slice(0, idx) // e.g., public/slug
+    const dir = fromPath.slice(0, idx) // e.g., public/slug or public/slug/subfolder
     const oldName = fromPath.slice(idx + 1)
-    const pathParts = dir.split('/') // [public, slug]
-    if (pathParts.length !== 2 || (pathParts[0] !== DIR_PUBLIC)) {
-      // 파일명 변경은 public 폴더에서만 허용
-      return NextResponse.json({ success: false, error: 'public 폴더에서만 파일명 변경이 가능합니다.' }, { status: 400 })
+    const pathParts = dir.split('/') // [public, slug, ...] or [public, slug]
+    
+    // public 폴더 확인 (더 유연하게)
+    if (pathParts.length < 2 || pathParts[0] !== DIR_PUBLIC) {
+      return NextResponse.json({ 
+        success: false, 
+        error: `public 폴더에서만 파일명 변경이 가능합니다. (현재 경로: ${dir})` 
+      }, { status: 400 })
     }
+    
     const slug = pathParts[1]
 
     // 확장자 동일성 체크
@@ -48,25 +53,61 @@ export async function POST(req: NextRequest) {
     const toPath = `${dir}/${toFilename}`
 
     // 파일명 규칙 검증 및 sabre/seq 추출
-    // public: slug_sabre_seq_widthw.ext (seq는 1자리 이상 숫자)
-    const rxPubStem = new RegExp(`^${slug}_(\\d+)_([0-9]+)(?:_\\d+w)?\\.${oldExt}$`)
-    const oldMatch = oldName.match(rxPubStem)
-    if (!oldMatch) {
-      return NextResponse.json({ success: false, error: '현재 파일명이 규격(slug_sabre_seq[_widthw].ext)과 일치하지 않습니다.' }, { status: 400 })
-    }
-    const sabreOld = oldMatch[1]
-    const seqOld = oldMatch[2]
-
-    // 새 파일명 검증
-    const newMatch = toFilename.match(new RegExp(`^${slug}_(\\d+)_([0-9]+)(?:_\\d+w)?\\.${newExt}$`))
-    if (!newMatch) {
-      return NextResponse.json({ success: false, error: `새 파일명은 ${slug}_sabre_seq[_widthw].ext 형식이어야 합니다.` }, { status: 400 })
-    }
-    const sabreNew = newMatch[1]
-    const seqNew = newMatch[2]
+    // 형식: [prefix]_sabreId_seq[_widthw].ext
+    // 예시: the-upper-house-hong-kong_111923_02_1600w.avif
+    // slug와 파일명 prefix가 다를 수 있으므로 유연하게 처리
+    const rxGeneral = new RegExp(`^([a-z0-9-]+)_(\\d+)_([0-9]+)(?:_\\d+w)?\\.${oldExt}$`)
+    const oldMatch = oldName.match(rxGeneral)
     
+    if (!oldMatch) {
+      console.log('[파일명 변경] 파일명 형식 불일치:', {
+        fromPath,
+        dir,
+        oldName,
+        slug,
+        oldExt,
+        expectedPattern: '[prefix]_[sabreId]_[seq][_widthw].' + oldExt,
+        regex: rxGeneral.toString(),
+        testResult: rxGeneral.test(oldName)
+      })
+      return NextResponse.json({ 
+        success: false, 
+        error: `현재 파일명이 규격과 일치하지 않습니다.\n\n현재 파일: ${oldName}\n기대 형식: [prefix]_[sabreId]_[seq][_widthw].${oldExt}\n예시: hotel-name_123456_01.${oldExt} 또는 hotel-name_123456_01_1600w.${oldExt}\n\n경로: ${fromPath}` 
+      }, { status: 400 })
+    }
+    
+    const filePrefix = oldMatch[1]  // 파일명의 실제 prefix (예: the-upper-house-hong-kong)
+    const sabreOld = oldMatch[2]
+    const seqOld = oldMatch[3]
+
+    console.log('[파일명 변경] 파일명 파싱 성공:', { prefix: filePrefix, sabreId: sabreOld, seq: seqOld, oldName })
+
+    // 새 파일명 검증 - prefix는 변경 가능, 형식만 맞으면 OK
+    const newRegex = new RegExp(`^([a-z0-9-]+)_(\\d+)_([0-9]+)(?:_\\d+w)?\\.${newExt}$`)
+    const newMatch = toFilename.match(newRegex)
+    
+    if (!newMatch) {
+      console.log('[파일명 변경] 새 파일명 형식 불일치:', {
+        toFilename,
+        expectedPattern: '[prefix]_[sabreId]_[seq][_widthw].' + newExt,
+        regex: newRegex.toString(),
+        testResult: newRegex.test(toFilename)
+      })
+      return NextResponse.json({ 
+        success: false, 
+        error: `새 파일명은 [prefix]_[sabreId]_[seq][_widthw].${newExt} 형식이어야 합니다.\n\n입력한 파일명: ${toFilename}\n예시: hotel-name_${sabreOld}_01.${newExt}\n또는: hotel-name_${sabreOld}_01_1600w.${newExt}` 
+      }, { status: 400 })
+    }
+    
+    const newFilePrefix = newMatch[1]  // 그룹 1: prefix
+    const sabreNew = newMatch[2]       // 그룹 2: sabreId
+    const seqNew = newMatch[3]         // 그룹 3: seq
+    
+    console.log('[파일명 변경] 새 파일명 파싱:', { prefix: newFilePrefix, sabreId: sabreNew, seq: seqNew, newFilename: toFilename })
+    
+    // sabreId만 동일해야 함 (prefix와 seq는 변경 가능)
     if (sabreOld !== sabreNew) {
-      return NextResponse.json({ success: false, error: 'sabre_id는 변경할 수 없습니다.' }, { status: 400 })
+      return NextResponse.json({ success: false, error: `sabre_id는 변경할 수 없습니다. (현재: ${sabreOld}, 새: ${sabreNew})` }, { status: 400 })
     }
 
     const supabase = createServiceRoleClient()
