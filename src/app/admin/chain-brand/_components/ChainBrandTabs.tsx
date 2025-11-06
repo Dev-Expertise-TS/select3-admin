@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Save, X, Trash2, Link2, Edit, GripVertical, PlusCircle, List } from 'lucide-react'
 import { saveChain, createChain, saveBrand, createBrand, updateChainSortOrder, updateBrandSortOrder, deleteChain, deleteBrand } from '@/features/chain-brand/actions'
 import ConnectedHotelsModal from './ConnectedHotelsModal'
+import { slugify } from '@/lib/format'
 import {
   DndContext,
   closestCenter,
@@ -37,6 +38,7 @@ export type Brand = {
   brand_id: number
   name_kr: string | null
   name_en: string | null
+  brand_slug: string | null
   chain_id: number | null
   brand_sort_order?: number | null
   status?: string | null
@@ -155,9 +157,25 @@ function SortableBrandRow({
           <input
             type="text"
             value={String(editingData.name_en ?? '')}
-            onChange={(e) => onFieldChange('name_en', e.target.value)}
+            onChange={(e) => {
+              const newValue = e.target.value
+              onFieldChange('name_en', newValue)
+              // 자동으로 brand_slug 생성
+              if (newValue) {
+                onFieldChange('brand_slug', slugify(newValue))
+              }
+            }}
             className="w-full border rounded px-2 py-1 text-xs"
             placeholder="브랜드(영문)"
+          />
+        </td>
+        <td className="border p-2">
+          <input
+            type="text"
+            value={String(editingData.brand_slug ?? '')}
+            onChange={(e) => onFieldChange('brand_slug', e.target.value)}
+            className="w-full border rounded px-2 py-1 text-xs font-mono text-gray-700"
+            placeholder="brand-slug"
           />
         </td>
         <td className="border p-2">
@@ -209,6 +227,7 @@ function SortableBrandRow({
       <td className="border p-2 text-center text-sm font-mono text-gray-700">{brand.brand_id}</td>
       <td className="border p-2 text-sm">{brand.name_kr || '-'}</td>
       <td className="border p-2 text-sm">{brand.name_en || '-'}</td>
+      <td className="border p-2 text-sm font-mono text-gray-700">{brand.brand_slug || '-'}</td>
       <td className="border p-2 text-sm">
         {chains.find(c => c.chain_id === brand.chain_id)?.name_kr || '-'}
       </td>
@@ -814,9 +833,26 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
           <input
             type="text"
             value={String(editingBrandData.name_en ?? '')}
-            onChange={(e) => setEditingBrandData(prev => ({ ...prev, name_en: e.target.value }))}
+            onChange={(e) => {
+              const newValue = e.target.value
+              setEditingBrandData(prev => ({ 
+                ...prev, 
+                name_en: newValue,
+                // 자동으로 brand_slug 생성
+                brand_slug: newValue ? slugify(newValue) : ''
+              }))
+            }}
             className="w-full border rounded px-2 py-1 text-xs"
             placeholder="브랜드(영문)"
+          />
+        </td>
+        <td className="border p-2">
+          <input
+            type="text"
+            value={String(editingBrandData.brand_slug ?? '')}
+            onChange={(e) => setEditingBrandData(prev => ({ ...prev, brand_slug: e.target.value }))}
+            className="w-full border rounded px-2 py-1 text-xs font-mono text-gray-700"
+            placeholder="brand-slug"
           />
         </td>
         <td className="border p-2">
@@ -965,6 +1001,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                       <th className="border p-2 text-center" style={{ width: '80px' }}>Brand ID</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>브랜드(한글)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>브랜드(영문)</th>
+                      <th className="border p-2 text-left" style={{ width: '150px' }}>Brand Slug</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>체인</th>
                       <th className="border p-2 text-center" style={{ width: '90px' }}>상태</th>
                       <th className="border p-2 text-left" style={{ width: '200px' }}>작업</th>

@@ -167,14 +167,18 @@ const SortableImageCard: React.FC<{
                                 body: JSON.stringify({ fromPath: currentPath, toFilename: trimmed })
                               })
                               if (!res.ok) {
+                                const errorData = await res.json().catch(() => ({}))
+                                const errorMessage = errorData.error || '파일명 변경 요청이 실패했습니다.'
+                                
                                 if (res.status === 409) {
-                                  const errorData = await res.json().catch(() => ({}))
-                                  const errorMessage = errorData.error || '동일한 파일명이 이미 존재합니다.'
                                   alert(`${errorMessage}\n\n다른 파일명을 입력하세요.`)
                                   next = trimmed
                                   continue
                                 }
-                                alert('파일명 변경 요청이 실패했습니다.')
+                                
+                                // 상세 오류 메시지 표시
+                                console.error('[파일명 변경] 오류:', { status: res.status, error: errorMessage, data: errorData })
+                                alert(`파일명 변경 실패:\n${errorMessage}`)
                                 return
                               }
                               const data = await res.json()

@@ -16,6 +16,7 @@ export type BrandFormData = {
   brand_id?: number
   name_kr?: string | null
   name_en?: string | null
+  brand_slug?: string | null
   chain_id?: number | null
   brand_sort_order?: number | null
   status?: string | null
@@ -202,14 +203,16 @@ export async function saveBrand(formData: FormData): Promise<ActionResult<BrandF
   // Prefer canonical columns; fallback to legacy brand_name_* if DB schema differs
   const nameKo = (formData.get('name_kr') as string) ?? (formData.get('brand_name_ko') as string) ?? null
   const nameEn = (formData.get('name_en') as string) ?? (formData.get('brand_name_en') as string) ?? null
+  const brandSlug = (formData.get('brand_slug') as string) || null
   const status = ((formData.get('status') as string) || 'active').trim()
   const chainId = formData.get('chain_id') ? Number(formData.get('chain_id')) : null
   
-  console.log('[chain-brand] saveBrand input:', { brandId, nameKo, nameEn, chainId, status })
+  console.log('[chain-brand] saveBrand input:', { brandId, nameKo, nameEn, brandSlug, chainId, status })
   
   const brandData: Record<string, unknown> = {
     brand_name_ko: nameKo || null,
     brand_name_en: nameEn || null,
+    brand_slug: brandSlug,
     chain_id: chainId,
     status: status,
   }
@@ -277,6 +280,7 @@ export async function saveBrand(formData: FormData): Promise<ActionResult<BrandF
     brand_id: dbData.brand_id as number,
     name_kr: (dbData.brand_name_ko as string) || null,
     name_en: (dbData.brand_name_en as string) || null,
+    brand_slug: (dbData.brand_slug as string) || null,
     chain_id: (dbData.chain_id as number) || null,
     brand_sort_order: (dbData.brand_sort_order as number) || null,
     status: ((dbData.status as string) || 'active').trim()
@@ -291,10 +295,12 @@ export async function createBrand(formData: FormData): Promise<ActionResult<Bran
 
   const nameKo = (formData.get('name_kr') as string) ?? (formData.get('brand_name_ko') as string) ?? null
   const nameEn = (formData.get('name_en') as string) ?? (formData.get('brand_name_en') as string) ?? null
+  const brandSlug = (formData.get('brand_slug') as string) || null
   const status = ((formData.get('status') as string) || 'active').trim()
   const brandData: Record<string, unknown> = {
     brand_name_ko: nameKo || null,
     brand_name_en: nameEn || null,
+    brand_slug: brandSlug,
     chain_id: formData.get('chain_id') ? Number(formData.get('chain_id')) : null,
     status: status,
   }
@@ -313,6 +319,7 @@ export async function createBrand(formData: FormData): Promise<ActionResult<Bran
       const legacyBrandData: Record<string, unknown> = {
         name_kr: nameKo || null,
         name_en: nameEn || null,
+        brand_slug: brandSlug,
         chain_id: formData.get('chain_id') ? Number(formData.get('chain_id')) : null,
         status: status,
       }
@@ -338,6 +345,7 @@ export async function createBrand(formData: FormData): Promise<ActionResult<Bran
     brand_id: dbData.brand_id as number,
     name_kr: (dbData.brand_name_ko as string) || null,
     name_en: (dbData.brand_name_en as string) || null,
+    brand_slug: (dbData.brand_slug as string) || null,
     chain_id: (dbData.chain_id as number) || null,
     brand_sort_order: (dbData.brand_sort_order as number) || null,
     status: ((dbData.status as string) || 'active').trim()
