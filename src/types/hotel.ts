@@ -17,6 +17,7 @@ export interface HotelSearchResult {
   id_old: number | null
   property_name_ko: string | null
   property_name_en: string | null
+  slug?: string | null
   rate_plan_code: string[] | null
   created_at: string | null
   updated_at: string | null

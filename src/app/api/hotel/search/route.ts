@@ -17,6 +17,7 @@ async function searchHotels(query: string) {
         paragon_id, 
         brand_id, 
         id_old,
+        slug,
         hotel_brands(
           brand_id,
           brand_name_ko,
@@ -53,6 +54,7 @@ async function searchHotels(query: string) {
       paragon_id, 
       brand_id, 
       id_old,
+      slug,
       hotel_brands(
         brand_id,
         brand_name_ko,

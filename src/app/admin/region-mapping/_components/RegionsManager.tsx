@@ -510,13 +510,13 @@ export function RegionsManager({ initialItems }: Props) {
     const filtered = statusFilter === 'all' 
       ? items 
       : items.filter(item => {
-          if (statusFilter === 'active') {
+      if (statusFilter === 'active') {
             return item.status === 'active'
-          } else if (statusFilter === 'inactive') {
+      } else if (statusFilter === 'inactive') {
             return item.status !== 'active'
-          }
+      }
           return false
-        })
+    })
     
     console.log('[RegionsManager] Filtered result:', filtered.length, 'items')
     console.log('[RegionsManager] Filtered items (first 5):', filtered.slice(0, 5).map(i => ({ 

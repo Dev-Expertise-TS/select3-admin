@@ -1779,14 +1779,19 @@ export default function HotelSearchWidget({
                 path: data.data.folderPath,
                 loading: false,
                 error: null,
-                originalsExists: false,
-                originalsPath: '',
+                originalsExists: true, // Originals 폴더도 함께 생성됨
+                originalsPath: data.data.originalsPath || '',
                 originalsFileCount: 0
               },
               success: data.data.message
             }
           }
         })
+        
+        // 폴더 생성 후 상태 재확인
+        setTimeout(() => {
+          checkStorageFolder(hotelId, sabreId)
+        }, 500)
       } else {
         setImageManagementState(prev => {
           const currentState = prev[hotelId]
@@ -2755,6 +2760,12 @@ export default function HotelSearchWidget({
                       >
                         브랜드(영문)
                       </th>
+                  <th 
+                    scope="col" 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    호텔 페이지 경로
+                  </th>
                       <th 
                         scope="col" 
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -2792,6 +2803,12 @@ export default function HotelSearchWidget({
                         scope="col" 
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
+                        호텔 페이지 경로
+                      </th>
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
                         Rate Plan Code
                       </th>
                     </>
@@ -2802,6 +2819,7 @@ export default function HotelSearchWidget({
                 {results.map((hotel, index) => {
                   const hotelId = String(hotel.sabre_id);
                   const isExpanded = expandedRowId === hotelId;
+                  const hotelPageUrl = hotel.slug ? `https://luxury-select.co.kr/hotel/${hotel.slug}` : null;
                   
                   return (
                     <React.Fragment key={`hotel-${hotel.sabre_id}-${hotel.paragon_id}-${index}`}>
@@ -2835,6 +2853,20 @@ export default function HotelSearchWidget({
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {(hotel as any).hotel_brands?.brand_name_en || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {hotelPageUrl ? (
+                            <a
+                              href={hotelPageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline break-all"
+                            >
+                              {hotelPageUrl}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 italic">N/A</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500">
                           {formatDate(hotel.created_at)}
@@ -2931,6 +2963,20 @@ export default function HotelSearchWidget({
                           )}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
+                          {hotelPageUrl ? (
+                            <a
+                              href={hotelPageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline break-all"
+                            >
+                              {hotelPageUrl}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 italic">N/A</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
                           <div className="flex items-center gap-2">
                             {(() => {
                               // rate_plan_code를 배열로 변환
@@ -2988,7 +3034,7 @@ export default function HotelSearchWidget({
                       {/* 확장 패널 */}
                       {isExpanded && expandedRowState && (
                         <tr>
-                          <td colSpan={5} className="px-0 py-0 w-full max-w-full overflow-x-hidden">
+                          <td colSpan={showInitialHotels ? 8 : 6} className="px-0 py-0 w-full max-w-full overflow-x-hidden">
                             <div className="bg-gray-50 border-t border-gray-200 w-full max-w-full">
                               <div className="px-6 py-6 w-full max-w-full">
                                 {/* 이미지 관리 모드 */}
