@@ -57,7 +57,17 @@ export default function AdminUsersPage() {
       const result = await getUsers()
 
       if (result.success && result.data) {
-        setUsers(result.data)
+        // 중복 제거 (id 기준)
+        const uniqueUsers = result.data.reduce((acc: UserType[], current) => {
+          const isDuplicate = acc.some(item => item.id === current.id)
+          if (!isDuplicate) {
+            acc.push(current)
+          } else {
+            console.warn(`[UsersPage] Duplicate user removed: id=${current.id}`)
+          }
+          return acc
+        }, [])
+        setUsers(uniqueUsers)
       } else {
         setError(result.error || '사용자 목록을 가져오는데 실패했습니다.')
       }

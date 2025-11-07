@@ -191,8 +191,8 @@ function SortableBrandRow({
             className="w-full border rounded px-2 py-1 text-xs"
           >
             <option value="">선택</option>
-            {chains.map(c => (
-              <option key={c.chain_id} value={c.chain_id}>
+            {chains.map((c, idx) => (
+              <option key={`chain-option-${c.chain_id}-${idx}`} value={c.chain_id}>
                 {c.name_kr || c.name_en || `ID: ${c.chain_id}`}
               </option>
             ))}
@@ -411,8 +411,30 @@ function SortableChainRow({
 
 export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
   const [activeTab, setActiveTab] = useState<TabType>('brands')
-  const [chains, setChains] = useState<Chain[]>(sortChains(initialChains))
-  const [brands, setBrands] = useState<Brand[]>(sortBrands(initialBrands))
+  
+  // 중복 제거 후 초기화
+  const uniqueChains = initialChains.reduce((acc: Chain[], current) => {
+    const isDuplicate = acc.some(item => item.chain_id === current.chain_id)
+    if (!isDuplicate) {
+      acc.push(current)
+    } else {
+      console.warn(`[ChainBrandTabs] Duplicate chain removed: ${current.chain_id}`)
+    }
+    return acc
+  }, [])
+  
+  const uniqueBrands = initialBrands.reduce((acc: Brand[], current) => {
+    const isDuplicate = acc.some(item => item.brand_id === current.brand_id)
+    if (!isDuplicate) {
+      acc.push(current)
+    } else {
+      console.warn(`[ChainBrandTabs] Duplicate brand removed: ${current.brand_id}`)
+    }
+    return acc
+  }, [])
+  
+  const [chains, setChains] = useState<Chain[]>(sortChains(uniqueChains))
+  const [brands, setBrands] = useState<Brand[]>(sortBrands(uniqueBrands))
   const [loading, setLoading] = useState(false)
   const [editingBrandId, setEditingBrandId] = useState<number | 'new' | null>(null)
   const [editingChainId, setEditingChainId] = useState<number | 'new' | null>(null)
@@ -883,8 +905,8 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
             className="w-full border rounded px-2 py-1 text-xs"
           >
             <option value="">선택</option>
-            {chains.map(c => (
-              <option key={c.chain_id} value={c.chain_id}>
+            {chains.map((c, idx) => (
+              <option key={`chain-option-${c.chain_id}-${idx}`} value={c.chain_id}>
                 {c.name_kr || c.name_en || `ID: ${c.chain_id}`}
               </option>
             ))}
@@ -1036,7 +1058,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                         const isRecentlyUpdated = recentlyUpdatedBrandId === brand.brand_id
                         return (
                           <SortableBrandRow
-                            key={brand.brand_id}
+                            key={`brand-${brand.brand_id}`}
                             brand={brand}
                             chains={chains}
                             isEditing={isEditing}
@@ -1100,7 +1122,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                         const isRecentlyUpdated = recentlyUpdatedChainId === chain.chain_id
                         return (
                           <SortableChainRow
-                            key={chain.chain_id}
+                            key={`chain-${chain.chain_id}`}
                             chain={chain}
                             isEditing={isEditing}
                             editingData={editingChainData}

@@ -54,12 +54,36 @@ async function getData() {
     }
     console.log(`[chain-brand] Fetched ${brandsRes.data?.length || 0} brands`)
 
+    // 중복 제거 먼저 수행
+    const uniqueChainsData = (chainsRes.data ?? []).reduce((acc: any[], current) => {
+      const chainId = current.chain_id
+      const isDuplicate = acc.some(item => item.chain_id === chainId)
+      if (!isDuplicate) {
+        acc.push(current)
+      } else {
+        console.warn(`[chain-brand] Duplicate chain removed: ${chainId}`)
+      }
+      return acc
+    }, [])
+    
+    const uniqueBrandsData = (brandsRes.data ?? []).reduce((acc: any[], current) => {
+      const brandId = current.brand_id
+      const isDuplicate = acc.some(item => item.brand_id === brandId)
+      if (!isDuplicate) {
+        acc.push(current)
+      } else {
+        console.warn(`[chain-brand] Duplicate brand removed: ${brandId}`)
+      }
+      return acc
+    }, [])
+
     // 실제 컬럼명 확인 (데이터가 있을 때만)
-    const chainsColumns = chainsRes.data && chainsRes.data.length > 0 ? Object.keys(chainsRes.data[0]) : []
-    const brandsColumns = brandsRes.data && brandsRes.data.length > 0 ? Object.keys(brandsRes.data[0]) : []
+    const chainsColumns = uniqueChainsData.length > 0 ? Object.keys(uniqueChainsData[0]) : []
+    const brandsColumns = uniqueBrandsData.length > 0 ? Object.keys(uniqueBrandsData[0]) : []
     
     console.log('[chain-brand] Available chains columns:', chainsColumns)
     console.log('[chain-brand] Available brands columns:', brandsColumns)
+    console.log(`[chain-brand] Data loaded: ${uniqueChainsData.length} chains, ${uniqueBrandsData.length} brands`)
 
 
 
@@ -71,7 +95,7 @@ async function getData() {
     }
 
     // 동적으로 컬럼 매핑
-    const chains: Chain[] = (chainsRes.data ?? []).map((r: Record<string, unknown>) => {
+    const chains: Chain[] = uniqueChainsData.map((r: Record<string, unknown>) => {
       // chain_id 컬럼 찾기 (chain_id, id, chainId 등)
       const chainIdKey = chainsColumns.find(key => 
         key.toLowerCase().includes('chain') && key.toLowerCase().includes('id')
@@ -115,7 +139,7 @@ async function getData() {
       return mappedChain
     })
 
-    const brands: Brand[] = (brandsRes.data ?? []).map((r: Record<string, unknown>) => {
+    const brands: Brand[] = uniqueBrandsData.map((r: Record<string, unknown>) => {
       // brand_id 컬럼 찾기
       const brandIdKey = brandsColumns.find(key => 
         key.toLowerCase().includes('brand') && key.toLowerCase().includes('id')

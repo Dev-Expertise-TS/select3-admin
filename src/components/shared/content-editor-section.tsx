@@ -170,6 +170,41 @@ export function ContentEditorSection({
       {isExpanded && (
         <div className="p-4 bg-white flex justify-center">
           <div className="w-full max-w-4xl">
+            <style jsx global>{`
+              .hotel-content-editor .ql-container {
+                font-family: inherit;
+              }
+              .hotel-content-editor .ql-editor {
+                line-height: 1.8 !important;
+              }
+              .hotel-content-editor .ql-editor p {
+                margin-bottom: 1.2em !important;
+                line-height: 1.8 !important;
+              }
+              .hotel-content-editor .ql-editor h1,
+              .hotel-content-editor .ql-editor h2,
+              .hotel-content-editor .ql-editor h3,
+              .hotel-content-editor .ql-editor h4,
+              .hotel-content-editor .ql-editor h5,
+              .hotel-content-editor .ql-editor h6 {
+                margin-top: 1.5em !important;
+                margin-bottom: 0.8em !important;
+                line-height: 1.6 !important;
+              }
+              .hotel-content-editor .ql-editor ul,
+              .hotel-content-editor .ql-editor ol {
+                margin-bottom: 1.2em !important;
+              }
+              .hotel-content-editor .ql-editor li {
+                margin-bottom: 0.4em !important;
+                line-height: 1.8 !important;
+              }
+              .hotel-content-editor .ql-editor blockquote {
+                margin: 1.5em 0 !important;
+                padding: 0.8em 1.2em !important;
+                line-height: 1.7 !important;
+              }
+            `}</style>
             <ReactQuill
               {...({ ref: quillRef } as any)}
               theme="snow"
@@ -178,7 +213,7 @@ export function ContentEditorSection({
               onChange={handleEditorChange}
               modules={quillModules}
               formats={quillFormats}
-              className="bg-white"
+              className="bg-white hotel-content-editor"
               style={{ height: EDITOR_HEIGHTS[editorHeight], marginBottom: '42px' }}
             />
           </div>

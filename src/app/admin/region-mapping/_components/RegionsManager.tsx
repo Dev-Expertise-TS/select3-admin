@@ -190,12 +190,25 @@ function SortableRow({
 }
 
 export function RegionsManager({ initialItems }: Props) {
-  // ✅ 초기 데이터를 active 우선으로 정렬
+  // ✅ 초기 데이터를 active 우선으로 정렬 + 중복 제거
   const sortedInitialItems = useMemo(() => {
-    const activeItems = initialItems.filter(item => item.status === 'active')
-    const inactiveItems = initialItems.filter(item => item.status !== 'active')
+    // 중복 제거 먼저 수행
+    const uniqueItems = initialItems.reduce((acc: SelectRegion[], current) => {
+      const isDuplicate = acc.some(item => 
+        item.id === current.id && item.region_type === current.region_type
+      )
+      if (!isDuplicate) {
+        acc.push(current)
+      } else {
+        console.warn(`[RegionsManager] Initial data duplicate removed: ${current.region_type}-${current.id}`)
+      }
+      return acc
+    }, [])
     
-    console.log(`[RegionsManager] Initial data: ${activeItems.length} active, ${inactiveItems.length} inactive`)
+    const activeItems = uniqueItems.filter(item => item.status === 'active')
+    const inactiveItems = uniqueItems.filter(item => item.status !== 'active')
+    
+    console.log(`[RegionsManager] Initial data: ${activeItems.length} active, ${inactiveItems.length} inactive (${initialItems.length - uniqueItems.length} duplicates removed)`)
     
     return [...activeItems, ...inactiveItems]
   }, [initialItems])
@@ -493,29 +506,17 @@ export function RegionsManager({ initialItems }: Props) {
       country_ko: i.country_ko 
     })))
     
-    if (statusFilter === 'all') {
-      console.log('[RegionsManager] Filter is "all", returning all items:', items.length)
-      return items
-    }
-    
-    const filtered = items.filter(item => {
-      let matches = false
-      
-      if (statusFilter === 'active') {
-        // 활성: status가 정확히 'active'인 것만
-        matches = item.status === 'active'
-      } else if (statusFilter === 'inactive') {
-        // 비활성: status가 'active'가 아닌 모든 것 (null, undefined, 'inactive' 등)
-        matches = item.status !== 'active'
-      }
-      
-      // 처음 5개만 상세 로그
-      if (items.indexOf(item) < 5) {
-        console.log(`[RegionsManager] Item ${item.id}: status="${item.status}", filter="${statusFilter}", matches=${matches}`)
-      }
-      
-      return matches
-    })
+    // 필터링 (statusFilter가 'all'이면 모든 항목 포함)
+    const filtered = statusFilter === 'all' 
+      ? items 
+      : items.filter(item => {
+          if (statusFilter === 'active') {
+            return item.status === 'active'
+          } else if (statusFilter === 'inactive') {
+            return item.status !== 'active'
+          }
+          return false
+        })
     
     console.log('[RegionsManager] Filtered result:', filtered.length, 'items')
     console.log('[RegionsManager] Filtered items (first 5):', filtered.slice(0, 5).map(i => ({ 
@@ -524,7 +525,7 @@ export function RegionsManager({ initialItems }: Props) {
       city_ko: i.city_ko 
     })))
     
-    // 중복 제거 (region_type + id 조합으로 고유성 보장)
+    // 중복 제거 (region_type + id 조합으로 고유성 보장) - 항상 수행
     const uniqueFiltered = filtered.reduce((acc: SelectRegion[], current) => {
       const isDuplicate = acc.some(item => 
         item.id === current.id && item.region_type === current.region_type
@@ -537,7 +538,7 @@ export function RegionsManager({ initialItems }: Props) {
       return acc
     }, [])
     
-    console.log('[RegionsManager] After deduplication:', uniqueFiltered.length, 'items')
+    console.log('[RegionsManager] After deduplication:', uniqueFiltered.length, 'items (removed', filtered.length - uniqueFiltered.length, 'duplicates)')
     console.log('[RegionsManager] === FILTER DEBUG END ===')
     
     return uniqueFiltered

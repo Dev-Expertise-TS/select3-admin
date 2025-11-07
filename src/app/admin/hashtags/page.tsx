@@ -106,7 +106,17 @@ function CategoryManager() {
     try {
       const result = await getCategories()
       if (result.success && result.data) {
-        setCategories(result.data)
+        // 중복 제거 (id 기준)
+        const uniqueCategories = result.data.reduce((acc: TagCategory[], current) => {
+          const isDuplicate = acc.some(item => item.id === current.id)
+          if (!isDuplicate) {
+            acc.push(current)
+          } else {
+            console.warn(`[HashtagManager] Duplicate category removed: id=${current.id}`)
+          }
+          return acc
+        }, [])
+        setCategories(uniqueCategories)
       }
     } catch (err) {
       console.error('카테고리 로드 오류:', err)
@@ -257,7 +267,17 @@ function TagManager() {
     try {
       const result = await getTags(filterCategory || undefined, searchTerm || undefined)
       if (result.success && result.data) {
-        setTags(result.data)
+        // 중복 제거 (id 기준)
+        const uniqueTags = result.data.reduce((acc: TagType[], current) => {
+          const isDuplicate = acc.some(item => item.id === current.id)
+          if (!isDuplicate) {
+            acc.push(current)
+          } else {
+            console.warn(`[HashtagManager] Duplicate tag removed: id=${current.id}`)
+          }
+          return acc
+        }, [])
+        setTags(uniqueTags)
       }
     } catch (err) {
       console.error('태그 로드 오류:', err)
@@ -270,7 +290,17 @@ function TagManager() {
     try {
       const result = await getCategories()
       if (result.success && result.data) {
-        setCategories(result.data)
+        // 중복 제거 (id 기준)
+        const uniqueCategories = result.data.reduce((acc: TagCategory[], current) => {
+          const isDuplicate = acc.some(item => item.id === current.id)
+          if (!isDuplicate) {
+            acc.push(current)
+          } else {
+            console.warn(`[HashtagManager/Tags] Duplicate category removed: id=${current.id}`)
+          }
+          return acc
+        }, [])
+        setCategories(uniqueCategories)
       }
     } catch (err) {
       console.error('카테고리 로드 오류:', err)

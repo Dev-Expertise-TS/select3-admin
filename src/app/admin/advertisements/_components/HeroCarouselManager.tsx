@@ -76,6 +76,7 @@ function isExpired(endDate?: string | null): boolean {
 function SortableRow({ 
   slot, 
   isPending,
+  isModified,
   onUpdate, 
   onSave, 
   onDelete,
@@ -83,6 +84,7 @@ function SortableRow({
 }: { 
   slot: FeatureSlot
   isPending: boolean
+  isModified: boolean
   onUpdate: (id: number, field: string, value: string) => void
   onSave: (slot: FeatureSlot) => void
   onDelete: (id: number) => void
@@ -133,8 +135,7 @@ function SortableRow({
         <button
           onClick={() => onHotelSearchOpen(slot.id)}
           className={`text-left hover:text-purple-600 hover:underline transition-colors cursor-pointer w-full ${expired ? 'text-gray-500' : 'text-gray-900'}`}
-          title="호텔 검색하기"
-          disabled={expired}
+          title={expired ? '종료일이 지났지만 편집 가능합니다' : '호텔 검색하기'}
         >
           {slot.select_hotels?.property_name_ko || '호텔 선택하기'}
         </button>
@@ -147,7 +148,7 @@ function SortableRow({
           value={slot.slot_key} 
           onChange={(e) => onUpdate(slot.id, 'slot_key', e.target.value)} 
           className="w-24"
-          disabled={expired}
+          title={expired ? '종료일이 지났지만 편집 가능합니다' : ''}
         />
       </td>
       
@@ -158,7 +159,7 @@ function SortableRow({
           value={slot.start_date ?? ''} 
           onChange={(e) => onUpdate(slot.id, 'start_date', e.target.value)} 
           className="w-36"
-          disabled={expired}
+          title={expired ? '종료일이 지났지만 편집 가능합니다' : ''}
         />
       </td>
       
@@ -169,7 +170,7 @@ function SortableRow({
           value={slot.end_date ?? ''} 
           onChange={(e) => onUpdate(slot.id, 'end_date', e.target.value)} 
           className="w-36"
-          disabled={expired}
+          title={expired ? '종료일이 지났지만 편집 가능합니다' : ''}
         />
       </td>
       
@@ -185,8 +186,9 @@ function SortableRow({
             size="sm"
             variant="outline"
             onClick={() => onSave(slot)}
-            className="bg-green-600 hover:bg-green-700 text-white"
-            disabled={isPending || expired}
+            className={`${isModified ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+            disabled={isPending || !isModified}
+            title={!isModified ? '변경사항이 없습니다' : expired ? '종료일이 지났지만 변경사항을 저장할 수 있습니다' : '저장하기'}
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
             <Save className="h-3 w-3" />
@@ -208,6 +210,8 @@ function SortableRow({
 
 export default function HeroCarouselManager() {
   const [slots, setSlots] = useState<FeatureSlot[]>([])
+  const [originalSlots, setOriginalSlots] = useState<FeatureSlot[]>([]) // 원본 데이터 보관
+  const [modifiedSlotIds, setModifiedSlotIds] = useState<Set<number>>(new Set()) // 변경된 slot ID 추적
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -281,6 +285,8 @@ export default function HeroCarouselManager() {
         })
         
         setSlots(rows)
+        setOriginalSlots(JSON.parse(JSON.stringify(rows))) // 원본 데이터 깊은 복사
+        setModifiedSlotIds(new Set()) // 변경 추적 초기화
       } else {
         throw new Error(data.error || '데이터를 불러올 수 없습니다.')
       }
@@ -346,6 +352,14 @@ export default function HeroCarouselManager() {
         }
 
         setSuccess('데이터가 성공적으로 저장되었습니다.')
+        
+        // 해당 slot의 변경 추적 제거
+        setModifiedSlotIds(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(slot.id)
+          return newSet
+        })
+        
         loadSlots()
         
         // 성공 메시지 3초 후 자동 숨김
@@ -402,17 +416,41 @@ export default function HeroCarouselManager() {
     if (!searchingSlotId) return
 
     // 슬롯 데이터 업데이트
-    setSlots(prev => prev.map(slot => 
-      slot.id === searchingSlotId 
-        ? {
-            ...slot,
-            sabre_id: hotel.sabre_id,
-            select_hotels: {
-              property_name_ko: hotel.property_name_ko
-            }
+    setSlots(prev => prev.map(slot => {
+      if (slot.id === searchingSlotId) {
+        const updated = {
+          ...slot,
+          sabre_id: hotel.sabre_id,
+          select_hotels: {
+            property_name_ko: hotel.property_name_ko
           }
-        : slot
-    ))
+        }
+        
+        // 원본 데이터와 비교하여 변경 여부 확인
+        const original = originalSlots.find(o => o.id === searchingSlotId)
+        if (original) {
+          const isModified = 
+            updated.slot_key !== original.slot_key ||
+            updated.start_date !== original.start_date ||
+            updated.end_date !== original.end_date ||
+            updated.sabre_id !== original.sabre_id
+          
+          // 변경 추적 상태 업데이트
+          setModifiedSlotIds(prevSet => {
+            const newSet = new Set(prevSet)
+            if (isModified) {
+              newSet.add(searchingSlotId)
+            } else {
+              newSet.delete(searchingSlotId)
+            }
+            return newSet
+          })
+        }
+        
+        return updated
+      }
+      return slot
+    }))
 
     // 팝업 닫기
     handleHotelSearchClose()
@@ -491,7 +529,30 @@ export default function HeroCarouselManager() {
   const updateSlotField = (id: number, field: string, value: string) => {
     setSlots(prev => prev.map(s => {
       if (s.id === id) {
-        return { ...s, [field]: value || undefined }
+        const updated = { ...s, [field]: value || undefined }
+        
+        // 원본 데이터와 비교하여 변경 여부 확인
+        const original = originalSlots.find(o => o.id === id)
+        if (original) {
+          const isModified = 
+            updated.slot_key !== original.slot_key ||
+            updated.start_date !== original.start_date ||
+            updated.end_date !== original.end_date ||
+            updated.sabre_id !== original.sabre_id
+          
+          // 변경 추적 상태 업데이트
+          setModifiedSlotIds(prevSet => {
+            const newSet = new Set(prevSet)
+            if (isModified) {
+              newSet.add(id)
+            } else {
+              newSet.delete(id)
+            }
+            return newSet
+          })
+        }
+        
+        return updated
       }
       return s
     }))
@@ -780,6 +841,7 @@ export default function HeroCarouselManager() {
                         key={slot.id}
                         slot={slot}
                         isPending={isPending}
+                        isModified={modifiedSlotIds.has(slot.id)}
                         onUpdate={updateSlotField}
                         onSave={handleUpsert}
                         onDelete={handleDelete}

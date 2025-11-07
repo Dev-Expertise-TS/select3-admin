@@ -28,7 +28,17 @@ export function TopicPageHotelsManager({ pageId, hotels: initialHotels }: TopicP
     initialData: { success: true, data: initialHotels },
   })
 
-  const hotels = (response?.data || []) as TopicPageHotelWithInfo[]
+  // 중복 제거 (id 기준)
+  const hotelsRaw = (response?.data || []) as TopicPageHotelWithInfo[]
+  const hotels = hotelsRaw.reduce((acc: TopicPageHotelWithInfo[], current) => {
+    const isDuplicate = acc.some(item => item.id === current.id)
+    if (!isDuplicate) {
+      acc.push(current)
+    } else {
+      console.warn(`[TopicPageHotelsManager] Duplicate hotel removed: id=${current.id}`)
+    }
+    return acc
+  }, [])
 
   // 호텔 추가
   const addMutation = useMutation({

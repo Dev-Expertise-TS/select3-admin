@@ -159,17 +159,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. DB에 레코드 일괄 생성
-    const records = allImages.map((image) => ({
-      sabre_id: sabreId,
-      file_name: image.name,
-      file_path: image.path,
-      storage_path: image.path,
-      public_url: image.url,
-      file_type: image.contentType || 'image/jpeg',
-      file_size: image.size || 0,
-      slug: normalizedSlug,
-    }));
+    // 3. DB에 레코드 일괄 생성 (파일명에서 seq 추출)
+    const records = allImages.map((image) => {
+      // 파일명에서 seq 추출
+      // 형식: [prefix]_[sabreId]_[seq][_widthw].ext
+      // 예: the-upper-house-hong-kong_111923_02_1600w.avif
+      let imageSeq: number | null = null
+      
+      const fileName = image.name
+      const seqMatch = fileName.match(/^[a-z0-9-]+_\d+_([0-9]+)(?:_\d+w)?\./)
+      
+      if (seqMatch && seqMatch[1]) {
+        const parsedSeq = parseInt(seqMatch[1], 10)
+        if (!isNaN(parsedSeq)) {
+          imageSeq = parsedSeq
+          console.log(`[sync-to-db] 파일명에서 seq 추출: ${fileName} → seq: ${imageSeq}`)
+        }
+      }
+      
+      if (imageSeq === null) {
+        console.warn(`[sync-to-db] seq 추출 실패: ${fileName}`)
+      }
+      
+      return {
+        sabre_id: sabreId,
+        file_name: image.name,
+        file_path: image.path,
+        storage_path: image.path,
+        public_url: image.url,
+        file_type: image.contentType || 'image/jpeg',
+        file_size: image.size || 0,
+        slug: normalizedSlug,
+        image_seq: imageSeq,
+      }
+    });
 
     const { data: insertedRecords, error: insertError } = await supabase
       .from("select_hotel_media")
@@ -186,14 +209,20 @@ export async function POST(request: NextRequest) {
 
     console.log(`[sync-to-db] ✓ ${insertedRecords?.length || 0}개 레코드 생성 완료`);
 
+    // seq가 추출된 이미지 개수 확인
+    const seqExtractedCount = records.filter(r => r.image_seq !== null).length
+    const seqFailedCount = records.length - seqExtractedCount
+
     return NextResponse.json({
       success: true,
       data: {
         deleted: "기존 레코드 삭제됨",
         created: insertedRecords?.length || 0,
+        seqExtracted: seqExtractedCount,
+        seqFailed: seqFailedCount,
         images: allImages.map(img => ({ name: img.name, folder: img.folder }))
       },
-      message: `${insertedRecords?.length || 0}개의 이미지 레코드가 동기화되었습니다.`
+      message: `${insertedRecords?.length || 0}개의 이미지 레코드가 동기화되었습니다. (image_seq: ${seqExtractedCount}/${records.length})`
     });
   } catch (error) {
     console.error("[sync-to-db] 동기화 오류:", error);

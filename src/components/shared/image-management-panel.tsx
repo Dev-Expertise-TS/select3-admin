@@ -13,6 +13,7 @@ import {
   Trash2,
   Upload,
   Search,
+  Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { uploadHotelImagesFromUrls } from '@/features/hotel-images/actions'
@@ -35,6 +36,9 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
   // 로컬 파일 업로드 상태
   const [fileUploading, setFileUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // 상세 페이지 이미지 가져오기 상태
+  const [importing, setImporting] = useState(false)
   
   // DB 동기화 상태
   const [syncing, setSyncing] = useState(false)
@@ -99,6 +103,49 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
       alert(`업로드 중 오류가 발생했습니다: ${err instanceof Error ? err.message : '알 수 없는 오류'}`)
     } finally {
       setUploading(false)
+    }
+  }
+
+  // 상세 페이지 이미지 가져오기
+  const importFromDetails = async () => {
+    const sabreId = String(hotel.sabre_id || '')
+    
+    if (!sabreId) {
+      alert('Sabre ID가 없습니다.')
+      return
+    }
+    
+    if (!confirm('호텔 상세 페이지(property_details)에서 이미지를 가져옵니다.\n\n이미지가 많을 경우 시간이 걸릴 수 있습니다.\n계속하시겠습니까?')) {
+      return
+    }
+    
+    setImporting(true)
+    
+    try {
+      const res = await fetch('/api/hotel-images/import-from-details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sabreId })
+      })
+      
+      const data = await res.json()
+      
+      if (data?.success) {
+        const errorResults = data.data.results.filter((r: any) => !r.success)
+        if (errorResults.length > 0) {
+          alert(`가져오기 완료: ${data.data.uploaded}/${data.data.total}\n\n오류:\n${errorResults.slice(0, 5).map((r: any) => `- ${r.url}: ${r.error}`).join('\n')}${errorResults.length > 5 ? `\n... 외 ${errorResults.length - 5}개` : ''}`)
+        } else {
+          alert(`가져오기 완료: ${data.data.uploaded}/${data.data.total}개의 이미지를 저장했습니다.`)
+        }
+        onLoadStorageImages(hotelId, sabreId)
+      } else {
+        alert(`가져오기 실패: ${data?.error || '알 수 없는 오류'}`)
+      }
+    } catch (err) {
+      console.error('[importFromDetails] 오류:', err)
+      alert(`가져오기 중 오류가 발생했습니다: ${err instanceof Error ? err.message : '알 수 없는 오류'}`)
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -187,7 +234,11 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
       const data = await response.json()
       
       if (data.success) {
-        alert(`동기화 완료: ${data.data.created}개의 레코드가 생성되었습니다.`)
+        const seqInfo = data.data.seqExtracted !== undefined && data.data.seqFailed !== undefined
+          ? `\n\nimage_seq 추출: ${data.data.seqExtracted}/${data.data.created}개 성공${data.data.seqFailed > 0 ? `, ${data.data.seqFailed}개 실패` : ''}`
+          : ''
+        
+        alert(`동기화 완료: ${data.data.created}개의 레코드가 생성되었습니다.${seqInfo}`)
         // 이미지 목록 새로고침
         onLoadStorageImages(hotelId, sabreId)
       } else {
@@ -392,7 +443,7 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   type="button"
                   className="bg-green-600 hover:bg-green-700"
                   onClick={handleFileSelectClick}
-                  disabled={fileUploading || syncing}
+                  disabled={fileUploading || syncing || importing}
                 >
                   {fileUploading ? (
                     <>
@@ -409,14 +460,14 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   type="button"
                   className="bg-blue-600 hover:bg-blue-700"
                   onClick={() => setUrlModalOpen(true)}
-                  disabled={syncing || fileUploading}
+                  disabled={syncing || fileUploading || importing}
                 >
                   <Plus className="h-4 w-4 mr-2" /> 이미지 URL로 업로드
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={syncing}
+                  disabled={syncing || importing}
                   onClick={async () => {
                     try {
                       setSyncing(true)
@@ -464,7 +515,7 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   variant="outline"
                   className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
                   onClick={syncStorageToDb}
-                  disabled={syncing || fileUploading}
+                  disabled={syncing || fileUploading || importing}
                 >
                   {syncing ? (
                     <>
@@ -474,6 +525,23 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   ) : (
                     <>
                       <Database className="h-4 w-4 mr-2" /> Storage → DB 일괄 동기화
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-purple-600 hover:bg-purple-700"
+                  onClick={importFromDetails}
+                  disabled={importing || fileUploading || syncing}
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      가져오는 중...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" /> 호텔 상세 페이지 이미지 가져오기
                     </>
                   )}
                 </Button>
@@ -518,6 +586,7 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                     type="button"
                     variant="outline"
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    disabled={importing || syncing}
                     onClick={async () => {
                       if (!confirm(`선택한 ${selectedImages.size}개의 이미지를 삭제하시겠습니까?`)) return;
                       try {

@@ -48,7 +48,18 @@ export default function TopicPagesPage() {
         false
       )
       if (result.success && result.data) {
-        setTopicPages(result.data as TopicPageWithHotels[])
+        호텔 상세 페이지 이미지 가져오기        // 중복 제거 (id 기준)
+        const rawPages = result.data as TopicPageWithHotels[]
+        const uniquePages = rawPages.reduce((acc: TopicPageWithHotels[], current) => {
+          const isDuplicate = acc.some(item => item.id === current.id)
+          if (!isDuplicate) {
+            acc.push(current)
+          } else {
+            console.warn(`[TopicPagesPage] Duplicate page removed: id=${current.id}`)
+          }
+          return acc
+        }, [])
+        setTopicPages(uniquePages)
       }
     } catch (err) {
       console.error('토픽 페이지 로드 오류:', err)
