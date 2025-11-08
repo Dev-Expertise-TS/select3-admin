@@ -8,6 +8,7 @@ export interface TagCategory {
   slug: string | null
   name_ko: string | null
   name_en: string | null
+  tag_category_id: string | null // 외부 시스템 카테고리 ID
   sort_order: number
   is_facetable: boolean
   multi_select: boolean
@@ -25,8 +26,9 @@ export interface Tag {
   name_ko: string | null
   name_en: string | null
   category_id: string | null // uuid, FK to select_tag_categories
-  synonyms_ko: string
-  synonyms_en: string
+  tag_category_id: string | null // 카테고리의 tag_category_id 복사값
+  synonyms_ko: string[] // 동의어 배열
+  synonyms_en: string[] // 동의어 배열
   description_ko: string | null
   description_en: string | null
   weight: number

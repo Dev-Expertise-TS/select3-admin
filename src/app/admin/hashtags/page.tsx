@@ -171,6 +171,7 @@ function CategoryManager() {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Tag Category ID</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Slug</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">한글명</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">영문명</th>
@@ -183,6 +184,7 @@ function CategoryManager() {
             <tbody className="divide-y">
               {categories.map((category) => (
                 <tr key={category.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{category.tag_category_id || '-'}</td>
                   <td className="px-4 py-3 text-sm font-mono">{category.slug}</td>
                   <td className="px-4 py-3 text-sm font-medium">{category.name_ko}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{category.name_en}</td>
@@ -316,7 +318,7 @@ function TagManager() {
   }, [filterCategory, searchTerm])
 
   const handleDelete = async (id: string) => {
-    if (!confirm('이 태그를 삭제하시겠습니까?')) return
+    if (!confirm('이 태그를 삭제하시겠습니까?\n연결된 모든 호텔 매핑도 함께 삭제됩니다.')) return
 
     try {
       const result = await deleteTag(id)
@@ -439,11 +441,12 @@ function TagManager() {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Tag Category ID</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Slug</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">한글명</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">영문명</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">카테고리</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase">가중치</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">태그 설명 (한글)</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase">활성</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">작업</th>
               </tr>
@@ -451,13 +454,18 @@ function TagManager() {
             <tbody className="divide-y">
               {tags.map((tag) => (
                 <tr key={tag.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{tag.tag_category_id || '-'}</td>
                   <td className="px-4 py-3 text-sm font-mono">{tag.slug}</td>
                   <td className="px-4 py-3 text-sm font-medium">{tag.name_ko}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{tag.name_en}</td>
                   <td className="px-4 py-3 text-sm">
                     {(tag as any).category?.name_ko || '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-center">{tag.weight}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 max-w-xs">
+                    <div className="line-clamp-2" title={tag.description_ko || ''}>
+                      {tag.description_ko || '-'}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <span className={cn(
                       "px-2 py-1 rounded text-xs font-medium",
@@ -529,6 +537,7 @@ function CategoryModal({ category, onClose, onSave }: CategoryModalProps) {
     slug: category?.slug || '',
     name_ko: category?.name_ko || '',
     name_en: category?.name_en || '',
+    tag_category_id: category?.tag_category_id || '',
     sort_order: category?.sort_order ?? 0,
     is_facetable: category?.is_facetable ?? true,
     multi_select: category?.multi_select ?? true,
@@ -545,6 +554,7 @@ function CategoryModal({ category, onClose, onSave }: CategoryModalProps) {
       form.append('slug', formData.slug)
       form.append('name_ko', formData.name_ko)
       form.append('name_en', formData.name_en)
+      form.append('tag_category_id', formData.tag_category_id)
       form.append('sort_order', String(formData.sort_order))
       form.append('is_facetable', String(formData.is_facetable))
       form.append('multi_select', String(formData.multi_select))
@@ -587,11 +597,12 @@ function CategoryModal({ category, onClose, onSave }: CategoryModalProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">정렬순서</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tag Category ID</label>
               <Input
-                type="number"
-                value={formData.sort_order}
-                onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
+                type="text"
+                value={formData.tag_category_id}
+                onChange={(e) => setFormData({ ...formData, tag_category_id: e.target.value })}
+                placeholder="외부 시스템 카테고리 ID"
               />
             </div>
           </div>
@@ -616,14 +627,24 @@ function CategoryModal({ category, onClose, onSave }: CategoryModalProps) {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">아이콘</label>
-            <Input
-              type="text"
-              value={formData.icon}
-              onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-              placeholder="lucide-react 아이콘명"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">정렬순서</label>
+              <Input
+                type="number"
+                value={formData.sort_order}
+                onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">아이콘</label>
+              <Input
+                type="text"
+                value={formData.icon}
+                onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                placeholder="lucide-react 아이콘명"
+              />
+            </div>
           </div>
 
           <div className="flex gap-4">
@@ -675,8 +696,9 @@ function TagModal({ tag, categories, onClose, onSave }: TagModalProps) {
     name_ko: tag?.name_ko || '',
     name_en: tag?.name_en || '',
     category_id: tag?.category_id || '',
-    synonyms_ko: tag?.synonyms_ko || '',
-    synonyms_en: tag?.synonyms_en || '',
+    tag_category_id: tag?.tag_category_id || '',
+    synonyms_ko: Array.isArray(tag?.synonyms_ko) ? tag.synonyms_ko.join(', ') : '',
+    synonyms_en: Array.isArray(tag?.synonyms_en) ? tag.synonyms_en.join(', ') : '',
     description_ko: tag?.description_ko || '',
     description_en: tag?.description_en || '',
     weight: tag?.weight ?? 0,
@@ -684,6 +706,193 @@ function TagModal({ tag, categories, onClose, onSave }: TagModalProps) {
     icon: tag?.icon || ''
   })
   const [loading, setLoading] = useState(false)
+  const [cities, setCities] = useState<Array<{ id: number; city_ko: string; city_en: string; city_slug: string }>>([])
+  const [loadingCities, setLoadingCities] = useState(false)
+  const [countries, setCountries] = useState<Array<{ id: number; country_ko: string; country_en: string; country_slug: string }>>([])
+  const [loadingCountries, setLoadingCountries] = useState(false)
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false)
+  const [isGeneratingSlug, setIsGeneratingSlug] = useState(false)
+
+  // 선택된 카테고리 확인
+  const selectedCategory = categories.find(cat => cat.id === formData.category_id)
+  const isTravelCityCategory = selectedCategory?.slug === 'travel-city' || selectedCategory?.name_ko?.includes('여행도시')
+  const isTravelCountryCategory = selectedCategory?.slug === 'travel-country' || selectedCategory?.name_ko?.includes('여행지역')
+
+  // 카테고리가 변경되면 해당 카테고리의 tag_category_id 자동 설정
+  useEffect(() => {
+    if (formData.category_id) {
+      const category = categories.find(cat => cat.id === formData.category_id)
+      if (category?.tag_category_id && category.tag_category_id !== formData.tag_category_id) {
+        setFormData(prev => ({ ...prev, tag_category_id: category.tag_category_id || '' }))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.category_id])
+
+  // 여행도시 카테고리 선택 시 도시 목록 로드
+  useEffect(() => {
+    if (isTravelCityCategory) {
+      const fetchCities = async () => {
+        setLoadingCities(true)
+        try {
+          const response = await fetch('/api/regions?type=city&pageSize=1000&status=active')
+          const result = await response.json()
+          if (result.success && result.data) {
+            // 중복 제거 (id 기준)
+            const uniqueCities = result.data
+              .filter((city: any) => city.city_ko && city.city_slug)
+              .reduce((acc: any[], current: any) => {
+                const isDuplicate = acc.some(item => item.id === current.id)
+                if (!isDuplicate) {
+                  acc.push(current)
+                } else {
+                  console.warn(`[TagModal] Duplicate city removed: id=${current.id}`)
+                }
+                return acc
+              }, [])
+            setCities(uniqueCities)
+          }
+        } catch (error) {
+          console.error('도시 목록 로드 오류:', error)
+        } finally {
+          setLoadingCities(false)
+        }
+      }
+      fetchCities()
+    } else {
+      setCities([])
+    }
+  }, [isTravelCityCategory])
+
+  // 여행지역 카테고리 선택 시 국가 목록 로드
+  useEffect(() => {
+    if (isTravelCountryCategory) {
+      const fetchCountries = async () => {
+        setLoadingCountries(true)
+        try {
+          const response = await fetch('/api/regions?type=country&pageSize=1000&status=active')
+          const result = await response.json()
+          if (result.success && result.data) {
+            // 중복 제거 (id 기준)
+            const uniqueCountries = result.data
+              .filter((country: any) => country.country_ko && country.country_slug)
+              .reduce((acc: any[], current: any) => {
+                const isDuplicate = acc.some(item => item.id === current.id)
+                if (!isDuplicate) {
+                  acc.push(current)
+                } else {
+                  console.warn(`[TagModal] Duplicate country removed: id=${current.id}`)
+                }
+                return acc
+              }, [])
+            setCountries(uniqueCountries)
+          }
+        } catch (error) {
+          console.error('국가 목록 로드 오류:', error)
+        } finally {
+          setLoadingCountries(false)
+        }
+      }
+      fetchCountries()
+    } else {
+      setCountries([])
+    }
+  }, [isTravelCountryCategory])
+
+  // 도시 선택 시 한글명, 영문명, slug 자동 입력
+  const handleCitySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const cityId = parseInt(e.target.value)
+    const selectedCity = cities.find(city => city.id === cityId)
+    if (selectedCity) {
+      setFormData(prev => ({
+        ...prev,
+        name_ko: selectedCity.city_ko,
+        name_en: selectedCity.city_en || '',
+        slug: selectedCity.city_slug || ''
+      }))
+    }
+  }
+
+  // 국가 선택 시 한글명, 영문명, slug 자동 입력
+  const handleCountrySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const countryId = parseInt(e.target.value)
+    const selectedCountry = countries.find(country => country.id === countryId)
+    if (selectedCountry) {
+      setFormData(prev => ({
+        ...prev,
+        name_ko: selectedCountry.country_ko,
+        name_en: selectedCountry.country_en || '',
+        slug: selectedCountry.country_slug || ''
+      }))
+    }
+  }
+
+  // AI로 설명 생성
+  const handleGenerateDescription = async () => {
+    if (!formData.name_ko.trim()) {
+      alert('한글명을 먼저 입력해주세요.')
+      return
+    }
+
+    setIsGeneratingDescription(true)
+    try {
+      const response = await fetch('/api/hashtags/generate-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category_name: selectedCategory?.name_ko || null,
+          tag_name_ko: formData.name_ko.trim(),
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success && result.data?.description_ko) {
+        setFormData(prev => ({ ...prev, description_ko: result.data.description_ko }))
+        alert('✅ AI 설명이 생성되었습니다!')
+      } else {
+        alert(`설명 생성 실패: ${result.error || '알 수 없는 오류'}`)
+      }
+    } catch (error) {
+      console.error('설명 생성 오류:', error)
+      alert('설명 생성 중 오류가 발생했습니다.')
+    } finally {
+      setIsGeneratingDescription(false)
+    }
+  }
+
+  // AI로 Slug 생성
+  const handleGenerateSlug = async () => {
+    if (!formData.name_ko.trim()) {
+      alert('한글명을 먼저 입력해주세요.')
+      return
+    }
+
+    setIsGeneratingSlug(true)
+    try {
+      const response = await fetch('/api/hashtags/generate-slug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name_ko: formData.name_ko.trim(),
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success && result.data?.slug) {
+        setFormData(prev => ({ ...prev, slug: result.data.slug }))
+        alert('✅ AI Slug가 생성되었습니다!')
+      } else {
+        alert(`Slug 생성 실패: ${result.error || '알 수 없는 오류'}`)
+      }
+    } catch (error) {
+      console.error('Slug 생성 오류:', error)
+      alert('Slug 생성 중 오류가 발생했습니다.')
+    } finally {
+      setIsGeneratingSlug(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -729,26 +938,9 @@ function TagModal({ tag, categories, onClose, onSave }: TagModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Slug *</label>
-              <Input
-                type="text"
-                value={formData.slug}
-                onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">가중치</label>
-              <Input
-                type="number"
-                value={formData.weight}
-                onChange={(e) => setFormData({ ...formData, weight: parseInt(e.target.value) || 0 })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">카테고리</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">카테고리 *</label>
               <select
                 value={formData.category_id}
                 onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
@@ -762,15 +954,75 @@ function TagModal({ tag, categories, onClose, onSave }: TagModalProps) {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tag Category ID (자동 설정)</label>
+              <Input
+                type="text"
+                value={formData.tag_category_id}
+                onChange={(e) => setFormData({ ...formData, tag_category_id: e.target.value })}
+                placeholder="카테고리 선택 시 자동으로 설정됩니다"
+                className="bg-gray-50"
+                readOnly
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 여행도시 카테고리 선택 시 도시 선택 UI */}
+          {isTravelCityCategory && (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                도시 선택 {loadingCities && <Loader2 className="inline h-3 w-3 animate-spin ml-2" />}
+              </label>
+              <select
+                onChange={handleCitySelect}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                disabled={loadingCities}
+              >
+                <option value="">도시를 선택하세요 (한글명, 영문명, slug가 자동 입력됩니다)</option>
+                {cities.map((city, index) => (
+                  <option key={`city-${city.id}-${index}`} value={city.id}>
+                    {city.city_ko} ({city.city_en}) - {city.city_slug}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-blue-700 mt-2">
+                💡 도시를 선택하면 한글명, 영문명, Slug가 자동으로 입력됩니다.
+              </p>
+            </div>
+          )}
+
+          {/* 여행지역 카테고리 선택 시 국가 선택 UI */}
+          {isTravelCountryCategory && (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                국가 선택 {loadingCountries && <Loader2 className="inline h-3 w-3 animate-spin ml-2" />}
+              </label>
+              <select
+                onChange={handleCountrySelect}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                disabled={loadingCountries}
+              >
+                <option value="">국가를 선택하세요 (한글명, 영문명, slug가 자동 입력됩니다)</option>
+                {countries.map((country, index) => (
+                  <option key={`country-${country.id}-${index}`} value={country.id}>
+                    {country.country_ko} ({country.country_en}) - {country.country_slug}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-green-700 mt-2">
+                💡 국가를 선택하면 한글명, 영문명, Slug가 자동으로 입력됩니다.
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">한글명 *</label>
               <Input
                 type="text"
                 value={formData.name_ko}
                 onChange={(e) => setFormData({ ...formData, name_ko: e.target.value })}
+                placeholder={isTravelCityCategory ? "위에서 도시 선택 시 자동 입력" : isTravelCountryCategory ? "위에서 국가 선택 시 자동 입력" : ""}
                 required
               />
             </div>
@@ -780,8 +1032,48 @@ function TagModal({ tag, categories, onClose, onSave }: TagModalProps) {
                 type="text"
                 value={formData.name_en}
                 onChange={(e) => setFormData({ ...formData, name_en: e.target.value })}
+                placeholder={isTravelCityCategory ? "위에서 도시 선택 시 자동 입력" : isTravelCountryCategory ? "위에서 국가 선택 시 자동 입력" : ""}
               />
             </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">Slug *</label>
+                <button
+                  type="button"
+                  onClick={handleGenerateSlug}
+                  disabled={isGeneratingSlug || !formData.name_ko.trim()}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-700 bg-purple-100 rounded hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isGeneratingSlug ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3 w-3" />
+                      AI로 작성
+                    </>
+                  )}
+                </button>
+              </div>
+              <Input
+                type="text"
+                value={formData.slug}
+                onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                placeholder={isTravelCityCategory ? "위에서 도시 선택 시 자동 입력" : isTravelCountryCategory ? "위에서 국가 선택 시 자동 입력" : "AI로 작성 가능"}
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">가중치</label>
+            <Input
+              type="number"
+              value={formData.weight}
+              onChange={(e) => setFormData({ ...formData, weight: parseInt(e.target.value) || 0 })}
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -807,13 +1099,37 @@ function TagModal({ tag, categories, onClose, onSave }: TagModalProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">설명 (한글)</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">설명 (한글)</label>
+                <button
+                  type="button"
+                  onClick={handleGenerateDescription}
+                  disabled={isGeneratingDescription || !formData.name_ko.trim()}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-700 bg-purple-100 rounded hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isGeneratingDescription ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3 w-3" />
+                      AI로 작성
+                    </>
+                  )}
+                </button>
+              </div>
               <textarea
                 value={formData.description_ko}
                 onChange={(e) => setFormData({ ...formData, description_ko: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 rows={3}
+                placeholder="태그에 대한 설명... (또는 AI로 자동 생성)"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                카테고리와 한글명을 입력한 후 'AI로 작성' 버튼을 누르세요.
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">설명 (영문)</label>
