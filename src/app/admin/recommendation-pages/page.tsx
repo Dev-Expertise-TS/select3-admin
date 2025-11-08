@@ -37,19 +37,25 @@ export default function TopicPagesPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showCustomModal, setShowCustomModal] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // 추천 페이지 목록 조회
   const loadTopicPages = async () => {
     setIsLoading(true)
+    setError(null)
     try {
+      console.log('📋 추천 페이지 목록 조회 시작...', { statusFilter, searchInput })
       const result = await getTopicPagesList(
         statusFilter !== 'all' ? statusFilter : undefined,
         searchInput.trim() || undefined,
         false
       )
+      console.log('📋 조회 결과:', result)
+      
       if (result.success && result.data) {
         // 중복 제거 (id 기준)
         const rawPages = result.data as TopicPageWithHotels[]
+        console.log('📋 원본 데이터 개수:', rawPages.length)
         const uniquePages = rawPages.reduce((acc: TopicPageWithHotels[], current) => {
           const isDuplicate = acc.some(item => item.id === current.id)
           if (!isDuplicate) {
@@ -59,10 +65,15 @@ export default function TopicPagesPage() {
           }
           return acc
         }, [])
+        console.log('📋 중복 제거 후 데이터 개수:', uniquePages.length)
         setTopicPages(uniquePages)
+      } else {
+        console.error('❌ 조회 실패:', result.error)
+        setError(result.error || '데이터를 불러오는데 실패했습니다.')
       }
     } catch (err) {
-      console.error('추천 페이지 로드 오류:', err)
+      console.error('❌ 추천 페이지 로드 오류:', err)
+      setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.')
     } finally {
       setIsLoading(false)
     }
@@ -223,6 +234,15 @@ export default function TopicPagesPage() {
           <span>총 <strong className="text-gray-900">{topicPages.length}</strong>개 추천 페이지</span>
         </div>
       </div>
+
+      {/* 에러 메시지 */}
+      {error && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-4">
+          <p className="text-sm text-red-800">
+            <strong>오류:</strong> {error}
+          </p>
+        </div>
+      )}
 
       {/* 테이블 */}
       <div className="rounded-lg border bg-white overflow-hidden">

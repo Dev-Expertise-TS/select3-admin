@@ -12,11 +12,11 @@ type ActionResult<T = unknown> = {
 }
 
 // ========================================
-// 토픽 페이지 관련 Actions
+// 추천 페이지 관련 Actions
 // ========================================
 
 /**
- * 토픽 페이지 목록 조회
+ * 추천 페이지 목록 조회
  */
 export async function getTopicPagesList(
   status?: string,
@@ -26,12 +26,12 @@ export async function getTopicPagesList(
   try {
     const supabase = await createClient()
 
+    console.log('🔍 [Server Action] getTopicPagesList 시작', { status, search, publishedOnly })
+
+    // 외래키 없이 페이지 목록만 먼저 조회
     let query = supabase
       .from('select_recommendation_pages')
-      .select(`
-        *,
-        hotel_count:select_recommendation_page_hotels(count)
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
 
     // 배포 여부 필터
@@ -52,29 +52,41 @@ export async function getTopicPagesList(
     const { data, error } = await query
 
     if (error) {
-      console.error('토픽 페이지 목록 조회 실패:', error)
-      return { success: false, error: '토픽 페이지 목록을 조회하는데 실패했습니다.' }
+      console.error('❌ [Server Action] 추천 페이지 목록 조회 실패:', error)
+      return { success: false, error: `추천 페이지 목록을 조회하는데 실패했습니다: ${error.message}` }
     }
 
-    // hotel_count 정규화
-    const normalizedData = data?.map((page) => ({
-      ...page,
-      hotel_count: page.hotel_count?.[0]?.count || 0,
-    }))
+    console.log('✅ [Server Action] 조회된 데이터:', data?.length, '개')
+
+    // 각 페이지의 호텔 개수를 별도로 조회
+    const pagesWithCount = await Promise.all(
+      (data || []).map(async (page) => {
+        const { count } = await supabase
+          .from('select_recommendation_page_hotels')
+          .select('*', { count: 'exact', head: true })
+          .eq('page_id', page.id)
+        
+        return {
+          ...page,
+          hotel_count: count || 0,
+        }
+      })
+    )
 
     return {
       success: true,
-      data: normalizedData as TopicPage[],
-      meta: { count: normalizedData?.length || 0 }
+      data: pagesWithCount as TopicPage[],
+      meta: { count: pagesWithCount?.length || 0 }
     }
   } catch (err) {
-    console.error('토픽 페이지 목록 조회 중 오류:', err)
-    return { success: false, error: '서버 오류가 발생했습니다.' }
+    console.error('❌ [Server Action] 추천 페이지 목록 조회 중 오류:', err)
+    const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류'
+    return { success: false, error: `서버 오류가 발생했습니다: ${errorMessage}` }
   }
 }
 
 /**
- * 토픽 페이지 단일 조회
+ * 추천 페이지 단일 조회
  */
 export async function getTopicPage(id?: string, slug?: string): Promise<ActionResult<TopicPage>> {
   try {
@@ -84,21 +96,10 @@ export async function getTopicPage(id?: string, slug?: string): Promise<ActionRe
 
     const supabase = await createClient()
 
+    // 외래키 없이 페이지 먼저 조회
     let query = supabase
       .from('select_recommendation_pages')
-      .select(`
-        *,
-        hotels:select_recommendation_page_hotels(
-          *,
-          hotel:select_hotels(
-            sabre_id,
-            property_name_ko,
-            property_name_en,
-            city_ko,
-            country_ko
-          )
-        )
-      `)
+      .select('*')
 
     if (id) {
       query = query.eq('id', id)
@@ -106,31 +107,56 @@ export async function getTopicPage(id?: string, slug?: string): Promise<ActionRe
       query = query.eq('slug', slug)
     }
 
-    const { data, error } = await query.single()
+    const { data: pageData, error: pageError } = await query.single()
 
-    if (error) {
-      console.error('토픽 페이지 조회 실패:', error)
-      return { success: false, error: '토픽 페이지를 찾을 수 없습니다.' }
+    if (pageError) {
+      console.error('❌ 추천 페이지 조회 실패:', pageError)
+      return { success: false, error: '추천 페이지를 찾을 수 없습니다.' }
     }
 
-    // hotels 정규화
+    // 연결된 호텔 정보 별도 조회
+    const { data: hotelsData, error: hotelsError } = await supabase
+      .from('select_recommendation_page_hotels')
+      .select('*')
+      .eq('page_id', pageData.id)
+      .order('pin_to_top', { ascending: false })
+      .order('rank_manual', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
+
+    if (hotelsError) {
+      console.warn('⚠️ 호텔 정보 조회 실패:', hotelsError)
+    }
+
+    // 각 호텔의 상세 정보 조회
+    const hotelsWithInfo = await Promise.all(
+      (hotelsData || []).map(async (hotelMapping: any) => {
+        const { data: hotelInfo } = await supabase
+          .from('select_hotels')
+          .select('sabre_id, property_name_ko, property_name_en, city_ko, country_ko')
+          .eq('sabre_id', hotelMapping.sabre_id)
+          .single()
+
+        return {
+          ...hotelMapping,
+          hotel: hotelInfo || null,
+        }
+      })
+    )
+
     const normalizedData = {
-      ...data,
-      hotels: data.hotels?.map((item: any) => ({
-        ...item,
-        hotel: Array.isArray(item.hotel) && item.hotel.length > 0 ? item.hotel[0] : null,
-      })),
+      ...pageData,
+      hotels: hotelsWithInfo,
     }
 
     return { success: true, data: normalizedData as TopicPage }
   } catch (err) {
-    console.error('토픽 페이지 조회 중 오류:', err)
+    console.error('❌ 추천 페이지 조회 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
 
 /**
- * 토픽 페이지 생성
+ * 추천 페이지 생성
  */
 export async function createTopicPage(formData: FormData): Promise<ActionResult<TopicPage>> {
   try {
@@ -180,20 +206,20 @@ export async function createTopicPage(formData: FormData): Promise<ActionResult<
       .single()
 
     if (error) {
-      console.error('토픽 페이지 생성 실패:', error)
-      return { success: false, error: '토픽 페이지 생성에 실패했습니다.' }
+      console.error('❌ 추천 페이지 생성 실패:', error)
+      return { success: false, error: '추천 페이지 생성에 실패했습니다.' }
     }
 
     revalidatePath('/admin/recommendation-pages')
     return { success: true, data: data as TopicPage }
   } catch (err) {
-    console.error('토픽 페이지 생성 중 오류:', err)
+    console.error('❌ 추천 페이지 생성 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
 
 /**
- * 토픽 페이지 수정
+ * 추천 페이지 수정
  */
 export async function updateTopicPage(id: string, updates: Record<string, unknown>): Promise<ActionResult<TopicPage>> {
   try {
@@ -228,20 +254,20 @@ export async function updateTopicPage(id: string, updates: Record<string, unknow
       .single()
 
     if (error) {
-      console.error('토픽 페이지 수정 실패:', error)
-      return { success: false, error: '토픽 페이지 수정에 실패했습니다.' }
+      console.error('❌ 추천 페이지 수정 실패:', error)
+      return { success: false, error: '추천 페이지 수정에 실패했습니다.' }
     }
 
     revalidatePath('/admin/recommendation-pages')
     return { success: true, data: data as TopicPage }
   } catch (err) {
-    console.error('토픽 페이지 수정 중 오류:', err)
+    console.error('❌ 추천 페이지 수정 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
 
 /**
- * 토픽 페이지 삭제
+ * 추천 페이지 삭제
  */
 export async function deleteTopicPage(id: string): Promise<ActionResult> {
   try {
@@ -260,24 +286,24 @@ export async function deleteTopicPage(id: string): Promise<ActionResult> {
       .eq('id', id)
 
     if (error) {
-      console.error('토픽 페이지 삭제 실패:', error)
-      return { success: false, error: '토픽 페이지 삭제에 실패했습니다.' }
+      console.error('❌ 추천 페이지 삭제 실패:', error)
+      return { success: false, error: '추천 페이지 삭제에 실패했습니다.' }
     }
 
     revalidatePath('/admin/recommendation-pages')
     return { success: true }
   } catch (err) {
-    console.error('토픽 페이지 삭제 중 오류:', err)
+    console.error('❌ 추천 페이지 삭제 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
 
 // ========================================
-// 토픽 페이지 호텔 관련 Actions
+// 추천 페이지 호텔 관련 Actions
 // ========================================
 
 /**
- * 토픽 페이지의 호텔 목록 조회
+ * 추천 페이지의 호텔 목록 조회
  */
 export async function getTopicPageHotels(pageId: string): Promise<ActionResult<TopicPageHotel[]>> {
   try {
@@ -287,47 +313,49 @@ export async function getTopicPageHotels(pageId: string): Promise<ActionResult<T
 
     const supabase = await createClient()
 
-    const { data, error } = await supabase
+    // 외래키 없이 호텔 매핑 조회
+    const { data: mappings, error } = await supabase
       .from('select_recommendation_page_hotels')
-      .select(`
-        *,
-        hotel:select_hotels(
-          sabre_id,
-          property_name_ko,
-          property_name_en,
-          city_ko,
-          country_ko
-        )
-      `)
+      .select('*')
       .eq('page_id', pageId)
       .order('pin_to_top', { ascending: false })
       .order('rank_manual', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('토픽 페이지 호텔 목록 조회 실패:', error)
+      console.error('❌ 추천 페이지 호텔 목록 조회 실패:', error)
       return { success: false, error: '호텔 목록을 조회하는데 실패했습니다.' }
     }
 
-    // hotel 정규화
-    const normalizedData = data?.map((item: any) => ({
-      ...item,
-      hotel: Array.isArray(item.hotel) && item.hotel.length > 0 ? item.hotel[0] : null,
-    }))
+    // 각 호텔의 상세 정보 조회
+    const hotelsWithInfo = await Promise.all(
+      (mappings || []).map(async (mapping: any) => {
+        const { data: hotelInfo } = await supabase
+          .from('select_hotels')
+          .select('sabre_id, property_name_ko, property_name_en, city_ko, country_ko')
+          .eq('sabre_id', mapping.sabre_id)
+          .single()
+
+        return {
+          ...mapping,
+          hotel: hotelInfo || null,
+        }
+      })
+    )
 
     return {
       success: true,
-      data: normalizedData as TopicPageHotel[],
-      meta: { count: normalizedData?.length || 0 }
+      data: hotelsWithInfo as TopicPageHotel[],
+      meta: { count: hotelsWithInfo?.length || 0 }
     }
   } catch (err) {
-    console.error('토픽 페이지 호텔 목록 조회 중 오류:', err)
+    console.error('❌ 추천 페이지 호텔 목록 조회 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
 
 /**
- * 토픽 페이지에 호텔 추가
+ * 추천 페이지에 호텔 추가
  */
 export async function addHotelToTopicPage(formData: FormData): Promise<ActionResult<TopicPageHotel>> {
   try {
@@ -378,20 +406,20 @@ export async function addHotelToTopicPage(formData: FormData): Promise<ActionRes
       .single()
 
     if (error) {
-      console.error('토픽 페이지 호텔 추가 실패:', error)
+      console.error('❌ 추천 페이지 호텔 추가 실패:', error)
       return { success: false, error: '호텔 추가에 실패했습니다.' }
     }
 
     revalidatePath('/admin/recommendation-pages')
     return { success: true, data: data as TopicPageHotel }
   } catch (err) {
-    console.error('토픽 페이지 호텔 추가 중 오류:', err)
+    console.error('❌ 추천 페이지 호텔 추가 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
 
 /**
- * 토픽 페이지 호텔 정보 수정
+ * 추천 페이지 호텔 정보 수정
  */
 export async function updateTopicPageHotel(id: string, updates: Record<string, unknown>): Promise<ActionResult<TopicPageHotel>> {
   try {
@@ -412,20 +440,20 @@ export async function updateTopicPageHotel(id: string, updates: Record<string, u
       .single()
 
     if (error) {
-      console.error('토픽 페이지 호텔 수정 실패:', error)
+      console.error('❌ 추천 페이지 호텔 수정 실패:', error)
       return { success: false, error: '호텔 정보 수정에 실패했습니다.' }
     }
 
     revalidatePath('/admin/recommendation-pages')
     return { success: true, data: data as TopicPageHotel }
   } catch (err) {
-    console.error('토픽 페이지 호텔 수정 중 오류:', err)
+    console.error('❌ 추천 페이지 호텔 수정 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
 
 /**
- * 토픽 페이지에서 호텔 제거
+ * 추천 페이지에서 호텔 제거
  */
 export async function removeHotelFromTopicPage(id: string): Promise<ActionResult> {
   try {
@@ -441,14 +469,14 @@ export async function removeHotelFromTopicPage(id: string): Promise<ActionResult
       .eq('id', id)
 
     if (error) {
-      console.error('토픽 페이지 호텔 삭제 실패:', error)
+      console.error('❌ 추천 페이지 호텔 삭제 실패:', error)
       return { success: false, error: '호텔 제거에 실패했습니다.' }
     }
 
     revalidatePath('/admin/recommendation-pages')
     return { success: true }
   } catch (err) {
-    console.error('토픽 페이지 호텔 삭제 중 오류:', err)
+    console.error('❌ 추천 페이지 호텔 삭제 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
