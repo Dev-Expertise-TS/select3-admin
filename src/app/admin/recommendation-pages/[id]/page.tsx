@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { FileText, Save, ArrowLeft, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { TopicPageWithHotels } from '@/types/topic-page'
-import { getTopicPage } from '@/features/topic-pages/actions'
+import { getTopicPage } from '@/features/recommendation-pages/actions'
 import { TopicPageForm } from './_components/TopicPageForm'
 import { TopicPageHotelsManager } from './_components/TopicPageHotelsManager'
 
@@ -52,7 +52,7 @@ export default function TopicPageDetailPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
-            href="/admin/topic-pages"
+            href="/admin/recommendation-pages"
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <ArrowLeft className="h-5 w-5 text-gray-600" />
@@ -62,10 +62,10 @@ export default function TopicPageDetailPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              {isNew ? '새 토픽 페이지' : topicPage?.title_ko || '토픽 페이지 편집'}
+              {isNew ? '새 추천 페이지' : topicPage?.title_ko || '추천 페이지 편집'}
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              {isNew ? '새로운 토픽 페이지를 생성합니다.' : '토픽 페이지 정보를 수정합니다.'}
+              {isNew ? '새로운 추천 페이지를 생성합니다.' : '추천 페이지 정보를 수정합니다.'}
             </p>
           </div>
         </div>

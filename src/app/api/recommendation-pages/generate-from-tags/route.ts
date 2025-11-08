@@ -209,7 +209,7 @@ export async function POST(_request: NextRequest) {
     for (const template of TOPIC_PAGE_TEMPLATES) {
       // 1. 이미 존재하는 slug인지 확인
       const { data: existing } = await supabase
-        .from('select_topic_pages')
+        .from('select_recommendation_pages')
         .select('id')
         .eq('slug', template.slug)
         .maybeSingle()
@@ -269,7 +269,7 @@ export async function POST(_request: NextRequest) {
       
       // 6. 토픽 페이지 생성
       const { data: newPage, error: insertError } = await supabase
-        .from('select_topic_pages')
+        .from('select_recommendation_pages')
         .insert({
           slug: template.slug,
           title_ko: template.title_ko,
@@ -344,7 +344,7 @@ export async function POST(_request: NextRequest) {
           })
           
           const { error: connectError } = await supabase
-            .from('select_topic_page_hotels')
+            .from('select_recommendation_page_hotels')
             .insert(hotelsToConnect)
           
           if (connectError) {

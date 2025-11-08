@@ -1,8 +1,8 @@
 /**
- * 호텔 토픽 페이지 관련 타입 정의
+ * 호텔 추천 페이지 관련 타입 정의
  */
 
-// select_topic_pages 테이블
+// select_recommendation_pages 테이블
 export interface TopicPage {
   id: string // uuid
   slug: string
@@ -36,10 +36,10 @@ export interface TopicPage {
   sitemap_changefreq: string | null
 }
 
-// select_topic_page_hotels 테이블
+// select_recommendation_page_hotels 테이블
 export interface TopicPageHotel {
   id: number
-  page_id: string // uuid - FK to select_topic_pages
+  page_id: string // uuid
   sabre_id: number
   pin_to_top: boolean
   rank_manual: number | null

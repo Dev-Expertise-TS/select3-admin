@@ -27,10 +27,10 @@ export async function getTopicPagesList(
     const supabase = await createClient()
 
     let query = supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .select(`
         *,
-        hotel_count:select_topic_page_hotels(count)
+        hotel_count:select_recommendation_page_hotels(count)
       `)
       .order('created_at', { ascending: false })
 
@@ -85,10 +85,10 @@ export async function getTopicPage(id?: string, slug?: string): Promise<ActionRe
     const supabase = await createClient()
 
     let query = supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .select(`
         *,
-        hotels:select_topic_page_hotels(
+        hotels:select_recommendation_page_hotels(
           *,
           hotel:select_hotels(
             sabre_id,
@@ -145,7 +145,7 @@ export async function createTopicPage(formData: FormData): Promise<ActionResult<
 
     // slug 중복 체크
     const { data: existing } = await supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .select('id')
       .eq('slug', slug)
       .single()
@@ -161,7 +161,7 @@ export async function createTopicPage(formData: FormData): Promise<ActionResult<
     }
 
     const { data, error } = await supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .insert({
         slug,
         title_ko,
@@ -184,7 +184,7 @@ export async function createTopicPage(formData: FormData): Promise<ActionResult<
       return { success: false, error: '토픽 페이지 생성에 실패했습니다.' }
     }
 
-    revalidatePath('/admin/topic-pages')
+    revalidatePath('/admin/recommendation-pages')
     return { success: true, data: data as TopicPage }
   } catch (err) {
     console.error('토픽 페이지 생성 중 오류:', err)
@@ -206,7 +206,7 @@ export async function updateTopicPage(id: string, updates: Record<string, unknow
     // slug 변경 시 중복 체크
     if (updates.slug) {
       const { data: existing } = await supabase
-        .from('select_topic_pages')
+        .from('select_recommendation_pages')
         .select('id')
         .eq('slug', updates.slug)
         .neq('id', id)
@@ -218,7 +218,7 @@ export async function updateTopicPage(id: string, updates: Record<string, unknow
     }
 
     const { data, error } = await supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
@@ -232,7 +232,7 @@ export async function updateTopicPage(id: string, updates: Record<string, unknow
       return { success: false, error: '토픽 페이지 수정에 실패했습니다.' }
     }
 
-    revalidatePath('/admin/topic-pages')
+    revalidatePath('/admin/recommendation-pages')
     return { success: true, data: data as TopicPage }
   } catch (err) {
     console.error('토픽 페이지 수정 중 오류:', err)
@@ -252,10 +252,10 @@ export async function deleteTopicPage(id: string): Promise<ActionResult> {
     const supabase = await createClient()
 
     // 연결된 호텔 삭제
-    await supabase.from('select_topic_page_hotels').delete().eq('page_id', id)
+    await supabase.from('select_recommendation_page_hotels').delete().eq('page_id', id)
 
     const { error } = await supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .delete()
       .eq('id', id)
 
@@ -264,7 +264,7 @@ export async function deleteTopicPage(id: string): Promise<ActionResult> {
       return { success: false, error: '토픽 페이지 삭제에 실패했습니다.' }
     }
 
-    revalidatePath('/admin/topic-pages')
+    revalidatePath('/admin/recommendation-pages')
     return { success: true }
   } catch (err) {
     console.error('토픽 페이지 삭제 중 오류:', err)
@@ -288,7 +288,7 @@ export async function getTopicPageHotels(pageId: string): Promise<ActionResult<T
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('select_topic_page_hotels')
+      .from('select_recommendation_page_hotels')
       .select(`
         *,
         hotel:select_hotels(
@@ -342,7 +342,7 @@ export async function addHotelToTopicPage(formData: FormData): Promise<ActionRes
 
     // 중복 체크
     const { data: existing } = await supabase
-      .from('select_topic_page_hotels')
+      .from('select_recommendation_page_hotels')
       .select('id')
       .eq('page_id', page_id)
       .eq('sabre_id', sabre_id)
@@ -359,7 +359,7 @@ export async function addHotelToTopicPage(formData: FormData): Promise<ActionRes
     }
 
     const { data, error } = await supabase
-      .from('select_topic_page_hotels')
+      .from('select_recommendation_page_hotels')
       .insert({
         page_id,
         sabre_id,
@@ -382,7 +382,7 @@ export async function addHotelToTopicPage(formData: FormData): Promise<ActionRes
       return { success: false, error: '호텔 추가에 실패했습니다.' }
     }
 
-    revalidatePath('/admin/topic-pages')
+    revalidatePath('/admin/recommendation-pages')
     return { success: true, data: data as TopicPageHotel }
   } catch (err) {
     console.error('토픽 페이지 호텔 추가 중 오류:', err)
@@ -402,7 +402,7 @@ export async function updateTopicPageHotel(id: string, updates: Record<string, u
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('select_topic_page_hotels')
+      .from('select_recommendation_page_hotels')
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
@@ -416,7 +416,7 @@ export async function updateTopicPageHotel(id: string, updates: Record<string, u
       return { success: false, error: '호텔 정보 수정에 실패했습니다.' }
     }
 
-    revalidatePath('/admin/topic-pages')
+    revalidatePath('/admin/recommendation-pages')
     return { success: true, data: data as TopicPageHotel }
   } catch (err) {
     console.error('토픽 페이지 호텔 수정 중 오류:', err)
@@ -436,7 +436,7 @@ export async function removeHotelFromTopicPage(id: string): Promise<ActionResult
     const supabase = await createClient()
 
     const { error } = await supabase
-      .from('select_topic_page_hotels')
+      .from('select_recommendation_page_hotels')
       .delete()
       .eq('id', id)
 
@@ -445,7 +445,7 @@ export async function removeHotelFromTopicPage(id: string): Promise<ActionResult
       return { success: false, error: '호텔 제거에 실패했습니다.' }
     }
 
-    revalidatePath('/admin/topic-pages')
+    revalidatePath('/admin/recommendation-pages')
     return { success: true }
   } catch (err) {
     console.error('토픽 페이지 호텔 삭제 중 오류:', err)

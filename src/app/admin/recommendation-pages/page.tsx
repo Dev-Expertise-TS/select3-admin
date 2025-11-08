@@ -5,7 +5,7 @@ import { FileText, Plus, Search, Edit, Trash2, Wand2, Loader2 } from 'lucide-rea
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { TopicPageWithHotels } from '@/types/topic-page'
-import { getTopicPagesList, deleteTopicPage } from '@/features/topic-pages/actions'
+import { getTopicPagesList, deleteTopicPage } from '@/features/recommendation-pages/actions'
 import { Button } from '@/components/ui/button'
 
 type StatusFilter = 'all' | 'draft' | 'published' | 'archived'
@@ -38,7 +38,7 @@ export default function TopicPagesPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [showCustomModal, setShowCustomModal] = useState(false)
 
-  // 토픽 페이지 목록 조회
+  // 추천 페이지 목록 조회
   const loadTopicPages = async () => {
     setIsLoading(true)
     try {
@@ -48,7 +48,7 @@ export default function TopicPagesPage() {
         false
       )
       if (result.success && result.data) {
-        호텔 상세 페이지 이미지 가져오기        // 중복 제거 (id 기준)
+        // 중복 제거 (id 기준)
         const rawPages = result.data as TopicPageWithHotels[]
         const uniquePages = rawPages.reduce((acc: TopicPageWithHotels[], current) => {
           const isDuplicate = acc.some(item => item.id === current.id)
@@ -62,7 +62,7 @@ export default function TopicPagesPage() {
         setTopicPages(uniquePages)
       }
     } catch (err) {
-      console.error('토픽 페이지 로드 오류:', err)
+      console.error('추천 페이지 로드 오류:', err)
     } finally {
       setIsLoading(false)
     }
@@ -73,13 +73,13 @@ export default function TopicPagesPage() {
   }, [statusFilter, searchInput])
 
   const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`"${title}" 토픽 페이지를 삭제하시겠습니까?\n연결된 호텔 정보도 함께 삭제됩니다.`)) return
+    if (!confirm(`"${title}" 추천 페이지를 삭제하시겠습니까?\n연결된 호텔 정보도 함께 삭제됩니다.`)) return
 
     setIsDeleting(true)
     try {
       const result = await deleteTopicPage(id)
       if (result.success) {
-        alert('토픽 페이지가 삭제되었습니다.')
+        alert('추천 페이지가 삭제되었습니다.')
         loadTopicPages()
       } else {
         alert(`삭제 실패: ${result.error}`)
@@ -102,7 +102,7 @@ export default function TopicPagesPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              호텔 토픽 페이지 관리
+              호텔 추천 페이지 관리
             </h1>
             <p className="text-sm text-gray-600 mt-1">
               테마별 호텔 큐레이션 페이지를 관리합니다.
@@ -112,11 +112,11 @@ export default function TopicPagesPage() {
         <div className="flex gap-3">
           <Button
             onClick={async () => {
-              if (!confirm('태그와 카테고리를 기반으로 토픽 페이지를 자동 생성하시겠습니까?\n이 작업은 1~2분 정도 소요됩니다.')) return
+              if (!confirm('태그와 카테고리를 기반으로 추천 페이지를 자동 생성하시겠습니까?\n이 작업은 1~2분 정도 소요됩니다.')) return
               
               setIsGenerating(true)
               try {
-                const response = await fetch('/api/topic-pages/generate-from-tags', {
+                const response = await fetch('/api/recommendation-pages/generate-from-tags', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                 })
@@ -124,14 +124,14 @@ export default function TopicPagesPage() {
                 const result = await response.json()
                 
                 if (result.success) {
-                  alert(`✅ 토픽 페이지 생성 완료!\n- 생성된 페이지: ${result.data.created}개\n- 건너뛴 페이지: ${result.data.skipped}개`)
+                  alert(`✅ 추천 페이지 생성 완료!\n- 생성된 페이지: ${result.data.created}개\n- 건너뛴 페이지: ${result.data.skipped}개`)
                   loadTopicPages()
                 } else {
                   alert(`생성 실패: ${result.error}`)
                 }
               } catch (err) {
-                console.error('토픽 페이지 생성 오류:', err)
-                alert('토픽 페이지 생성 중 오류가 발생했습니다.')
+                console.error('추천 페이지 생성 오류:', err)
+                alert('추천 페이지 생성 중 오류가 발생했습니다.')
               } finally {
                 setIsGenerating(false)
               }
@@ -159,11 +159,11 @@ export default function TopicPagesPage() {
             직접 태그 조합 페이지 생성
           </Button>
           <Link
-            href="/admin/topic-pages/new"
+            href="/admin/recommendation-pages/new"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            새 토픽 페이지
+            새 추천 페이지
           </Link>
         </div>
       </div>
@@ -220,7 +220,7 @@ export default function TopicPagesPage() {
         {/* 통계 */}
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <FileText className="h-4 w-4" />
-          <span>총 <strong className="text-gray-900">{topicPages.length}</strong>개 토픽 페이지</span>
+          <span>총 <strong className="text-gray-900">{topicPages.length}</strong>개 추천 페이지</span>
         </div>
       </div>
 
@@ -263,7 +263,7 @@ export default function TopicPagesPage() {
               ) : topicPages.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
-                    {searchInput ? '검색 결과가 없습니다.' : '생성된 토픽 페이지가 없습니다.'}
+                    {searchInput ? '검색 결과가 없습니다.' : '생성된 추천 페이지가 없습니다.'}
                   </td>
                 </tr>
               ) : (
@@ -304,7 +304,7 @@ export default function TopicPagesPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         <Link
-                          href={`/admin/topic-pages/${page.id}`}
+                          href={`/admin/recommendation-pages/${page.id}`}
                           className="p-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-blue-600 transition-colors"
                           title="상세/편집"
                         >
@@ -440,7 +440,7 @@ function CustomTopicPageModal({ onClose, onSuccess }: CustomTopicPageModalProps)
       const selectedTagObjects = allTags.filter((tag) => selectedTags.has(tag.id))
       const tagNames = selectedTagObjects.map((tag) => tag.name_ko)
 
-      const response = await fetch('/api/topic-pages/generate-custom', {
+      const response = await fetch('/api/recommendation-pages/generate-custom', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -455,7 +455,7 @@ function CustomTopicPageModal({ onClose, onSuccess }: CustomTopicPageModalProps)
       const result = await response.json()
 
       if (result.success) {
-        alert(`✅ 토픽 페이지 생성 완료!\n- 연결된 호텔: ${result.data.connectedHotels}개`)
+        alert(`✅ 추천 페이지 생성 완료!\n- 연결된 호텔: ${result.data.connectedHotels}개`)
         onSuccess()
       } else {
         alert(`생성 실패: ${result.error}`)
@@ -473,7 +473,7 @@ function CustomTopicPageModal({ onClose, onSuccess }: CustomTopicPageModalProps)
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 border-b">
           <h3 className="text-lg font-semibold">직접 태그 조합 페이지 생성</h3>
-          <p className="text-sm text-gray-600 mt-1">원하는 태그를 선택하여 커스텀 토픽 페이지를 생성합니다.</p>
+          <p className="text-sm text-gray-600 mt-1">원하는 태그를 선택하여 커스텀 추천 페이지를 생성합니다.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col h-full">

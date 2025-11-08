@@ -70,7 +70,7 @@ const navSections: NavSection[] = [
       { label: '호텔 콘텐츠 관리', href: '/admin/hotel-content', icon: FileText, requiredRole: 'admin' },
       { label: '호텔 아티클 관리', href: '/admin/hotel-articles', icon: Newspaper, requiredRole: 'admin' },
       { label: '해시태그 관리', href: '/admin/hashtags', icon: Hash, requiredRole: 'admin' },
-      { label: '호텔 토픽 페이지 관리', href: '/admin/topic-pages', icon: FileText, requiredRole: 'admin' },
+      { label: '호텔 추천 페이지 관리', href: '/admin/recommendation-pages', icon: FileText, requiredRole: 'admin' },
       { label: 'UTM 생성기', href: '/admin/utm-generator', icon: LinkIcon, requiredRole: 'admin' },
       { label: '맴버쉽 관리', href: '/admin/membership', icon: Users, requiredRole: 'admin' },
       { label: '관리자 관리', href: '/admin/users', icon: Users, requiredRole: 'admin' },
