@@ -102,8 +102,8 @@ export function BlogSectionEditor({
     fetchHotelInfo()
   }, [sabreId])
 
-  // Quill 모듈 설정
-  const quillModules = useMemo(() => createQuillModules(handleImageUpload), [handleImageUpload])
+  // Quill 모듈 설정 (clipboard 이미지 자동 업로드 포함)
+  const quillModules = useMemo(() => createQuillModules(handleImageUpload, uploadFile), [handleImageUpload, uploadFile])
 
   // 에디터 내용 변경 (debounce 적용)
   const onEditorChange = useCallback((htmlContent: string) => {

@@ -55,8 +55,8 @@ export function ContentEditorSection({
     }
   }, [onContentChange])
 
-  // Quill 모듈 설정
-  const quillModules = useMemo(() => createQuillModules(handleImageUpload), [handleImageUpload])
+  // Quill 모듈 설정 (clipboard 이미지 자동 업로드 포함)
+  const quillModules = useMemo(() => createQuillModules(handleImageUpload, uploadFile), [handleImageUpload, uploadFile])
   
   // 이미지 업로드 다이얼로그 핸들러
   const handleImageFileSelected = async (file: File) => {

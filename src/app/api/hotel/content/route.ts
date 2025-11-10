@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 
+// API route config - body size limit 증가
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const { sabre_id, property_details, property_location } = await request.json()
