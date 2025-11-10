@@ -3,8 +3,7 @@
 
   "functions": {
     "src/app/api/**/*.ts": {
-      "maxDuration": 30,
-      "maxBodySize": "10mb"
+      "maxDuration": 30
     }
   }
 }
