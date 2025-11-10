@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 
-// API route config - body size limit 증가
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
-}
+// Next.js 16: API route config는 vercel.json에서 설정
+// bodySize는 vercel.json의 functions 설정 참조
 
 export async function PATCH(request: NextRequest) {
   try {

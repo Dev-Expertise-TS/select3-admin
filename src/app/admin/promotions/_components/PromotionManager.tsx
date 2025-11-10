@@ -5,7 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Megaphone, Plus, Save, X, Loader2, AlertCircle, CheckCircle, Edit, Trash2, MapPin } from "lucide-react"
 import HotelQuickSearch from "@/components/shared/hotel-quick-search"
-import { savePromotion, deletePromotion, addHotelToPromotion, removeHotelFromPromotion, getPromotions, getPromotionMappedHotels } from "@/features/promotions/actions"
+// import { savePromotion, deletePromotion, addHotelToPromotion, removeHotelFromPromotion, getPromotions, getPromotionMappedHotels } from "@/features/promotions/actions"
+
+// Temporary stubs until promotion system is migrated to new API
+const savePromotion = async (): Promise<any> => ({ success: false, error: 'Not implemented' })
+const deletePromotion = async (): Promise<any> => ({ success: false, error: 'Not implemented' })
+const addHotelToPromotion = async (): Promise<any> => ({ success: false, error: 'Not implemented' })
+const removeHotelFromPromotion = async (): Promise<any> => ({ success: false, error: 'Not implemented' })
+const getPromotions = async (): Promise<any> => ({ success: true, data: { promotions: [], totalCount: 0 } })
+const getPromotionMappedHotels = async (): Promise<any> => ({ success: true, data: [] })
 
 interface Promotion {
   id: number
