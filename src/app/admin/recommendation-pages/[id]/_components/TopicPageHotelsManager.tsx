@@ -21,7 +21,7 @@ export function TopicPageHotelsManager({ pageId, hotels: initialHotels }: TopicP
   const { data: response } = useQuery({
     queryKey: ['topic-page-hotels', pageId],
     queryFn: async () => {
-      const res = await fetch(`/api/topic-page-hotels?page_id=${pageId}`)
+      const res = await fetch(`/api/recommendation-page-hotels?page_id=${pageId}`)
       if (!res.ok) throw new Error('호텔 목록 조회 실패')
       return res.json()
     },
@@ -43,7 +43,7 @@ export function TopicPageHotelsManager({ pageId, hotels: initialHotels }: TopicP
   // 호텔 추가
   const addMutation = useMutation({
     mutationFn: async (sabreId: number) => {
-      const res = await fetch('/api/topic-page-hotels', {
+      const res = await fetch('/api/recommendation-page-hotels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ page_id: pageId, sabre_id: sabreId }),
@@ -69,7 +69,7 @@ export function TopicPageHotelsManager({ pageId, hotels: initialHotels }: TopicP
   // 호텔 수정
   const updateMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: Partial<TopicPageHotelWithInfo> }) => {
-      const res = await fetch('/api/topic-page-hotels', {
+      const res = await fetch('/api/recommendation-page-hotels', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, ...updates }),
@@ -95,7 +95,7 @@ export function TopicPageHotelsManager({ pageId, hotels: initialHotels }: TopicP
   // 호텔 삭제
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/topic-page-hotels?id=${id}`, {
+      const res = await fetch(`/api/recommendation-page-hotels?id=${id}`, {
         method: 'DELETE',
       })
       if (!res.ok) {
@@ -148,7 +148,7 @@ export function TopicPageHotelsManager({ pageId, hotels: initialHotels }: TopicP
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">연결된 호텔 ({hotels.length}개)</h2>
-          <p className="text-sm text-gray-600 mt-1">토픽 페이지에 표시될 호텔을 관리합니다.</p>
+          <p className="text-sm text-gray-600 mt-1">추천 페이지에 표시될 호텔을 관리합니다.</p>
         </div>
         {!isAdding && (
           <button

@@ -24,10 +24,10 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
 
     let query = supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .select(`
         *,
-        hotels:select_topic_page_hotels(
+        hotels:select_recommendation_page_hotels(
           *,
           hotel:select_hotels(
             sabre_id,
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     // slug 중복 체크
     const { data: existing } = await supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .select('id')
       .eq('slug', body.slug)
       .single()
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .insert({
         slug: body.slug,
         title_ko: body.title_ko,
@@ -170,7 +170,7 @@ export async function PATCH(request: NextRequest) {
     // slug 변경 시 중복 체크
     if (updates.slug) {
       const { data: existing } = await supabase
-        .from('select_topic_pages')
+        .from('select_recommendation_pages')
         .select('id')
         .eq('slug', updates.slug)
         .neq('id', id)
@@ -185,7 +185,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { data, error } = await supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
@@ -234,10 +234,10 @@ export async function DELETE(request: NextRequest) {
     const supabase = await createClient()
 
     // 연결된 호텔 삭제 (CASCADE로 자동 삭제될 수도 있지만 명시적으로)
-    await supabase.from('select_topic_page_hotels').delete().eq('page_id', id)
+    await supabase.from('select_recommendation_page_hotels').delete().eq('page_id', id)
 
     const { error } = await supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .delete()
       .eq('id', id)
 

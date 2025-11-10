@@ -24,6 +24,7 @@ export async function getCategories(): Promise<ActionResult<TagCategory[]>> {
     const { data, error } = await supabase
       .from('select_tag_categories')
       .select('*')
+      .order('tag_category_id', { ascending: true, nullsFirst: false })
       .order('sort_order', { ascending: true })
       .order('name_ko', { ascending: true })
 
@@ -47,6 +48,7 @@ export async function createCategory(formData: FormData): Promise<ActionResult<T
     const slug = formData.get('slug') as string
     const name_ko = formData.get('name_ko') as string
     const name_en = formData.get('name_en') as string
+    const tag_category_id = formData.get('tag_category_id') as string
     const sort_order = parseInt(formData.get('sort_order') as string) || 0
     const is_facetable = formData.get('is_facetable') === 'true'
     const multi_select = formData.get('multi_select') === 'true'
@@ -64,6 +66,7 @@ export async function createCategory(formData: FormData): Promise<ActionResult<T
         slug,
         name_ko,
         name_en: name_en || null,
+        tag_category_id: tag_category_id || null,
         sort_order,
         is_facetable,
         multi_select,
@@ -73,14 +76,14 @@ export async function createCategory(formData: FormData): Promise<ActionResult<T
       .single()
 
     if (error) {
-      console.error('카테고리 생성 오류:', error)
+      console.error('❌ 카테고리 생성 오류:', error)
       return { success: false, error: '카테고리를 생성할 수 없습니다.' }
     }
 
     revalidatePath('/admin/hashtags')
     return { success: true, data: data as TagCategory }
   } catch (err) {
-    console.error('카테고리 생성 중 오류:', err)
+    console.error('❌ 카테고리 생성 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
@@ -93,6 +96,7 @@ export async function updateCategory(id: string, formData: FormData): Promise<Ac
     const slug = formData.get('slug') as string
     const name_ko = formData.get('name_ko') as string
     const name_en = formData.get('name_en') as string
+    const tag_category_id = formData.get('tag_category_id') as string
     const sort_order = parseInt(formData.get('sort_order') as string) || 0
     const is_facetable = formData.get('is_facetable') === 'true'
     const multi_select = formData.get('multi_select') === 'true'
@@ -107,6 +111,7 @@ export async function updateCategory(id: string, formData: FormData): Promise<Ac
     if (slug !== undefined) updateData.slug = slug
     if (name_ko !== undefined) updateData.name_ko = name_ko
     if (name_en !== undefined) updateData.name_en = name_en || null
+    if (tag_category_id !== undefined) updateData.tag_category_id = tag_category_id || null
     updateData.sort_order = sort_order
     updateData.is_facetable = is_facetable
     updateData.multi_select = multi_select
@@ -120,14 +125,29 @@ export async function updateCategory(id: string, formData: FormData): Promise<Ac
       .single()
 
     if (error) {
-      console.error('카테고리 수정 오류:', error)
+      console.error('❌ 카테고리 수정 오류:', error)
       return { success: false, error: '카테고리를 수정할 수 없습니다.' }
+    }
+
+    // 카테고리의 tag_category_id가 변경되면 연결된 모든 태그 업데이트
+    if (tag_category_id !== undefined) {
+      const { error: updateTagsError } = await supabase
+        .from('select_tags')
+        .update({ 
+          tag_category_id: tag_category_id || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('category_id', id)
+
+      if (updateTagsError) {
+        console.warn('⚠️ 연결된 태그의 tag_category_id 업데이트 실패:', updateTagsError)
+      }
     }
 
     revalidatePath('/admin/hashtags')
     return { success: true, data: data as TagCategory }
   } catch (err) {
-    console.error('카테고리 수정 중 오류:', err)
+    console.error('❌ 카테고리 수정 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
@@ -172,6 +192,7 @@ export async function getTags(categoryId?: string, search?: string): Promise<Act
     let query = supabase
       .from('select_tags')
       .select('*')
+      .order('tag_category_id', { ascending: true, nullsFirst: false })
       .order('weight', { ascending: false })
       .order('name_ko', { ascending: true })
 
@@ -234,6 +255,24 @@ export async function createTag(formData: FormData): Promise<ActionResult<Tag>> 
 
     const supabase = createServiceRoleClient()
 
+    // 카테고리의 tag_category_id 가져오기
+    let tag_category_id: string | null = null
+    if (category_id) {
+      const { data: categoryData } = await supabase
+        .from('select_tag_categories')
+        .select('tag_category_id')
+        .eq('id', category_id)
+        .single()
+      
+      tag_category_id = categoryData?.tag_category_id || null
+    }
+
+    // 동의어를 배열로 변환 (쉼표로 구분된 문자열 → 배열)
+    const parseSynonyms = (value: string | null) => {
+      if (!value || !value.trim()) return []
+      return value.split(',').map(s => s.trim()).filter(Boolean)
+    }
+
     const { data, error } = await supabase
       .from('select_tags')
       .insert({
@@ -241,8 +280,9 @@ export async function createTag(formData: FormData): Promise<ActionResult<Tag>> 
         name_ko,
         name_en: name_en || null,
         category_id: category_id || null,
-        synonyms_ko: synonyms_ko || '{}',
-        synonyms_en: synonyms_en || '{}',
+        tag_category_id, // 카테고리의 tag_category_id 복사
+        synonyms_ko: parseSynonyms(synonyms_ko),
+        synonyms_en: parseSynonyms(synonyms_en),
         description_ko: description_ko || null,
         description_en: description_en || null,
         weight,
@@ -254,14 +294,14 @@ export async function createTag(formData: FormData): Promise<ActionResult<Tag>> 
       .single()
 
     if (error) {
-      console.error('태그 생성 오류:', error)
+      console.error('❌ 태그 생성 오류:', error)
       return { success: false, error: '태그를 생성할 수 없습니다.' }
     }
 
     revalidatePath('/admin/hashtags')
     return { success: true, data: data as Tag }
   } catch (err) {
-    console.error('태그 생성 중 오류:', err)
+    console.error('❌ 태그 생성 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
@@ -289,12 +329,33 @@ export async function updateTag(id: string, formData: FormData): Promise<ActionR
       updated_at: new Date().toISOString()
     }
 
+    // 동의어를 배열로 변환 (쉼표로 구분된 문자열 → 배열)
+    const parseSynonyms = (value: string | null) => {
+      if (!value || !value.trim()) return []
+      return value.split(',').map(s => s.trim()).filter(Boolean)
+    }
+
     if (slug !== undefined) updateData.slug = slug
     if (name_ko !== undefined) updateData.name_ko = name_ko
     if (name_en !== undefined) updateData.name_en = name_en || null
-    if (category_id !== undefined) updateData.category_id = category_id || null
-    if (synonyms_ko !== undefined) updateData.synonyms_ko = synonyms_ko || '{}'
-    if (synonyms_en !== undefined) updateData.synonyms_en = synonyms_en || '{}'
+    if (category_id !== undefined) {
+      updateData.category_id = category_id || null
+      
+      // 카테고리가 변경되었다면 해당 카테고리의 tag_category_id 가져오기
+      if (category_id) {
+        const { data: categoryData } = await supabase
+          .from('select_tag_categories')
+          .select('tag_category_id')
+          .eq('id', category_id)
+          .single()
+        
+        updateData.tag_category_id = categoryData?.tag_category_id || null
+      } else {
+        updateData.tag_category_id = null
+      }
+    }
+    if (synonyms_ko !== undefined) updateData.synonyms_ko = parseSynonyms(synonyms_ko)
+    if (synonyms_en !== undefined) updateData.synonyms_en = parseSynonyms(synonyms_en)
     if (description_ko !== undefined) updateData.description_ko = description_ko || null
     if (description_en !== undefined) updateData.description_en = description_en || null
     updateData.weight = weight
@@ -309,7 +370,7 @@ export async function updateTag(id: string, formData: FormData): Promise<ActionR
       .single()
 
     if (error) {
-      console.error('태그 수정 오류:', error)
+      console.error('❌ 태그 수정 오류:', error)
       return { success: false, error: '태그를 수정할 수 없습니다.' }
     }
 
@@ -328,20 +389,32 @@ export async function deleteTag(id: string): Promise<ActionResult> {
   try {
     const supabase = createServiceRoleClient()
 
+    // 1. 먼저 연결된 호텔 태그 매핑을 모두 삭제
+    const { error: mappingError } = await supabase
+      .from('select_hotel_tags_map')
+      .delete()
+      .eq('tag_id', id)
+
+    if (mappingError) {
+      console.error('❌ 호텔 태그 매핑 삭제 오류:', mappingError)
+      return { success: false, error: '연결된 호텔 매핑을 삭제할 수 없습니다.' }
+    }
+
+    // 2. 태그 삭제
     const { error } = await supabase
       .from('select_tags')
       .delete()
       .eq('id', id)
 
     if (error) {
-      console.error('태그 삭제 오류:', error)
+      console.error('❌ 태그 삭제 오류:', error)
       return { success: false, error: '태그를 삭제할 수 없습니다.' }
     }
 
     revalidatePath('/admin/hashtags')
     return { success: true }
   } catch (err) {
-    console.error('태그 삭제 중 오류:', err)
+    console.error('❌ 태그 삭제 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }

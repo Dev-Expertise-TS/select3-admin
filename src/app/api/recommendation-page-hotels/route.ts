@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('select_topic_page_hotels')
+      .from('select_recommendation_page_hotels')
       .select(`
         *,
         hotel:select_hotels(
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     // 중복 체크
     const { data: existing } = await supabase
-      .from('select_topic_page_hotels')
+      .from('select_recommendation_page_hotels')
       .select('id')
       .eq('page_id', body.page_id)
       .eq('sabre_id', body.sabre_id)
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await supabase
-      .from('select_topic_page_hotels')
+      .from('select_recommendation_page_hotels')
       .insert({
         page_id: body.page_id,
         sabre_id: body.sabre_id,
@@ -161,7 +161,7 @@ export async function PATCH(request: NextRequest) {
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('select_topic_page_hotels')
+      .from('select_recommendation_page_hotels')
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
@@ -210,7 +210,7 @@ export async function DELETE(request: NextRequest) {
     const supabase = await createClient()
 
     const { error } = await supabase
-      .from('select_topic_page_hotels')
+      .from('select_recommendation_page_hotels')
       .delete()
       .eq('id', id)
 

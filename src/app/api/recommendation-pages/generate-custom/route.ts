@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // 1. Slug 중복 체크
     const { data: existing } = await supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .select('id')
       .eq('slug', slug)
       .maybeSingle()
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // 2. 토픽 페이지 생성
     const { data: newPage, error: insertError } = await supabase
-      .from('select_topic_pages')
+      .from('select_recommendation_pages')
       .insert({
         slug,
         title_ko,
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
 
       if (hotelsToConnect.length > 0) {
         const { error: connectError } = await supabase
-          .from('select_topic_page_hotels')
+          .from('select_recommendation_page_hotels')
           .insert(hotelsToConnect)
 
         if (connectError) {

@@ -12,7 +12,7 @@ interface TopicPageFormProps {
   isNew: boolean
 }
 
-// 토픽 페이지 데이터를 폼 데이터로 변환
+// 추천 페이지 데이터를 폼 데이터로 변환
 const topicPageToFormData = (page?: TopicPage) => ({
   slug: page?.slug || '',
   title_ko: page?.title_ko || '',
@@ -157,7 +157,7 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
     setIsGeneratingIntro(true)
 
     try {
-      const res = await fetch('/api/topic-pages/generate-intro', {
+      const res = await fetch('/api/recommendation-pages/generate-intro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -206,7 +206,7 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
     setIsGeneratingSeo(true)
 
     try {
-      const res = await fetch('/api/topic-pages/generate-seo', {
+      const res = await fetch('/api/recommendation-pages/generate-seo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -304,7 +304,7 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
         sitemap_changefreq: formData.sitemap_changefreq.trim() || 'weekly',
       }
 
-      const url = isNew ? '/api/topic-pages' : '/api/topic-pages'
+      const url = isNew ? '/api/recommendation-pages' : '/api/recommendation-pages'
       const method = isNew ? 'POST' : 'PATCH'
 
       const res = await fetch(url, {
@@ -323,9 +323,9 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['topic-pages-list'] })
       queryClient.invalidateQueries({ queryKey: ['topic-page', topicPage?.id] })
-      alert(isNew ? '토픽 페이지가 생성되었습니다.' : '토픽 페이지가 수정되었습니다.')
+      alert(isNew ? '추천 페이지가 생성되었습니다.' : '추천 페이지가 수정되었습니다.')
       if (isNew && data.data?.id) {
-        router.push(`/admin/topic-pages/${data.data.id}`)
+        router.push(`/admin/recommendation-pages/${data.data.id}`)
       }
     },
     onError: (error: Error) => {
@@ -460,7 +460,7 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
           <textarea
             value={formData.intro_rich_ko}
             onChange={(e) => setFormData({ ...formData, intro_rich_ko: e.target.value })}
-            placeholder="토픽 페이지 소개글... (또는 AI로 자동 생성)"
+            placeholder="추천 페이지 소개글... (또는 AI로 자동 생성)"
             rows={4}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
