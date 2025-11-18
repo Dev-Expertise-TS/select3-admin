@@ -5,18 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Megaphone, Plus, Save, X, Loader2, AlertCircle, CheckCircle, Edit, Trash2, MapPin } from "lucide-react"
 import HotelQuickSearch from "@/components/shared/hotel-quick-search"
-// import { savePromotion, deletePromotion, addHotelToPromotion, removeHotelFromPromotion, getPromotions, getPromotionMappedHotels } from "@/features/promotions/actions"
-
-// Temporary stubs until promotion system is migrated to new API
-const savePromotion = async (): Promise<any> => ({ success: false, error: 'Not implemented' })
-const deletePromotion = async (): Promise<any> => ({ success: false, error: 'Not implemented' })
-const addHotelToPromotion = async (): Promise<any> => ({ success: false, error: 'Not implemented' })
-const removeHotelFromPromotion = async (): Promise<any> => ({ success: false, error: 'Not implemented' })
-const getPromotions = async (): Promise<any> => ({ success: true, data: { promotions: [], totalCount: 0 } })
-const getPromotionMappedHotels = async (): Promise<any> => ({ success: true, data: [] })
+import { savePromotion, deletePromotion, addHotelToPromotion, removeHotelFromPromotion, getPromotions, getPromotionMappedHotels } from "@/features/promotions/actions"
 
 interface Promotion {
-  id: number
   promotion_id: number
   promotion: string
   promotion_description: string | null
@@ -26,7 +17,7 @@ interface Promotion {
   check_in_start_date: string | null
   check_in_end_date: string | null
   created_at: string
-  updated_at: string
+  updated_at: string | null
 }
 
 interface PromotionForm {
@@ -263,7 +254,7 @@ export function PromotionManager() {
     
     startTransition(async () => {
       try {
-        const result = await addHotelToPromotion(Number(selectedPromotion.promotion_id), sabreId)
+        const result = await addHotelToPromotion(sabreId, Number(selectedPromotion.promotion_id))
         
         if (!result.success) {
           throw new Error(result.error || '호텔 연결에 실패했습니다.')
@@ -288,7 +279,7 @@ export function PromotionManager() {
     
     startTransition(async () => {
       try {
-        const result = await removeHotelFromPromotion(Number(targetPromotionId), sabreId)
+        const result = await removeHotelFromPromotion(sabreId, Number(targetPromotionId))
         
         if (!result.success) {
           throw new Error(result.error || '호텔 연결 해제에 실패했습니다.')
@@ -311,7 +302,7 @@ export function PromotionManager() {
   const addHotelMapping = async (promotionId: string | number, sabreId: string) => {
     startTransition(async () => {
       try {
-        const result = await addHotelToPromotion(Number(promotionId), sabreId)
+        const result = await addHotelToPromotion(sabreId, Number(promotionId))
         
         if (!result.success) {
           throw new Error(result.error || '호텔 연결에 실패했습니다.')
@@ -374,7 +365,7 @@ export function PromotionManager() {
   const removeHotelPromotion = async (sabreId: string, promotionId: string | number) => {
     startTransition(async () => {
       try {
-        const result = await removeHotelFromPromotion(Number(promotionId), sabreId)
+        const result = await removeHotelFromPromotion(sabreId, Number(promotionId))
         
         if (!result.success) {
           throw new Error(result.error || '프로모션 연결 해제에 실패했습니다.')
@@ -435,7 +426,7 @@ export function PromotionManager() {
   }
 
   const startEdit = (p: Promotion) => {
-    setEditingId(p.id ?? p.promotion_id)
+    setEditingId(p.promotion_id)
     setFormData({
       promotion_id: p.promotion_id,
       promotion: p.promotion,
@@ -626,8 +617,8 @@ export function PromotionManager() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {promotions.map((p, idx) => (
-                  <React.Fragment key={typeof p.id === "number" || typeof p.id === "string" ? `promo-${p.id}` : `promo-${idx}`}>
-                  <tr className={`hover:bg-gray-50 ${recentlySavedKey != null && recentlySavedKey === (p.id ?? p.promotion_id) ? 'bg-green-50' : ''}`}>
+                  <React.Fragment key={`promo-${p.promotion_id}`}>
+                  <tr className={`hover:bg-gray-50 ${recentlySavedKey != null && recentlySavedKey === p.promotion_id ? 'bg-green-50' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">{p.promotion_id}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 w-7/12">{p.promotion}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono w-44">{p.booking_start_date ? String(p.booking_start_date).slice(0,10) : '-'}</td>
@@ -651,16 +642,16 @@ export function PromotionManager() {
                         <Button size="sm" variant="outline" onClick={() => startEdit(p)}>
                           <Edit className="h-3 w-3" />
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                        <Button size="sm" variant="outline" onClick={() => handleDelete(p.promotion_id)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
                           <Trash2 className="h-3 w-3" />
                         </Button>
-                        {recentlySavedKey != null && recentlySavedKey === (p.id ?? p.promotion_id) && (
+                        {recentlySavedKey != null && recentlySavedKey === p.promotion_id && (
                           <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">저장됨</span>
                         )}
                       </div>
                     </td>
                   </tr>
-                  {editingId === (p.id ?? p.promotion_id) && showForm && (
+                  {editingId === p.promotion_id && showForm && (
                     <tr className="bg-orange-50">
                       <td colSpan={8} className="px-6 py-4">
                         {renderPromotionForm()}

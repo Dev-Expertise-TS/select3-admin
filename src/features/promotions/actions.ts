@@ -62,9 +62,8 @@ export async function getPromotionMappedHotels(): Promise<ActionResult> {
           start_date,
           end_date,
           select_hotel_promotions(
-            id,
-            promotion_name,
-            promotion_type
+            promotion_id,
+            promotion
           )
         )
       `)
@@ -81,6 +80,180 @@ export async function getPromotionMappedHotels(): Promise<ActionResult> {
     }
   } catch (err) {
     console.error('매핑된 호텔 조회 중 오류:', err)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+/**
+ * 프로모션 저장 (생성 또는 수정)
+ */
+export async function savePromotion(formData: FormData): Promise<ActionResult> {
+  try {
+    const supabase = createServiceRoleClient()
+    
+    const promotion_id = formData.get('promotion_id') as string
+    const promotion = formData.get('promotion') as string
+    const promotion_description = formData.get('promotion_description') as string
+    const note = formData.get('note') as string
+    const booking_start_date = formData.get('booking_start_date') as string || null
+    const booking_end_date = formData.get('booking_end_date') as string || null
+    const check_in_start_date = formData.get('check_in_start_date') as string || null
+    const check_in_end_date = formData.get('check_in_end_date') as string || null
+
+    if (!promotion) {
+      return { success: false, error: '프로모션명은 필수입니다.' }
+    }
+
+    const promotionData: Record<string, unknown> = {
+      promotion,
+      promotion_description: promotion_description || null,
+      note: note || null,
+      booking_start_date: booking_start_date || null,
+      booking_end_date: booking_end_date || null,
+      check_in_start_date: check_in_start_date || null,
+      check_in_end_date: check_in_end_date || null,
+      updated_at: new Date().toISOString()
+    }
+
+    let data
+    let error
+
+    if (promotion_id) {
+      // 수정
+      const result = await supabase
+        .from('select_hotel_promotions')
+        .update(promotionData)
+        .eq('promotion_id', Number(promotion_id))
+        .select()
+        .single()
+      
+      data = result.data
+      error = result.error
+    } else {
+      // 생성 (promotion_id는 자동 생성)
+      const result = await supabase
+        .from('select_hotel_promotions')
+        .insert(promotionData)
+        .select()
+        .single()
+      
+      data = result.data
+      error = result.error
+    }
+
+    if (error) {
+      console.error('프로모션 저장 오류:', error)
+      return { success: false, error: '프로모션 저장에 실패했습니다.' }
+    }
+
+    revalidatePath('/admin/promotions')
+    return { success: true, data: { promotion: data } }
+  } catch (err) {
+    console.error('프로모션 저장 중 오류:', err)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+/**
+ * 프로모션 삭제
+ */
+export async function deletePromotion(promotionId: number): Promise<ActionResult> {
+  try {
+    if (!promotionId) {
+      return { success: false, error: '프로모션 ID가 필요합니다.' }
+    }
+
+    const supabase = createServiceRoleClient()
+
+    const { error } = await supabase
+      .from('select_hotel_promotions')
+      .delete()
+      .eq('promotion_id', promotionId)
+
+    if (error) {
+      console.error('프로모션 삭제 오류:', error)
+      return { success: false, error: '프로모션 삭제에 실패했습니다.' }
+    }
+
+    revalidatePath('/admin/promotions')
+    return { success: true }
+  } catch (err) {
+    console.error('프로모션 삭제 중 오류:', err)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+/**
+ * 호텔을 프로모션에 연결
+ */
+export async function addHotelToPromotion(
+  sabreId: string,
+  promotionId: number,
+  startDate?: string,
+  endDate?: string
+): Promise<ActionResult> {
+  try {
+    if (!sabreId || !promotionId) {
+      return { success: false, error: '호텔 ID와 프로모션 ID가 필요합니다.' }
+    }
+
+    const supabase = createServiceRoleClient()
+
+    // select_hotel_promotions_map 테이블이 있는지 확인 필요
+    // 일단 기본 구조로 구현
+    const { data, error } = await supabase
+      .from('select_hotel_promotions_map')
+      .insert({
+        sabre_id: sabreId,
+        promotion_id: promotionId,
+        start_date: startDate || null,
+        end_date: endDate || null
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('호텔-프로모션 연결 오류:', error)
+      return { success: false, error: '호텔을 프로모션에 연결하는데 실패했습니다.' }
+    }
+
+    revalidatePath('/admin/promotions')
+    return { success: true, data }
+  } catch (err) {
+    console.error('호텔-프로모션 연결 중 오류:', err)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+/**
+ * 호텔과 프로모션 연결 해제
+ */
+export async function removeHotelFromPromotion(
+  sabreId: string,
+  promotionId: number
+): Promise<ActionResult> {
+  try {
+    if (!sabreId || !promotionId) {
+      return { success: false, error: '호텔 ID와 프로모션 ID가 필요합니다.' }
+    }
+
+    const supabase = createServiceRoleClient()
+
+    const { error } = await supabase
+      .from('select_hotel_promotions_map')
+      .delete()
+      .eq('sabre_id', sabreId)
+      .eq('promotion_id', promotionId)
+
+    if (error) {
+      console.error('호텔-프로모션 연결 해제 오류:', error)
+      return { success: false, error: '호텔과 프로모션 연결을 해제하는데 실패했습니다.' }
+    }
+
+    revalidatePath('/admin/promotions')
+    return { success: true }
+  } catch (err) {
+    console.error('호텔-프로모션 연결 해제 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
   }
 }
