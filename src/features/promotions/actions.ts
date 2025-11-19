@@ -72,9 +72,35 @@ export async function getPromotionMappedHotels(): Promise<ActionResult> {
       return { success: false, error: '매핑된 호텔 조회에 실패했습니다.' }
     }
 
+    type RawHotel = {
+      sabre_id: string
+      property_name_ko: string | null
+      property_name_en: string | null
+      promotions?: Array<{
+        promotion_id: number
+        select_hotel_promotions?: {
+          promotion_id: number
+          promotion: string
+        } | null
+      }> | null
+    }
+
+    const flattened = (hotels as RawHotel[] | null | undefined)?.flatMap((hotel) => {
+      if (!hotel || !Array.isArray(hotel.promotions)) return []
+      return hotel.promotions
+        .filter((promotion) => typeof promotion?.promotion_id === 'number')
+        .map((promotion) => ({
+          sabre_id: hotel.sabre_id,
+          property_name_ko: hotel.property_name_ko ?? null,
+          property_name_en: hotel.property_name_en ?? null,
+          promotion_id: Number(promotion.promotion_id),
+          promotion_name: promotion.select_hotel_promotions?.promotion ?? '',
+        }))
+    }) ?? []
+
     return {
       success: true,
-      data: hotels || []
+      data: flattened
     }
   } catch (err) {
     console.error('매핑된 호텔 조회 중 오류:', err)
@@ -207,16 +233,22 @@ export async function addHotelToPromotion(
 
     const supabase = createServiceRoleClient()
 
-    // select_hotel_promotions_map 테이블이 있는지 확인 필요
-    // 일단 기본 구조로 구현
+    const insertPayload: Record<string, unknown> = {
+      sabre_id: sabreId,
+      promotion_id: promotionId,
+    }
+
+    if (startDate) {
+      insertPayload.start_date = startDate
+    }
+
+    if (endDate) {
+      insertPayload.end_date = endDate
+    }
+
     const { data, error } = await supabase
       .from('select_hotel_promotions_map')
-      .insert({
-        sabre_id: sabreId,
-        promotion_id: promotionId,
-        start_date: startDate || null,
-        end_date: endDate || null
-      })
+      .insert(insertPayload)
       .select()
       .single()
 

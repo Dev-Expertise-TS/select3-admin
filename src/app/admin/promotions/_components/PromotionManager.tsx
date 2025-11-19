@@ -262,7 +262,7 @@ export function PromotionManager() {
           throw new Error(result.error || '호텔 연결에 실패했습니다.')
         }
         
-        setSuccess('호텔이 연결되었습니다.')
+        setSuccess('적용 완료')
         loadMappedHotels(selectedPromotion.promotion_id)
         if (activeTab === 'mapped') {
           loadAllMappedHotels()
@@ -314,7 +314,7 @@ export function PromotionManager() {
         const mappingKey = `${sabreId}-${promotionId}`
         setNewlyAddedMappings(prev => new Set([...prev, mappingKey]))
         
-        setSuccess('호텔이 연결되었습니다.')
+        setSuccess('적용 완료')
         loadAllMappedHotels()
         if (showHotelPromotionPopup && selectedHotel) {
           loadHotelPromotions(selectedHotel.sabre_id)
