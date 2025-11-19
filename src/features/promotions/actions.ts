@@ -99,6 +99,7 @@ export async function savePromotion(formData: FormData): Promise<ActionResult> {
     const booking_end_date = formData.get('booking_end_date') as string || null
     const check_in_start_date = formData.get('check_in_start_date') as string || null
     const check_in_end_date = formData.get('check_in_end_date') as string || null
+    const mode = formData.get('mode') as string | null
 
     if (!promotion) {
       return { success: false, error: '프로모션명은 필수입니다.' }
@@ -117,23 +118,32 @@ export async function savePromotion(formData: FormData): Promise<ActionResult> {
 
     let data
     let error
+    const parsedPromotionId = promotion_id ? Number(promotion_id) : null
+    const isUpdateMode = mode === 'update'
 
-    if (promotion_id) {
+    if (isUpdateMode) {
+      if (!parsedPromotionId) {
+        return { success: false, error: '프로모션 ID가 필요합니다.' }
+      }
       // 수정
       const result = await supabase
         .from('select_hotel_promotions')
         .update(promotionData)
-        .eq('promotion_id', Number(promotion_id))
+        .eq('promotion_id', parsedPromotionId)
         .select()
-        .single()
+        .maybeSingle()
       
       data = result.data
       error = result.error
+
+      if (!error && !data) {
+        return { success: false, error: '대상 프로모션을 찾을 수 없습니다.' }
+      }
     } else {
       // 생성 (promotion_id는 자동 생성)
       const result = await supabase
         .from('select_hotel_promotions')
-        .insert(promotionData)
+        .insert(parsedPromotionId ? [{ promotion_id: parsedPromotionId, ...promotionData }] : promotionData)
         .select()
         .single()
       

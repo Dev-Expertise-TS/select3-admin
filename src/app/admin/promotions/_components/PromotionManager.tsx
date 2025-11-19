@@ -467,6 +467,7 @@ export function PromotionManager() {
         formDataObj.append('booking_end_date', formData.booking_end_date || '')
         formDataObj.append('check_in_start_date', formData.check_in_start_date || '')
         formDataObj.append('check_in_end_date', formData.check_in_end_date || '')
+        formDataObj.append('mode', editingId ? 'update' : 'create')
 
         // Server Action 호출
         const result = await savePromotion(formDataObj)
