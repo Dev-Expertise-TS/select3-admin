@@ -59,8 +59,6 @@ export async function getPromotionMappedHotels(): Promise<ActionResult> {
         property_name_en,
         promotions:select_hotel_promotions_map(
           promotion_id,
-          start_date,
-          end_date,
           select_hotel_promotions(
             promotion_id,
             promotion

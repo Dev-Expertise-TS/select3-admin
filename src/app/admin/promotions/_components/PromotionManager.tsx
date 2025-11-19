@@ -52,6 +52,7 @@ export function PromotionManager() {
   const [allMappedLoading, setAllMappedLoading] = useState(false)
   const [newlyAddedMappings, setNewlyAddedMappings] = useState<Set<string>>(new Set())
   const [showAddHotelForm, setShowAddHotelForm] = useState(false)
+  const [showPromotionSelectModal, setShowPromotionSelectModal] = useState(false)
   const [showHotelPromotionPopup, setShowHotelPromotionPopup] = useState(false)
   const [selectedHotel, setSelectedHotel] = useState<{sabre_id: string, property_name_ko: string} | null>(null)
   const [hotelPromotions, setHotelPromotions] = useState<Array<{promotion_id: number, promotion_name: string}>>([])
@@ -694,19 +695,23 @@ export function PromotionManager() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">프로모션 선택*</label>
-                  <select 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={selectedPromotion ? String(selectedPromotion.promotion_id) : ""}
-                    onChange={(e) => {
-                      const promotion = promotions.find(p => String(p.promotion_id) === e.target.value)
-                      if (promotion) setSelectedPromotion(promotion)
-                    }}
+                  <button
+                    type="button"
+                    onClick={() => setShowPromotionSelectModal(true)}
+                    className={cn(
+                      "w-full rounded-md border px-3 py-2 text-left text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2",
+                      selectedPromotion ? "border-gray-300 bg-white text-gray-900" : "border-dashed border-gray-300 text-gray-500"
+                    )}
                   >
-                    <option value="">프로모션을 선택하세요</option>
-                    {promotions.map(p => (
-                      <option key={p.promotion_id} value={String(p.promotion_id)}>{p.promotion}</option>
-                    ))}
-                  </select>
+                    {selectedPromotion ? (
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-xs text-orange-600">{selectedPromotion.promotion_id}</span>
+                        <span className="flex-1 truncate">{selectedPromotion.promotion}</span>
+                      </div>
+                    ) : (
+                      "프로모션을 선택하세요"
+                    )}
+                  </button>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">호텔 검색*</label>
@@ -812,6 +817,78 @@ export function PromotionManager() {
               </table>
             </div>
           )}
+          </div>
+        </div>
+      )}
+
+      {/* 프로모션 선택 팝업 */}
+      {showPromotionSelectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-2xl rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">프로모션 선택</h3>
+                <p className="text-sm text-gray-500 mt-1">목록에서 연결할 프로모션을 선택하세요.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPromotionSelectModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="닫기"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="max-h-[480px] overflow-y-auto px-6 py-4">
+              {promotions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                  <Megaphone className="h-10 w-10 text-gray-300" />
+                  <p className="mt-3 text-sm">등록된 프로모션이 없습니다.</p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {promotions.map((promotion) => (
+                    <li key={promotion.promotion_id}>
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex w-full items-center gap-4 py-3 text-left transition hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2",
+                          selectedPromotion?.promotion_id === promotion.promotion_id && "bg-orange-50"
+                        )}
+                        onClick={() => {
+                          setSelectedPromotion(promotion)
+                          setShowPromotionSelectModal(false)
+                        }}
+                      >
+                        <span className="w-20 shrink-0 font-mono text-sm text-orange-600">
+                          {promotion.promotion_id}
+                        </span>
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{promotion.promotion}</div>
+                          {promotion.note && (
+                            <div className="text-xs text-gray-500 mt-0.5">{promotion.note}</div>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-400">{promotion.booking_start_date?.slice(0, 10) || '-'}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t px-6 py-4">
+              <Button variant="outline" onClick={() => setShowPromotionSelectModal(false)}>
+                취소
+              </Button>
+              <Button
+                type="button"
+                disabled={!selectedPromotion}
+                onClick={() => setShowPromotionSelectModal(false)}
+                className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50"
+              >
+                선택 완료
+              </Button>
+            </div>
           </div>
         </div>
       )}
