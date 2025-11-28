@@ -98,6 +98,26 @@ export function stringToArray(str: string | null | undefined): string[] {
 }
 
 /**
+ * PostgreSQL 배열 문자열 또는 일반 문자열을 파싱하여 배열로 반환
+ * 예: "{CODE1,CODE2}" -> ["CODE1", "CODE2"]
+ * 예: "CODE1, CODE2" -> ["CODE1", "CODE2"]
+ */
+export function parseRatePlanCode(ratePlanCode: string[] | string | null): string[] {
+  if (!ratePlanCode) return []
+  if (Array.isArray(ratePlanCode)) return ratePlanCode
+  
+  if (typeof ratePlanCode === 'string') {
+    let clean = ratePlanCode.trim()
+    // Postgres array format
+    if (clean.startsWith('{') && clean.endsWith('}')) {
+      clean = clean.slice(1, -1)
+    }
+    return clean.split(',').map(s => s.trim()).filter(Boolean)
+  }
+  return []
+}
+
+/**
  * 디바운스 함수
  */
 export function debounce<T extends (...args: unknown[]) => unknown>(
@@ -122,7 +142,9 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
   let inThrottle = false
   
   return (...args: Parameters<T>) => {
-    if (!inThrottle) {
+    if (inThrottle) {
+      // ignore
+    } else {
       func(...args)
       inThrottle = true
       setTimeout(() => inThrottle = false, limit)
@@ -168,4 +190,37 @@ export function keysToSnakeCase<T extends Record<string, unknown>>(obj: T): Reco
   }
   
   return result
+}
+
+/**
+ * 숫자를 통화 형식으로 포맷팅
+ */
+export function formatCurrency(value: number | string | null | undefined, currency = 'KRW'): string {
+  if (value === null || value === undefined || value === '') return '-'
+
+  const num = typeof value === 'string' ? parseFloat(value) : value
+  if (isNaN(num)) return '-'
+
+  try {
+    return new Intl.NumberFormat('ko-KR', {
+      style: 'currency',
+      currency: currency,
+      maximumFractionDigits: 0
+    }).format(num)
+  } catch {
+    return `${currency} ${num}`
+  }
+}
+
+export function formatDate(dateString: string | null | undefined): string {
+  if (!dateString) return '-'
+  try {
+    return new Date(dateString).toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    })
+  } catch {
+    return dateString
+  }
 }

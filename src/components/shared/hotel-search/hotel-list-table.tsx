@@ -1,0 +1,771 @@
+import React from 'react'
+import Link from 'next/link'
+import { 
+  ChevronDown, 
+  ChevronUp, 
+  Loader2, 
+  X,
+  Play,
+  Copy,
+  Check,
+  AlertCircle,
+  CheckCircle
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { cn, formatDate, parseRatePlanCode, formatJson } from '@/lib/utils'
+import { HotelSearchResult, ExpandedRowState } from '@/types/hotel'
+import { ImageManagementPanel } from './image-management-panel'
+import { UrlGeneratorPanel } from '../url-generator-panel'
+import DateInput from '@/components/shared/date-input'
+import { RatePlanCodeSelector } from '@/components/shared/rate-plan-code-selector'
+import { BaseButton } from '@/components/shared/form-actions'
+
+interface HotelListTableProps {
+  results: HotelSearchResult[]
+  count: number
+  showInitialHotels: boolean
+  enableHotelEdit: boolean
+  enableChainBrandConnect: boolean
+  
+  expandedRowId: string | null
+  expandedRowState: ExpandedRowState | null
+  
+  onRowClick: (hotel: HotelSearchResult) => void
+  setExpandedRowId: (id: string | null) => void
+  setExpandedRowState: (state: ExpandedRowState | null) => void
+  
+  // Chain Connect
+  connectingHotelId?: string | null
+  connectChainId?: number | null
+  connectBrandId?: number | null
+  connectHotelToChainBrand?: (sabreId: string) => void
+  
+  // Image Management
+  imageManagementState?: any
+  toggleImageEditMode?: (hotelId: string) => void
+  saveImageUrls?: (hotelId: string, sabreId: string) => void
+  createStorageFolder?: (hotelId: string, sabreId: string) => void
+  checkStorageFolder?: (hotelId: string, sabreId: string) => void
+  loadStorageImages?: (hotelId: string, sabreId: string) => void
+  
+  // Detail Test
+  updateExpandedRowState?: (updates: Partial<ExpandedRowState>) => void
+  handleTestHotelDetails?: () => void
+  handleCopyJson?: () => void
+  copiedJson?: boolean
+}
+
+// 지정 경로 순회해서 RatePlan 행 추출 (AmountAfterTax 정렬은 호출부에서)
+function extractRatePlanTableRows(data: unknown): Array<{
+  rateKey: string
+  roomType: string
+  roomName: string
+  description: string
+  currency: string
+  amountAfterTax: number | ''
+  amountBeforeTax: number | ''
+  taxes: number | ''
+  fees: number | ''
+  refundable: string
+  cancelOffset: string
+}> {
+  const rows: Array<{
+    rateKey: string
+    roomType: string
+    roomName: string
+    description: string
+    currency: string
+    amountAfterTax: number | ''
+    amountBeforeTax: number | ''
+    taxes: number | ''
+    fees: number | ''
+    refundable: string
+    cancelOffset: string
+  }> = []
+
+  const deepGet = (obj: unknown, keys: string[]): unknown => {
+    let cur: unknown = obj
+    for (const key of keys) {
+      if (cur && typeof cur === 'object' && Object.prototype.hasOwnProperty.call(cur as object, key)) {
+        cur = (cur as Record<string, unknown>)[key]
+      } else {
+        return undefined
+      }
+    }
+    return cur
+  }
+  const root = deepGet(data, ['GetHotelDetailsRS', 'HotelDetailsInfo', 'HotelRateInfo', 'Rooms', 'Room'])
+  if (!root) return rows
+  const roomArray: unknown[] = Array.isArray(root) ? root : [root]
+
+  const toNumber = (v: unknown): number | '' => {
+    if (v === null || v === undefined || v === '') return ''
+    const n = Number(v)
+    return Number.isFinite(n) ? n : ''
+  }
+
+  for (const room of roomArray) {
+    const r = room as Record<string, unknown>
+    const rt = deepGet(r, ['RoomType'])
+    const rdName = deepGet(r, ['RoomDescription', 'Name'])
+    const descSrc = deepGet(r, ['RoomDescription', 'Text'])
+    const roomType: string = typeof rt === 'string' ? rt : (typeof rdName === 'string' ? rdName : '')
+    const roomName: string = typeof rdName === 'string' ? rdName : ''
+    const description: string = Array.isArray(descSrc) ? (typeof (descSrc as unknown[])[0] === 'string' ? (descSrc as unknown[])[0] as string : '') : (typeof descSrc === 'string' ? descSrc as string : '')
+
+    const plansNode = deepGet(r, ['RatePlans', 'RatePlan'])
+    if (!plansNode) continue
+    const plans: unknown[] = Array.isArray(plansNode) ? plansNode : [plansNode]
+
+    for (const plan of plans) {
+      const p = plan as Record<string, unknown>
+      const currency: string = (() => {
+        const v = deepGet(p, ['ConvertedRateInfo', 'CurrencyCode'])
+        return typeof v === 'string' ? v : ''
+      })()
+      const amountAfterTax = toNumber(deepGet(p, ['ConvertedRateInfo', 'AmountAfterTax']))
+      const amountBeforeTax = toNumber(deepGet(p, ['ConvertedRateInfo', 'AmountBeforeTax']))
+      const taxes = toNumber(deepGet(p, ['ConvertedRateInfo', 'Taxes', 'Amount']))
+      const fees = toNumber(deepGet(p, ['ConvertedRateInfo', 'Fees', 'Amount']))
+      const cpNode = deepGet(p, ['ConvertedRateInfo', 'CancelPenalties', 'CancelPenalty'])
+      const cp0 = Array.isArray(cpNode) ? (cpNode[0] as Record<string, unknown> | undefined) : (cpNode as Record<string, unknown> | undefined)
+      const refundableVal = cp0 ? deepGet(cp0, ['Refundable']) : undefined
+      const refundable = typeof refundableVal === 'boolean' ? String(refundableVal) : (typeof refundableVal === 'string' ? refundableVal : '')
+      const offsetUnitMultiplier = cp0 ? deepGet(cp0, ['OffsetUnitMultiplier']) : undefined
+      const offsetTimeUnit = cp0 ? deepGet(cp0, ['OffsetTimeUnit']) : undefined
+      const offsetDropTime = cp0 ? deepGet(cp0, ['OffsetDropTime']) : undefined
+      const cancelOffset = [offsetUnitMultiplier, offsetTimeUnit, offsetDropTime]
+        .filter((x: unknown) => x !== undefined && x !== null && x !== '')
+        .join(' ')
+      const rateKeyVal = deepGet(p, ['RateKey'])
+      const rateKey: string = typeof rateKeyVal === 'string' ? rateKeyVal : ''
+
+      rows.push({
+        rateKey,
+        roomType,
+        roomName,
+        description,
+        currency,
+        amountAfterTax,
+        amountBeforeTax,
+        taxes,
+        fees,
+        refundable,
+        cancelOffset,
+      })
+    }
+  }
+  return rows
+}
+
+export function HotelListTable({
+  results,
+  count,
+  showInitialHotels,
+  enableHotelEdit,
+  enableChainBrandConnect,
+  
+  expandedRowId,
+  expandedRowState,
+  
+  onRowClick,
+  setExpandedRowId,
+  setExpandedRowState,
+  
+  connectingHotelId,
+  connectChainId,
+  connectBrandId,
+  connectHotelToChainBrand,
+  
+  imageManagementState,
+  toggleImageEditMode,
+  saveImageUrls,
+  createStorageFolder,
+  checkStorageFolder,
+  loadStorageImages,
+  
+  updateExpandedRowState,
+  handleTestHotelDetails,
+  handleCopyJson,
+  copiedJson
+}: HotelListTableProps) {
+  
+  if (results.length === 0) return null
+
+  // 클립보드 복사 상태 (내부 관리)
+  const [internalCopied, setInternalCopied] = React.useState(false);
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      {/* 테이블 헤더 정보 */}
+      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <h3 className="text-lg font-medium text-gray-900">검색 결과</h3>
+        <p className="text-sm text-gray-600 mt-1">
+          {count.toLocaleString()}개의 호텔이 검색되었습니다
+        </p>
+      </div>
+
+      {/* 반응형 테이블 */}
+      <div className="overflow-x-hidden">
+        <table className="w-full table-fixed divide-y divide-gray-200" role="table">
+          <thead className="bg-gray-50">
+            <tr>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Sabre ID
+              </th>
+              {showInitialHotels ? (
+                <>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    호텔명(한글)
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    호텔명(영문)
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    체인(영문)
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    브랜드(영문)
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    호텔 페이지 경로
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Rate Plan Code
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    호텔 연결
+                  </th>
+                </>
+              ) : (
+                <>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Framer CMS ID (id_old)
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    호텔명 (한글)
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    호텔명 (영문)
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    호텔 페이지 경로
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Rate Plan Code
+                  </th>
+                </>
+              )}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {results.map((hotel, index) => {
+              const hotelId = String(hotel.sabre_id);
+              const isExpanded = expandedRowId === hotelId;
+              const hotelPageUrl = hotel.slug ? `https://luxury-select.co.kr/hotel/${hotel.slug}` : null;
+              
+              return (
+                <React.Fragment key={`hotel-${hotel.sabre_id}-${hotel.paragon_id}-${index}`}>
+                  <tr 
+                    onClick={() => onRowClick(hotel)}
+                    className={cn(
+                      "transition-colors duration-150",
+                      enableHotelEdit ? "hover:bg-green-50" : "hover:bg-blue-50 cursor-pointer",
+                      isExpanded ? "bg-blue-100" : index % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                    )}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                      {hotel.sabre_id ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {hotel.sabre_id}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 italic">N/A</span>
+                      )}
+                    </td>
+                    {showInitialHotels ? (
+                      <>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {hotel.property_name_ko || '한글명 없음'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {hotel.property_name_en || '영문명 없음'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {(hotel as any).hotel_brands?.hotel_chains?.chain_name_en || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {(hotel as any).hotel_brands?.brand_name_en || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {hotelPageUrl ? (
+                            <a
+                              href={hotelPageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline break-all"
+                            >
+                              {hotelPageUrl}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 italic">N/A</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {hotel.rate_plan_code ? (
+                            <span className="font-mono text-xs">{hotel.rate_plan_code}</span>
+                          ) : (
+                            <span className="text-gray-400 text-xs italic">N/A</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          {enableChainBrandConnect ? (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              disabled={connectingHotelId === hotel.sabre_id || !connectChainId || !connectBrandId}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (hotel.sabre_id && connectHotelToChainBrand) {
+                                  connectHotelToChainBrand(hotel.sabre_id)
+                                }
+                              }}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                            >
+                              {connectingHotelId === hotel.sabre_id ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  연결 중...
+                                </>
+                              ) : (
+                                '체인브랜드연결'
+                              )}
+                            </Button>
+                          ) : (
+                            <Link
+                              href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                              연결
+                            </Link>
+                          )}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                          {(hotel as any).id_old ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {(hotel as any).id_old}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 italic">N/A</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {enableHotelEdit ? (
+                            <Link
+                              href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                              className={cn(
+                                'font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded text-blue-600'
+                              )}
+                            >
+                              {hotel.property_name_ko || '한글명 없음'}
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRowClick(hotel);
+                              }}
+                              className={cn(
+                                'font-medium text-left focus:outline-none focus:ring-2 focus:ring-blue-500 rounded',
+                                !hotel.property_name_ko ? 'text-gray-400 italic font-normal focus:ring-0' : ''
+                              )}
+                              aria-label="호텔명 선택"
+                            >
+                              {hotel.property_name_ko || '한글명 없음'}
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {enableHotelEdit ? (
+                            <Link
+                              href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                              className={cn(
+                                'font-medium hover:underline text-blue-600',
+                                !hotel.property_name_en ? 'text-gray-400 italic' : ''
+                              )}
+                            >
+                              {hotel.property_name_en || '영문명 없음'}
+                            </Link>
+                          ) : (
+                            hotel.property_name_en ? (
+                              <div className="font-medium">{hotel.property_name_en}</div>
+                            ) : (
+                              <span className="text-gray-400 italic">영문명 없음</span>
+                            )
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {hotelPageUrl ? (
+                            <a
+                              href={hotelPageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline break-all"
+                            >
+                              {hotelPageUrl}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 italic">N/A</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const ratePlanCodes = parseRatePlanCode(hotel.rate_plan_code);
+                              if (ratePlanCodes.length > 0) {
+                                return (
+                                  <div className="flex flex-wrap gap-1">
+                                    {ratePlanCodes.map((code, idx) => 
+                                      enableHotelEdit ? (
+                                        <Link 
+                                          href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                                          key={idx}
+                                          className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 hover:underline"
+                                        >
+                                          {code}
+                                        </Link>
+                                      ) : (
+                                        <span 
+                                          key={idx}
+                                          className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800"
+                                        >
+                                          {code}
+                                        </span>
+                                      )
+                                    )}
+                                  </div>
+                                );
+                              } else {
+                                return enableHotelEdit ? (
+                                  <Link
+                                    href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
+                                    className="text-gray-400 italic hover:underline"
+                                  >
+                                    N/A
+                                  </Link>
+                                ) : (
+                                  <span className="text-gray-400 italic">N/A</span>
+                                );
+                              }
+                            })()}
+                            <div className="ml-auto">
+                              {isExpanded ? (
+                                <ChevronUp className="h-4 w-4 text-gray-400" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-gray-400" />
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                  
+                  {/* 확장 패널 */}
+                  {isExpanded && expandedRowState && (
+                    <tr>
+                      <td colSpan={showInitialHotels ? 7 : 5} className="px-0 py-0 w-full max-w-full overflow-x-hidden">
+                        <div className="bg-gray-50 border-t border-gray-200 w-full max-w-full">
+                          <div className="px-6 py-6 w-full max-w-full">
+                            {/* 이미지 관리 모드 */}
+                            {expandedRowState.type === 'image-management' && expandedRowState.hotel && imageManagementState && (
+                              <ImageManagementPanel 
+                                hotel={expandedRowState.hotel}
+                                hotelId={hotelId}
+                                state={imageManagementState[hotelId]}
+                                onToggleEditMode={toggleImageEditMode}
+                                onSaveImageUrls={saveImageUrls}
+                                onCreateStorageFolder={createStorageFolder}
+                                onCheckStorageFolder={checkStorageFolder}
+                                onLoadStorageImages={loadStorageImages}
+                              />
+                            )}
+
+                            {/* URL 생성 모드 */}
+                            {expandedRowState.type === 'url-generation' && expandedRowState.hotel && (
+                              <UrlGeneratorPanel
+                                hotel={expandedRowState.hotel}
+                                hotelId={hotelId}
+                                onClose={() => {
+                                  setExpandedRowId(null);
+                                  setExpandedRowState(null);
+                                }}
+                                initialSelectedCodes={expandedRowState.selectedRatePlanCodes}
+                                dbCodes={expandedRowState.originalRatePlanCodes}
+                              />
+                            )}
+                            
+                            {/* 기존 패널 (호텔 상세 정보 테스트) */}
+                            {expandedRowState.type !== 'image-management' && expandedRowState.type !== 'url-generation' && updateExpandedRowState && handleTestHotelDetails && (
+                              <>
+                                <div className="flex items-center justify-between mb-6">
+                                  <h4 className="text-lg font-medium text-gray-900">
+                                    호텔 상세 정보 테스트
+                                  </h4>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedRowId(null);
+                                      setExpandedRowState(null);
+                                    }}
+                                    className="p-1 rounded-full hover:bg-gray-200 transition-colors"
+                                    aria-label="패널 닫기"
+                                  >
+                                    <X className="h-5 w-5 text-gray-500" />
+                                  </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                  <div>
+                                    <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-2">
+                                      Start Date
+                                    </label>
+                                    <DateInput
+                                      name="startDate"
+                                      value={expandedRowState.startDate}
+                                      onChange={(e) => {
+                                        const v = e.currentTarget.value
+                                        if (!v) {
+                                          updateExpandedRowState({ startDate: v })
+                                          return
+                                        }
+                                        const parts = v.split('-').map((n) => Number(n))
+                                        if (parts.length === 3 && parts.every((n) => Number.isFinite(n))) {
+                                          const dt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]))
+                                          dt.setUTCDate(dt.getUTCDate() + 1)
+                                          const next = dt.toISOString().slice(0, 10)
+                                          updateExpandedRowState({ startDate: v, endDate: next })
+                                        } else {
+                                          updateExpandedRowState({ startDate: v })
+                                        }
+                                      }}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-2">
+                                      End Date
+                                    </label>
+                                    <DateInput
+                                      name="endDate"
+                                      value={expandedRowState.endDate}
+                                      onChange={(e) => updateExpandedRowState({ endDate: e.currentTarget.value })}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label htmlFor="adults" className="block text-sm font-medium text-gray-700 mb-2">
+                                      Adults
+                                    </label>
+                                    <input
+                                      id="adults"
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      value={expandedRowState.adults}
+                                      onChange={(e) => updateExpandedRowState({ adults: parseInt(e.target.value) || 1 })}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label htmlFor="currencyCode" className="block text-sm font-medium text-gray-700 mb-2">
+                                      Currency Code
+                                    </label>
+                                    <select
+                                      id="currencyCode"
+                                      value={expandedRowState.currencyCode}
+                                      onChange={(e) => updateExpandedRowState({ currencyCode: e.target.value })}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                      <option value="KRW">KRW</option>
+                                      <option value="USD">USD</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <div className="mt-6">
+                                  <RatePlanCodeSelector
+                                    selectedCodes={expandedRowState.selectedRatePlanCodes}
+                                    dbCodes={expandedRowState.originalRatePlanCodes}
+                                    onChange={(codes) => updateExpandedRowState({ selectedRatePlanCodes: codes })}
+                                    description="DB 현재 설정값은 녹색 뱃지로 표시됩니다."
+                                  />
+                                </div>
+
+                                <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:items-center">
+                                  <button
+                                    onClick={handleTestHotelDetails}
+                                    disabled={expandedRowState.isLoading}
+                                    className={cn(
+                                      "inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium",
+                                      "bg-blue-600 text-white hover:bg-blue-700",
+                                      "focus:outline-none focus:ring-2 focus:ring-blue-500",
+                                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                                      "transition-colors duration-200"
+                                    )}
+                                  >
+                                    {expandedRowState.isLoading ? (
+                                      <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        조회 중...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Play className="h-4 w-4 mr-2" />
+                                        호텔 상세 조회 테스트
+                                      </>
+                                    )}
+                                  </button>
+                                  
+                                  {expandedRowState.isSaving && (
+                                    <span className="flex items-center text-sm text-gray-500">
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      Rate Plan Code 저장 중...
+                                    </span>
+                                  )}
+                                  {expandedRowState.saveSuccess && (
+                                    <span className="flex items-center text-sm text-green-600 animate-in fade-in">
+                                      <CheckCircle className="h-4 w-4 mr-2" />
+                                      저장 완료!
+                                    </span>
+                                  )}
+                                </div>
+
+                                {expandedRowState.error && (
+                                  <div className="mt-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-start gap-3">
+                                    <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                                    <div>
+                                      <h3 className="font-medium">오류가 발생했습니다</h3>
+                                      <p className="text-sm mt-1">{expandedRowState.error}</p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {expandedRowState.testResult && (
+                                  <>
+                                    <div className="mt-6 space-y-4">
+                                      <div className="flex items-center justify-between">
+                                        <h5 className="text-lg font-medium text-gray-900">조회 결과</h5>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            try {
+                                              const text = formatJson(expandedRowState.testResult)
+                                              navigator.clipboard?.writeText(text)
+                                              setInternalCopied(true)
+                                              setTimeout(() => setInternalCopied(false), 1500)
+                                            } catch {}
+                                          }}
+                                          className="text-gray-600"
+                                        >
+                                          {internalCopied ? (
+                                            <>
+                                              <Check className="h-4 w-4 mr-2" />
+                                              복사됨
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Copy className="h-4 w-4 mr-2" />
+                                              JSON 복사
+                                            </>
+                                          )}
+                                        </Button>
+                                      </div>
+                                      <div className="bg-gray-900 rounded-lg p-4 overflow-auto max-h-[500px]">
+                                        <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
+                                          {formatJson(expandedRowState.testResult)}
+                                        </pre>
+                                      </div>
+                                    </div>
+
+                                    {/* 지정 경로 테이블 (AmountAfterTax 오름차순, 마크다운 스타일) */}
+                                    {(() => {
+                                      const rows = extractRatePlanTableRows(expandedRowState.testResult)
+                                      if (rows.length === 0) {
+                                        return (
+                                          <div className="mt-6 rounded-lg border bg-white">
+                                            <div className="px-4 py-2 border-b text-sm font-medium">RatePlan Table (sorted by AmountAfterTax)</div>
+                                            <div className="p-4 text-sm text-gray-600">선택한 일자와 조건에 요금이 없습니다.</div>
+                                          </div>
+                                        )
+                                      }
+                                      const sorted = [...rows].sort((a, b) => {
+                                        const ax = a.amountAfterTax === '' ? Number.POSITIVE_INFINITY : (a.amountAfterTax as number)
+                                        const bx = b.amountAfterTax === '' ? Number.POSITIVE_INFINITY : (b.amountAfterTax as number)
+                                        return ax - bx
+                                      })
+                                      return (
+                                        <div className="mt-6 rounded-lg border bg-white">
+                                          <div className="px-4 py-2 border-b text-sm font-medium">RatePlan Table (sorted by AmountAfterTax)</div>
+                                          <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-gray-200">
+                                              <thead className="bg-gray-50">
+                                                <tr>
+                                                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">RateKey</th>
+                                                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">RoomType</th>
+                                                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">RoomName</th>
+                                                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Description</th>
+                                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Currency</th>
+                                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">AmountAfterTax</th>
+                                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">AmountBeforeTax</th>
+                                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Taxes</th>
+                                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Fees</th>
+                                                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Refundable</th>
+                                                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">CancelOffset</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody className="bg-white divide-y divide-gray-100">
+                                                {sorted.map((r, i) => (
+                                                  <tr key={`table-${i}`} className="hover:bg-blue-100 transition-colors duration-75">
+                                                    <td className="px-4 py-2 align-top text-xs font-mono text-gray-800">{r.rateKey ? (r.rateKey.length > 10 ? `${r.rateKey.slice(0,10)}...` : r.rateKey) : ''}</td>
+                                                    <td className="px-4 py-2 align-top text-sm text-gray-900">{r.roomType}</td>
+                                                    <td className="px-4 py-2 align-top text-sm text-gray-900">{r.roomName}</td>
+                                                    <td className="px-4 py-2 align-top text-xs text-gray-700 break-words">{r.description}</td>
+                                                    <td className="px-4 py-2 align-top text-right text-sm text-gray-900">{r.currency}</td>
+                                                    <td className="px-4 py-2 align-top text-right text-sm text-gray-900">{r.amountAfterTax === '' ? '' : (r.amountAfterTax as number).toLocaleString()}</td>
+                                                    <td className="px-4 py-2 align-top text-right text-sm text-gray-900">{r.amountBeforeTax === '' ? '' : (r.amountBeforeTax as number).toLocaleString()}</td>
+                                                    <td className="px-4 py-2 align-top text-right text-sm text-gray-900">{r.taxes === '' ? '' : (r.taxes as number).toLocaleString()}</td>
+                                                    <td className="px-4 py-2 align-top text-right text-sm text-gray-900">{r.fees === '' ? '' : (r.fees as number).toLocaleString()}</td>
+                                                    <td className="px-4 py-2 align-top text-sm text-gray-900">{r.refundable}</td>
+                                                    <td className="px-4 py-2 align-top text-xs text-gray-900">{r.cancelOffset}</td>
+                                                  </tr>
+                                                ))}
+                                              </tbody>
+                                            </table>
+                                          </div>
+                                        </div>
+                                      )
+                                    })()}
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

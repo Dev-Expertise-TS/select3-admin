@@ -9,6 +9,7 @@ type Hotel = {
   sabre_id: string
   property_name_ko: string | null
   property_name_en: string | null
+  rate_plan_code?: string[] | string | null
 }
 
 type HotelQuickSearchProps = {
