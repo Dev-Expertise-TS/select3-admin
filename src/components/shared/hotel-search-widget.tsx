@@ -9,11 +9,10 @@ import {
   ExpandedRowState, 
   HotelDetailsRequest 
 } from '@/types/hotel'
-import { getDateAfterDays } from '@/lib/utils'
+import { getDateAfterDays, parseRatePlanCode, cn } from '@/lib/utils'
 import { HotelSearchFilters } from './hotel-search/search-filters'
 import { HotelListTable } from './hotel-search/hotel-list-table'
 import { ImageInfo, StorageFolderInfo, StorageImage } from './hotel-search/image-management-panel'
-import { parseRatePlanCode } from '@/lib/utils'
 
 interface HotelSearchWidgetProps {
   /** 위젯의 타이틀 */
@@ -508,7 +507,7 @@ export default function HotelSearchWidget({
       }
 
       const data = await response.json()
-      
+
       if (data.success) {
         setImageManagementState(prev => {
           const currentState = prev[hotelId]
@@ -922,7 +921,7 @@ export default function HotelSearchWidget({
     }, 200);
     return () => clearTimeout(t);
   }, [searchTerm, suppressSuggest]);
-
+  
   const onSelectSuggestion = (value: string) => {
     setSearchTerm(value);
     setOpenSuggest(false);
@@ -965,7 +964,7 @@ export default function HotelSearchWidget({
       }
       return;
     }
-
+    
     if (enableUrlGeneration) {
       if (hotel.sabre_id !== null && hotel.sabre_id !== undefined) {
         const hotelId = String(hotel.sabre_id);
@@ -1073,7 +1072,7 @@ export default function HotelSearchWidget({
       });
       return;
     }
-    
+
     updateExpandedRowState({ 
       isLoading: true, 
       error: null, 
@@ -1148,7 +1147,7 @@ export default function HotelSearchWidget({
       });
       return;
     }
-    
+
     updateExpandedRowState({ 
       isSaving: true, 
       error: null,
@@ -1268,7 +1267,7 @@ export default function HotelSearchWidget({
           onSuggestionClick={onSelectSuggestion}
           inputRef={inputRef}
         />
-      </div>
+                  </div>
 
       {/* 결과 영역 */}
       <div className="flex-1 overflow-auto space-y-6">
