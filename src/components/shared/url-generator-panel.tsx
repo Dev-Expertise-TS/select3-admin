@@ -1,17 +1,121 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Link2, Loader2, MapPin, X, RefreshCw, AlertCircle, Check, Users, Play, CheckCircle } from "lucide-react";
+import { Copy, Link2, Loader2, MapPin, X, RefreshCw, AlertCircle, Check, Users, Play, CheckCircle, Maximize2 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { RatePlanCodeSelector } from "./rate-plan-code-selector";
 import { HotelSearchResult } from "./hotel-search-widget";
 import DateInput from "@/components/shared/date-input";
+import { Modal } from "@/components/shared/modal";
 
 // 기존 RoomUrlManager의 헬퍼 함수들을 가져옴
 function getDefaultDate(daysToAdd: number) {
   const date = new Date();
   date.setDate(date.getDate() + daysToAdd);
   return date.toISOString().split("T")[0];
+}
+
+// 안전한 깊은 접근 헬퍼 (배열 경로 지원) - hotel-list-table.tsx와 동일한 방식
+function getDeepValue(obj: unknown, keys: string[]): unknown {
+  let cur: unknown = obj
+  for (const key of keys) {
+    if (cur && typeof cur === 'object' && Object.prototype.hasOwnProperty.call(cur as object, key)) {
+      cur = (cur as Record<string, unknown>)[key]
+    } else {
+      return undefined
+    }
+  }
+  return cur
+}
+
+// JSON 응답에서 Room 데이터를 테이블 행으로 추출
+function extractRoomTableRows(rawResponse: string | null): RoomTableRow[] {
+  if (!rawResponse) return [];
+  
+  // HTML 응답 감지 (에러 페이지 등)
+  if (typeof rawResponse === 'string' && rawResponse.trim().startsWith('<!DOCTYPE')) {
+    console.warn('[extractRoomTableRows] HTML 응답 감지됨 (JSON이 아님)');
+    return [];
+  }
+  
+  let parsed: unknown;
+  try {
+    parsed = typeof rawResponse === 'string' ? JSON.parse(rawResponse) : rawResponse;
+  } catch (e) {
+    console.error('[extractRoomTableRows] JSON 파싱 실패:', e);
+    // HTML 응답인지 추가 확인
+    if (typeof rawResponse === 'string' && (rawResponse.includes('<!DOCTYPE') || rawResponse.includes('<html'))) {
+      console.warn('[extractRoomTableRows] HTML 응답으로 확인됨');
+    }
+    return [];
+  }
+
+  const rows: RoomTableRow[] = [];
+  
+  // hotel-list-table.tsx와 동일한 방식으로 직접 경로 접근
+  const root = getDeepValue(parsed, ['GetHotelDetailsRS', 'HotelDetailsInfo', 'HotelRateInfo', 'Rooms', 'Room']);
+  if (!root) {
+    console.log('[extractRoomTableRows] Room 데이터 없음');
+    return rows;
+  }
+  
+  const roomArray: unknown[] = Array.isArray(root) ? root : [root];
+
+  roomArray.forEach((room) => {
+    const r = room as Record<string, unknown>;
+    
+    // 각 Room에 대해 첫 번째 RatePlan 사용
+    const plansNode = getDeepValue(r, ['RatePlans', 'RatePlan']);
+    if (!plansNode) return;
+    
+    const plans: unknown[] = Array.isArray(plansNode) ? plansNode : [plansNode];
+    const firstPlan = plans[0] as Record<string, unknown> || {};
+
+    // 필드 추출
+    const roomViewDescription = (r.RoomViewDescription as string) || '';
+    
+    // BedTypeDescription: BedTypeOptions.BedTypes[0].BedType[0].Description
+    const bedTypes = getDeepValue(r, ['BedTypeOptions', 'BedTypes']);
+    const bedTypesArray = Array.isArray(bedTypes) ? bedTypes : (bedTypes ? [bedTypes] : []);
+    const firstBedType = bedTypesArray[0] as Record<string, unknown> | undefined;
+    const bedType = firstBedType?.BedType;
+    const bedTypeArray = Array.isArray(bedType) ? bedType : (bedType ? [bedType] : []);
+    const bedTypeObj = bedTypeArray[0] as Record<string, unknown> | undefined;
+    const bedTypeDescription = (bedTypeObj?.Description as string) || '';
+    
+    const ratePlanName = (firstPlan.RatePlanName as string) || '';
+    const ratePlanCode = (firstPlan.RatePlanCode as string) || '';
+    const rateKey = (firstPlan.RateKey as string) || '';
+    const productCode = (firstPlan.ProductCode as string) || '';
+    const convertedRateInfo = firstPlan.ConvertedRateInfo as Record<string, unknown> || {};
+    const amountAfterTax = convertedRateInfo.AmountAfterTax || '';
+    const averageNightlyRate = convertedRateInfo.AverageNightlyRate || '';
+    const currencyCode = (convertedRateInfo.CurrencyCode as string) || '';
+    
+    const roomDescription = r.RoomDescription as Record<string, unknown> || {};
+    const roomName = (roomDescription.Name as string) || '';
+    const descSrc = roomDescription.Text;
+    const roomText = Array.isArray(descSrc) 
+      ? ((descSrc[0] as string) || '')
+      : ((descSrc as string) || '');
+
+    rows.push({
+      roomViewDescription,
+      bedTypeDescription,
+      ratePlanName,
+      ratePlanCode,
+      rateKey,
+      productCode,
+      amountAfterTax,
+      averageNightlyRate,
+      currencyCode,
+      roomName,
+      roomText,
+    });
+  });
+
+  console.log('[extractRoomTableRows] 추출된 Room 행 수:', rows.length);
+  return rows;
 }
 
 interface RatePlanRow {
@@ -25,6 +129,45 @@ interface RatePlanRow {
   currency: string
   amountAfterTax: number | ""
   amountBeforeTax: number | ""
+}
+
+interface RoomTableRow {
+  roomViewDescription: string
+  bedTypeDescription: string
+  ratePlanName: string
+  ratePlanCode: string
+  rateKey: string
+  productCode: string
+  amountAfterTax: string | number
+  averageNightlyRate: string | number
+  currencyCode: string
+  roomName: string
+  roomText: string
+}
+
+// RoomText에서 방 개수를 추출하는 함수
+function extractRoomType(roomText: string): string {
+  if (!roomText) return '-';
+  
+  // "BDR" 또는 "BEDROOMS"가 포함된 패턴 찾기
+  // 예: "2 BDR", "3 BEDROOMS", "2BDR", "3BEDROOMS" 등
+  const patterns = [
+    /(\d+)\s*BDR/i,        // "2 BDR" 또는 "2BDR"
+    /(\d+)\s*BEDROOMS/i,   // "2 BEDROOMS" 또는 "2BEDROOMS"
+    /(\d+)\s*BED\s*ROOMS/i, // "2 BED ROOMS"
+  ];
+
+  for (const pattern of patterns) {
+    const match = roomText.match(pattern);
+    if (match && match[1]) {
+      const roomCount = parseInt(match[1], 10);
+      if (!isNaN(roomCount) && roomCount > 0) {
+        return `${roomCount}룸`;
+      }
+    }
+  }
+
+  return '-';
 }
 
 const DEFAULT_BASE_URL = "https://select3-admin.example.com/api/rooms/url"
@@ -68,6 +211,8 @@ export function UrlGeneratorPanel({
   const [copied, setCopied] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [copiedJson, setCopiedJson] = useState(false);
+  const [isTablePopupOpen, setIsTablePopupOpen] = useState(false);
+  const [copiedLinkIndex, setCopiedLinkIndex] = useState<number | null>(null);
 
   // 부모에서 전달받은 props가 변경되면 상태 업데이트 (예: 다른 호텔 선택 시)
   useEffect(() => {
@@ -84,6 +229,133 @@ export function UrlGeneratorPanel({
     () => ratePlans.find((plan) => plan.id === activeRatePlanId) ?? null,
     [ratePlans, activeRatePlanId]
   );
+
+  // JSON 응답에서 Room 테이블 데이터 추출
+  const roomTableRows = useMemo(() => {
+    const rows = extractRoomTableRows(rawResponse);
+    console.log('[UrlGeneratorPanel] roomTableRows 추출:', {
+      rawResponseExists: !!rawResponse,
+      rawResponseType: typeof rawResponse,
+      rowsCount: rows.length,
+      firstRow: rows[0]
+    });
+    return rows;
+  }, [rawResponse]);
+
+  // 테이블 렌더링 함수
+  const renderRoomTable = (isInPopup: boolean = false) => {
+    return (
+      <div className={isInPopup ? "w-full" : "overflow-x-auto"}>
+        <table className={`w-full border-collapse border border-gray-200 ${isInPopup ? 'text-base' : 'text-sm'}`}>
+          <thead className="bg-gray-50 sticky top-0">
+            <tr>
+              <th className="border border-gray-200 p-2 text-center text-xs font-medium text-gray-700" style={{ width: '100px' }}>경로</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">RoomName</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">RatePlanName</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">RoomType</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">BedTypeDescription</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">RoomViewDescription</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">RoomText</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700" style={!isInPopup ? { width: 'auto', maxWidth: '80px' } : undefined}>RatePlanCode</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700" style={isInPopup ? { width: '30px' } : undefined}>RateKey</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">ProductCode</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">AmountAfterTax</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">AverageNightlyRate</th>
+              <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700" style={!isInPopup ? { width: 'auto', maxWidth: '80px' } : undefined}>CurrencyCode</th>
+            </tr>
+          </thead>
+          <tbody>
+            {roomTableRows.map((row, index) => (
+              <tr key={index} className="hover:bg-gray-50">
+                <td className="border border-gray-200 p-2 text-center">
+                  {hotel.slug && row.productCode ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyProductLink(String(row.productCode), index);
+                      }}
+                      className={cn(
+                        "text-xs h-7 px-2",
+                        copiedLinkIndex === index 
+                          ? "bg-green-50 border-green-300 text-green-700" 
+                          : "hover:bg-blue-50"
+                      )}
+                    >
+                      {copiedLinkIndex === index ? (
+                        <>
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          복사됨
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="h-3 w-3 mr-1" />
+                          링크생성
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-gray-400">-</span>
+                  )}
+                </td>
+                <td className="border border-gray-200 p-2 text-gray-900">{row.roomName || '-'}</td>
+                <td className="border border-gray-200 p-2 text-gray-900 font-medium">{row.ratePlanName || '-'}</td>
+                <td className="border border-gray-200 p-2 text-gray-900 text-center font-medium">
+                  {extractRoomType(row.roomText)}
+                </td>
+                <td className="border border-gray-200 p-2 text-gray-900">{row.bedTypeDescription || '-'}</td>
+                <td className="border border-gray-200 p-2 text-gray-900">{row.roomViewDescription || '-'}</td>
+                <td className={`border border-gray-200 p-2 text-gray-900 ${isInPopup ? 'text-sm' : 'text-xs'}`} style={!isInPopup ? { maxWidth: '300px' } : undefined}>{row.roomText || '-'}</td>
+                <td className={`border border-gray-200 p-2 text-gray-900 font-mono ${isInPopup ? 'text-sm' : 'text-xs'}`} style={!isInPopup ? { width: 'auto', maxWidth: '80px' } : undefined}>{row.ratePlanCode || '-'}</td>
+                <td 
+                  className={`border border-gray-200 p-2 text-gray-900 font-mono ${isInPopup ? 'text-sm' : 'text-xs'}`}
+                  style={isInPopup ? { width: '30px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : undefined}
+                >
+                  {row.rateKey ? (
+                    <span 
+                      className="cursor-help relative inline-block group"
+                      title={row.rateKey}
+                    >
+                      {!isInPopup && row.rateKey.length > 20 ? (
+                        <>
+                          <span className="truncate block max-w-[150px]">
+                            {row.rateKey.substring(0, 20)}...
+                          </span>
+                          <span className="absolute left-0 bottom-full mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible pointer-events-none z-50 shadow-xl transition-all duration-200 max-w-[400px] break-all whitespace-normal">
+                            {row.rateKey}
+                          </span>
+                        </>
+                      ) : isInPopup ? (
+                        <>
+                          <span className="truncate block">
+                            {row.rateKey.substring(0, 3)}...
+                          </span>
+                          <span className="absolute left-0 bottom-full mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible pointer-events-none z-50 shadow-xl transition-all duration-200 max-w-[400px] break-all whitespace-normal">
+                            {row.rateKey}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="truncate block max-w-[150px]">
+                          {row.rateKey}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+                <td className={`border border-gray-200 p-2 text-gray-900 font-mono ${isInPopup ? 'text-sm' : 'text-xs'}`}>{row.productCode || '-'}</td>
+                <td className="border border-gray-200 p-2 text-gray-900 text-right">{row.amountAfterTax ? formatCurrency(row.amountAfterTax, row.currencyCode) : '-'}</td>
+                <td className="border border-gray-200 p-2 text-gray-900 text-right">{row.averageNightlyRate ? formatCurrency(row.averageNightlyRate, row.currencyCode) : '-'}</td>
+                <td className={`border border-gray-200 p-2 text-gray-900 font-mono ${isInPopup ? 'text-sm' : 'text-xs'}`} style={!isInPopup ? { width: 'auto', maxWidth: '80px' } : undefined}>{row.currencyCode || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (!selectedPlan) return;
@@ -127,9 +399,20 @@ export function UrlGeneratorPanel({
         body: JSON.stringify(payload),
       });
 
+      // 응답이 JSON인지 확인
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error('[handleFetchRatePlans] JSON이 아닌 응답:', contentType, text.substring(0, 200));
+        setRateError('서버에서 예상치 못한 응답 형식을 받았습니다.');
+        return;
+      }
+
       const data = await res.json();
 
       if (data.rawResponse) {
+        // rawResponse를 원본 객체로 저장 (JSON 표시용으로는 문자열 변환)
+        // 하지만 테이블 추출용으로는 객체를 직접 사용
         setRawResponse(
           typeof data.rawResponse === 'string'
             ? data.rawResponse
@@ -203,6 +486,20 @@ export function UrlGeneratorPanel({
       setTimeout(() => setCopiedJson(false), 2000);
     } catch {
       // ignore
+    }
+  };
+
+  const handleCopyProductLink = async (productCode: string, rowIndex: number) => {
+    if (!hotel.slug || !productCode) return;
+    
+    const url = `https://luxury-select.co.kr/hotel/${hotel.slug}?checkIn=${checkInDate}&checkOut=${checkOutDate}&productCode=${productCode}`;
+    
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedLinkIndex(rowIndex);
+      setTimeout(() => setCopiedLinkIndex(null), 2000);
+    } catch (error) {
+      console.error('링크 복사 실패:', error);
     }
   };
 
@@ -376,23 +673,42 @@ export function UrlGeneratorPanel({
         </div>
       )}
 
-      {/* Rate Plan 결과 분석 (Raw Response 아래로 위치 이동 및 텍스트 변경) */}
+      {/* 객실 리스트 */}
       <div className="mt-6">
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm flex flex-col h-[600px]">
            <div className="border-b px-5 py-4 flex items-center justify-between flex-shrink-0 bg-gray-50">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Rate Plan 결과 분석</h3>
+              <h3 className="text-sm font-semibold text-gray-900">
+                {rawResponse && roomTableRows.length > 0 
+                  ? "Room 데이터 테이블" 
+                  : "객실 리스트"}
+              </h3>
               <p className="text-xs text-gray-500 mt-1">
-                {ratePlans.length > 0 
-                  ? `${ratePlans.length}개의 요금제를 찾았습니다.` 
-                  : "조회 결과가 여기에 표시됩니다."}
+                {rawResponse && roomTableRows.length > 0
+                  ? `${roomTableRows.length}개의 Room을 찾았습니다.`
+                  : ratePlans.length > 0 
+                    ? `${ratePlans.length}개의 요금제를 찾았습니다.` 
+                    : "조회 결과가 여기에 표시됩니다."}
               </p>
             </div>
-            {checkInDate && checkOutDate && (
-              <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                {checkInDate} → {checkOutDate}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {checkInDate && checkOutDate && (
+                <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                  {checkInDate} → {checkOutDate}
+                </span>
+              )}
+              {rawResponse && roomTableRows.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsTablePopupOpen(true)}
+                  className="text-xs"
+                >
+                  <Maximize2 className="h-3 w-3 mr-1" />
+                  팝업으로 넓게 보기
+                </Button>
+              )}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0 bg-white">
              {rateLoading ? (
@@ -400,6 +716,8 @@ export function UrlGeneratorPanel({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 요금을 불러오는 중입니다...
               </div>
+            ) : rawResponse && roomTableRows.length > 0 ? (
+              renderRoomTable(false)
             ) : ratePlans.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-sm text-gray-500">
                 <MapPin className="h-8 w-8 text-gray-300 mb-3" />
@@ -626,6 +944,19 @@ export function UrlGeneratorPanel({
           </div>
         </div>
       </div>
+
+      {/* Room 데이터 테이블 팝업 */}
+      <Modal
+        isOpen={isTablePopupOpen}
+        onClose={() => setIsTablePopupOpen(false)}
+        title="Room 데이터 테이블"
+        size="full"
+        className="max-w-[95vw] max-h-[90vh]"
+      >
+        <div className="overflow-auto max-h-[calc(90vh-120px)]">
+          {renderRoomTable(true)}
+        </div>
+      </Modal>
     </>
   );
 }

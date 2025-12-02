@@ -13,14 +13,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Sabre API 호출을 위한 요청 데이터 구성
-    const requestData = {
+    const requestData: any = {
       HotelCode: sabreId,
       CurrencyCode: 'KRW',
       StartDate: checkInDate,
       EndDate: checkOutDate,
       Adults: adults,
       Children: children,
-      RatePlanCode: ratePlanCode ? ratePlanCode.split(',').map((c: string) => c.trim()).filter(Boolean) : undefined
+    }
+
+    // RatePlanCode가 있으면 배열로 변환하고 ExactMatchOnly 플래그 추가
+    if (ratePlanCode) {
+      const codes = ratePlanCode.split(',').map((c: string) => c.trim()).filter(Boolean)
+      if (codes.length > 0) {
+        requestData.RatePlanCode = codes
+        requestData.ExactMatchOnly = true
+      }
     }
 
     console.log('[RoomUrlRates] Sabre API Request:', JSON.stringify(requestData, null, 2))
