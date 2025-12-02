@@ -393,11 +393,15 @@ export function UrlGeneratorPanel({
         ratePlanCode: codesToUse.join(",") 
       };
 
+      console.log('[handleFetchRatePlans] 요청 payload:', payload);
+
       const res = await fetch("/api/hotel/room-url-rates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
+      console.log('[handleFetchRatePlans] 응답 상태:', res.status, res.statusText);
 
       // 응답이 JSON인지 확인
       const contentType = res.headers.get('content-type');
@@ -409,6 +413,13 @@ export function UrlGeneratorPanel({
       }
 
       const data = await res.json();
+      console.log('[handleFetchRatePlans] 파싱된 데이터:', {
+        success: data.success,
+        hasData: !!data.data,
+        dataLength: data.data?.length,
+        hasRawResponse: !!data.rawResponse,
+        error: data.error
+      });
 
       if (data.rawResponse) {
         // rawResponse를 원본 객체로 저장 (JSON 표시용으로는 문자열 변환)
@@ -431,8 +442,20 @@ export function UrlGeneratorPanel({
         setRatePlans([]);
       }
     } catch (err: any) {
-      console.error(err);
-      setRateError(err.message || "알 수 없는 오류가 발생했습니다.");
+      console.error('[handleFetchRatePlans] 에러 발생:', err);
+      console.error('[handleFetchRatePlans] 에러 스택:', err.stack);
+      
+      let errorMessage = "알 수 없는 오류가 발생했습니다.";
+      
+      if (err.message === 'Failed to fetch') {
+        errorMessage = "네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.";
+      } else if (err.name === 'AbortError') {
+        errorMessage = "요청이 취소되었습니다.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setRateError(errorMessage);
     } finally {
       setRateLoading(false);
     }
