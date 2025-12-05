@@ -27,13 +27,18 @@ export function RegionSelector({ regionType, value, onChange, disabled }: Region
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  console.log(`[RegionSelector] 렌더링됨 - regionType: ${regionType}, disabled: ${disabled}, isOpen: ${isOpen}, optionsCount: ${options.length}`);
+
   // 지역 옵션 로드
   useEffect(() => {
     const fetchRegions = async () => {
       setLoading(true)
       try {
+        console.log(`[RegionSelector] 옵션 로드 시작 - regionType: ${regionType}`);
         const response = await fetch(`/api/regions?type=${regionType}&pageSize=500`)
         const data = await response.json()
+        
+        console.log(`[RegionSelector] API 응답:`, { success: data.success, count: data.data?.length });
         
         if (data.success && Array.isArray(data.data)) {
           const formattedOptions: RegionOption[] = data.data.map((item: any) => {
@@ -59,14 +64,23 @@ export function RegionSelector({ regionType, value, onChange, disabled }: Region
               name_en = item.region_name_en
             }
             
-            return {
+            const opt: RegionOption = {
               id: item.id,
               code,
               name_ko,
               name_en
             }
+            return opt
           }).filter((opt: RegionOption) => opt.name_ko || opt.name_en) // 이름이 있는 것만
-          
+
+          // 한글 이름 기준 가나다 정렬 (없으면 영문명 기준)
+          formattedOptions.sort((a, b) => {
+            const aName = a.name_ko || a.name_en || ''
+            const bName = b.name_ko || b.name_en || ''
+            return aName.localeCompare(bName, 'ko-KR')
+          })
+
+          console.log(`[RegionSelector] 옵션 정렬 완료 - 총 ${formattedOptions.length}개`);
           setOptions(formattedOptions)
         }
       } catch (error) {
@@ -109,7 +123,14 @@ export function RegionSelector({ regionType, value, onChange, disabled }: Region
     <div className="relative">
       <button
         type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log(`[RegionSelector] 버튼 클릭됨 - regionType: ${regionType}, disabled: ${disabled}, isOpen: ${isOpen}`);
+          if (!disabled) {
+            setIsOpen(!isOpen);
+          }
+        }}
         disabled={disabled}
         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-left focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-between"
       >
@@ -118,52 +139,83 @@ export function RegionSelector({ regionType, value, onChange, disabled }: Region
       </button>
 
       {isOpen && !disabled && (
-        <>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           {/* 배경 오버레이 */}
-          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-          
-          {/* 드롭다운 */}
-          <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-            {loading ? (
-              <div className="px-3 py-2 text-sm text-gray-500 text-center">로딩 중...</div>
-            ) : options.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-gray-500 text-center">옵션이 없습니다.</div>
-            ) : (
-              <>
-                {/* 선택 해제 옵션 */}
-                <div
-                  onClick={() => {
-                    onChange({ ko: '', en: '', code: null })
-                    setIsOpen(false)
-                  }}
-                  className="px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 border-b border-gray-100 text-gray-500"
-                >
-                  선택 해제
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setIsOpen(false)}
+          />
+
+          {/* 레이어 팝업 */}
+          <div
+            className="relative z-50 w-full max-w-xl max-h-[70vh] bg-white rounded-lg shadow-lg border border-gray-200 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-900">
+                {regionType === 'city' && '도시 선택'}
+                {regionType === 'country' && '국가 선택'}
+                {regionType === 'continent' && '대륙 선택'}
+                {regionType === 'region' && '지역 선택'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                aria-label="닫기"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {loading ? (
+                <div className="px-4 py-6 text-sm text-gray-500 text-center">
+                  로딩 중...
                 </div>
-                
-                {options.map((option) => (
+              ) : options.length === 0 ? (
+                <div className="px-4 py-6 text-sm text-gray-500 text-center">
+                  옵션이 없습니다.
+                </div>
+              ) : (
+                <>
+                  {/* 선택 해제 옵션 */}
                   <div
-                    key={option.id}
-                    onClick={() => handleSelect(option)}
-                    className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 border-b border-gray-50 last:border-0"
+                    onClick={() => {
+                      onChange({ ko: '', en: '', code: null })
+                      setIsOpen(false)
+                    }}
+                    className="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50 border-b border-gray-100 text-gray-500"
                   >
-                    <div className="font-medium text-gray-900">
-                      {option.name_ko || option.name_en}
-                      {option.code && (
-                        <span className="ml-2 text-xs text-gray-500 font-mono bg-gray-100 px-1.5 py-0.5 rounded">
-                          {option.code}
-                        </span>
+                    선택 해제
+                  </div>
+
+                  {options.map((option, index) => (
+                    <div
+                      key={`${option.id}-${option.code ?? ''}-${option.name_ko ?? option.name_en ?? ''}-${index}`}
+                      onClick={() => handleSelect(option)}
+                      className="px-4 py-3 text-sm cursor-pointer hover:bg-blue-50 border-b border-gray-50 last:border-0"
+                    >
+                      <div className="font-medium text-gray-900 flex items-center justify-between gap-2">
+                        <span>{option.name_ko || option.name_en}</span>
+                        {option.code && (
+                          <span className="ml-2 text-xs text-gray-500 font-mono bg-gray-100 px-1.5 py-0.5 rounded">
+                            {option.code}
+                          </span>
+                        )}
+                      </div>
+                      {option.name_ko && option.name_en && (
+                        <div className="text-xs text-gray-600 mt-0.5">
+                          {option.name_en}
+                        </div>
                       )}
                     </div>
-                    {option.name_ko && option.name_en && (
-                      <div className="text-xs text-gray-600 mt-0.5">{option.name_en}</div>
-                    )}
-                  </div>
-                ))}
-              </>
-            )}
+                  ))}
+                </>
+              )}
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   )

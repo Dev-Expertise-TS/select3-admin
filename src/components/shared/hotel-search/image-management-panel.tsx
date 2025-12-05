@@ -395,7 +395,7 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
           method: 'POST',
           body: formData,
         })
-
+        
         const contentType = response.headers.get('content-type') || ''
 
         // JSON 응답이 아닌 경우 (예: 413 Request Entity Too Large HTML 응답 등)
@@ -838,75 +838,75 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   </nav>
                 </div>
 
-                <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg mb-3">
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
+            <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg mb-3">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
                         checked={selectedImages.size === displayImages.length && displayImages.length > 0}
-                        onChange={(e) => {
-                          if (e.target.checked) {
+                    onChange={(e) => {
+                      if (e.target.checked) {
                             setSelectedImages(new Set(displayImages.map((img, idx) => 
-                              (img as any).storagePath || (img as any).path || img.name || String(idx)
-                            )))
-                          } else {
-                            setSelectedImages(new Set())
-                          }
-                        }}
-                        className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
-                      />
-                      <span className="text-sm font-medium text-gray-700">
-                        전체 선택 ({selectedImages.size}개 선택됨)
-                      </span>
-                    </label>
-                  </div>
-                  {selectedImages.size > 0 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={async () => {
-                        if (!confirm(`선택한 ${selectedImages.size}개의 이미지를 삭제하시겠습니까?`)) return;
-                        try {
-                          const pathsToDelete = Array.from(selectedImages)
-                          const promises = pathsToDelete.map(path =>
-                            fetch(`/api/hotel-images/delete?filePath=${encodeURIComponent(path)}`, {
-                              method: 'DELETE',
-                            }).then(res => res.json())
-                          )
-                          const results = await Promise.all(promises)
-                          const successCount = results.filter(r => r.success).length
-                          const failCount = results.length - successCount
-                          alert(`${successCount}개 이미지 삭제 완료${failCount > 0 ? ` (${failCount}개 실패)` : ''}`)
-                          setSelectedImages(new Set())
-                          onLoadStorageImages(hotelId, String(hotel.sabre_id))
-                        } catch {
-                          alert('다중 삭제 중 오류가 발생했습니다.')
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" /> 선택 삭제
-                    </Button>
-                  )}
-                </div>
+                          (img as any).storagePath || (img as any).path || img.name || String(idx)
+                        )))
+                      } else {
+                        setSelectedImages(new Set())
+                      }
+                    }}
+                    className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    전체 선택 ({selectedImages.size}개 선택됨)
+                  </span>
+                </label>
+              </div>
+              {selectedImages.size > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={async () => {
+                    if (!confirm(`선택한 ${selectedImages.size}개의 이미지를 삭제하시겠습니까?`)) return;
+                    try {
+                      const pathsToDelete = Array.from(selectedImages)
+                      const promises = pathsToDelete.map(path =>
+                        fetch(`/api/hotel-images/delete?filePath=${encodeURIComponent(path)}`, {
+                          method: 'DELETE',
+                        }).then(res => res.json())
+                      )
+                      const results = await Promise.all(promises)
+                      const successCount = results.filter(r => r.success).length
+                      const failCount = results.length - successCount
+                      alert(`${successCount}개 이미지 삭제 완료${failCount > 0 ? ` (${failCount}개 실패)` : ''}`)
+                      setSelectedImages(new Set())
+                      onLoadStorageImages(hotelId, String(hotel.sabre_id))
+                    } catch {
+                      alert('다중 삭제 중 오류가 발생했습니다.')
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> 선택 삭제
+                </Button>
+              )}
+            </div>
 
                 {/* 선택된 폴더의 이미지 섹션 */}
                 {displayImages.length > 0 && (
                   <div className="mb-6">
-                    <div className="space-y-3">
+          <div className="space-y-3">
                       {displayImages.map((image, _index) => (
-                        <div key={(image as any).storagePath || (image as any).path || image.name || _index} className="relative">
-                          <label className="absolute top-3 left-3 z-10 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={selectedImages.has((image as any).storagePath || (image as any).path || image.name || String(_index))}
-                              onChange={(e) => {
-                                const path = (image as any).storagePath || (image as any).path || image.name || String(_index)
-                                if (e.target.checked) {
-                                  setSelectedImages(new Set([...selectedImages, path]))
-                                } else {
-                                  const newSet = new Set(selectedImages)
-                                  newSet.delete(path)
+              <div key={(image as any).storagePath || (image as any).path || image.name || _index} className="relative">
+                <label className="absolute top-3 left-3 z-10 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedImages.has((image as any).storagePath || (image as any).path || image.name || String(_index))}
+                    onChange={(e) => {
+                      const path = (image as any).storagePath || (image as any).path || image.name || String(_index)
+                      if (e.target.checked) {
+                        setSelectedImages(new Set([...selectedImages, path]))
+                      } else {
+                        const newSet = new Set(selectedImages)
+                        newSet.delete(path)
                         setSelectedImages(newSet)
                       }
                     }}
@@ -965,9 +965,9 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   }
                 }}
               />
-                        </div>
-                      ))}
-                    </div>
+              </div>
+            ))}
+          </div>
                   </div>
                 )}
 
@@ -980,12 +980,12 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                 )}
 
                 {publicImages.length === 0 && originalsImages.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <ImageIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                    <p>Supabase Storage에 이미지가 없습니다.</p>
-                    <p className="text-sm">호텔 이미지 마이그레이션을 통해 이미지를 업로드하세요.</p>
-                  </div>
-                )}
+              <div className="text-center py-8 text-gray-500">
+                <ImageIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>Supabase Storage에 이미지가 없습니다.</p>
+                <p className="text-sm">호텔 이미지 마이그레이션을 통해 이미지를 업로드하세요.</p>
+              </div>
+            )}
               </>
             )
           })()}
