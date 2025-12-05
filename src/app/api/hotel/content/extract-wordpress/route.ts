@@ -35,32 +35,7 @@ export async function POST(request: NextRequest) {
       console.log('전체 URL:', wordpress_url)
       console.log('URL 경로:', pathname)
       
-      // 1단계: GraphQL 스키마 확인 (Introspection)
-      console.log('GraphQL 스키마 확인 중...')
-      const schemaRes = await fetch("https://tidesquare.allstay.com/graphql", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: `
-            query IntrospectionQuery {
-              __schema {
-                types {
-                  name
-                  kind
-                  description
-                }
-              }
-            }
-          `
-        }),
-      })
-
-      if (schemaRes.ok) {
-        const schemaData = await schemaRes.json()
-        console.log('GraphQL 스키마:', JSON.stringify(schemaData, null, 2))
-      }
-
-      // 2단계: 다양한 쿼리 시도
+      // 1단계: 다양한 쿼리 시도 (인트로스펙션은 생략 – 공개 환경에서 차단되기 때문)
       const queries = [
         // 쿼리 1: nodeByUri (기존)
         {
@@ -94,33 +69,35 @@ export async function POST(request: NextRequest) {
             }
           `
         },
-        // 쿼리 3: post (URI로)
+        // 쿼리 3: post (URI로) - WPGraphQL 스키마에 맞게 ID! 타입 사용
         {
           name: 'post (URI)',
           query: `
-            query ($uri: String!) {
-              post(id: $uri, idType: URI) {
+            query ($id: ID!) {
+              post(id: $id, idType: URI) {
                 id
                 title
                 content
                 date
               }
             }
-          `
+          `,
+          makeVariables: (path: string) => ({ id: path }),
         },
-        // 쿼리 4: page (URI로)
+        // 쿼리 4: page (URI로) - WPGraphQL 스키마에 맞게 ID! 타입 사용
         {
           name: 'page (URI)',
           query: `
-            query ($uri: String!) {
-              page(id: $uri, idType: URI) {
+            query ($id: ID!) {
+              page(id: $id, idType: URI) {
                 id
                 title
                 content
                 date
               }
             }
-          `
+          `,
+          makeVariables: (path: string) => ({ id: path }),
         },
         // 쿼리 5: posts (슬러그로)
         {
@@ -137,8 +114,10 @@ export async function POST(request: NextRequest) {
               }
             }
           `,
-          variables: { slug: pathname.split('/').filter(Boolean).pop() || '' }
-        }
+          makeVariables: (_path: string) => ({
+            slug: pathname.split('/').filter(Boolean).pop() || '',
+          }),
+        },
       ]
 
       // 각 쿼리 시도
@@ -151,7 +130,9 @@ export async function POST(request: NextRequest) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               query: queryInfo.query,
-              variables: queryInfo.variables || { uri: pathname },
+              variables: queryInfo.makeVariables
+                ? queryInfo.makeVariables(pathname)
+                : { uri: pathname },
             }),
           })
 

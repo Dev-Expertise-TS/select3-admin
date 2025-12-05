@@ -112,7 +112,7 @@ export function Sidebar() {
           </div>
           <div>
             <div className="text-sm font-semibold">Select Admin</div>
-            <div className="text-xs text-muted-foreground">Next.js 15 + Supabase</div>
+            <div className="text-xs text-muted-foreground">TIDESQUARE SELECT ADMIN</div>
           </div>
         </Link>
       </div>
