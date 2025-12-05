@@ -60,9 +60,9 @@ export async function GET(request: NextRequest) {
       .from(MEDIA_BUCKET)
       .list(publicFolderPath1, { limit: 100 })
     
-    if (!publicError1 && publicFiles1 && publicFiles1.length > 0) {
+    if (!publicError1 && publicFiles1) {
       publicExists = true
-      publicFileCount = publicFiles1.length
+      publicFileCount = publicFiles1.filter(f => f.name && !f.name.includes('.emptyFolderPlaceholder')).length
       publicFolderPath = publicFolderPath1
       console.log(`[storage] ✓ Public 폴더 발견 (경로 1): ${publicFolderPath}, 파일 수: ${publicFileCount}`)
     } else {
@@ -71,9 +71,9 @@ export async function GET(request: NextRequest) {
         .from(MEDIA_BUCKET)
         .list(publicFolderPath2, { limit: 100 })
       
-      if (!publicError2 && publicFiles2 && publicFiles2.length > 0) {
+      if (!publicError2 && publicFiles2) {
         publicExists = true
-        publicFileCount = publicFiles2.length
+        publicFileCount = publicFiles2.filter(f => f.name && !f.name.includes('.emptyFolderPlaceholder')).length
         publicFolderPath = publicFolderPath2
         console.log(`[storage] ✓ Public 폴더 발견 (경로 2): ${publicFolderPath}, 파일 수: ${publicFileCount}`)
       } else {
@@ -98,9 +98,9 @@ export async function GET(request: NextRequest) {
       .from(MEDIA_BUCKET)
       .list(originalsFolderPath1, { limit: 100 })
     
-    if (!originalsError1 && originalsFiles1 && originalsFiles1.length > 0) {
+    if (!originalsError1 && originalsFiles1) {
       originalsExists = true
-      originalsFileCount = originalsFiles1.length
+      originalsFileCount = originalsFiles1.filter(f => f.name && !f.name.includes('.emptyFolderPlaceholder')).length
       originalsFolderPath = originalsFolderPath1
       console.log(`[storage] ✓ Originals 폴더 발견 (경로 1): ${originalsFolderPath}, 파일 수: ${originalsFileCount}`)
     } else {
@@ -109,9 +109,9 @@ export async function GET(request: NextRequest) {
         .from(MEDIA_BUCKET)
         .list(originalsFolderPath2, { limit: 100 })
       
-      if (!originalsError2 && originalsFiles2 && originalsFiles2.length > 0) {
+      if (!originalsError2 && originalsFiles2) {
         originalsExists = true
-        originalsFileCount = originalsFiles2.length
+        originalsFileCount = originalsFiles2.filter(f => f.name && !f.name.includes('.emptyFolderPlaceholder')).length
         originalsFolderPath = originalsFolderPath2
         console.log(`[storage] ✓ Originals 폴더 발견 (경로 2): ${originalsFolderPath}, 파일 수: ${originalsFileCount}`)
       } else {

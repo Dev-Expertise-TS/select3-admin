@@ -12,7 +12,8 @@ import {
   Plus,
   Trash2,
   Upload,
-  Download
+  Download,
+  RefreshCw
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { HotelSearchResult } from '@/types/hotel'
@@ -51,6 +52,8 @@ export interface StorageImage {
   seq: number
   isPublic?: boolean
   storagePath?: string
+  folder?: string
+  path?: string
 }
 
 const SortableImageCard: React.FC<{
@@ -286,6 +289,7 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
   }, [state?.storageImages])
 
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set())
+  const [activeFolder, setActiveFolder] = useState<'public' | 'originals'>('public')
 
   const uploadFromUrls = async () => {
     const sabreId = String(hotel.sabre_id || '')
@@ -588,57 +592,7 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
               <h5 className="text-lg font-semibold text-gray-900">
                 호텔 이미지 목록
               </h5>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => onLoadStorageImages(hotelId, String(hotel.sabre_id))}
-                  disabled={state.loading}
-                  size="sm"
-                  variant="outline"
-                >
-                  새로고침
-                </Button>
-                <div className="text-sm text-gray-500">
-                  Supabase Storage에서 조회
-                </div>
-              </div>
             </div>
-            
-            {state.storageFolder && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Database className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-900">Public 폴더:</span>
-                  <span className="text-sm text-blue-700 font-mono">
-                    {state.storageFolder.path || 'N/A'}
-                  </span>
-                  {state.storageFolder.exists ? (
-                    <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
-                      존재함
-                    </span>
-                  ) : (
-                    <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">
-                      없음
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Database className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-900">Originals 폴더:</span>
-                  <span className="text-sm text-blue-700 font-mono">
-                    {state.storageFolder.originalsPath || 'N/A'}
-                  </span>
-                  {state.storageFolder.originalsExists ? (
-                    <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
-                      존재함
-                    </span>
-                  ) : (
-                    <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">
-                      없음
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
             
             <div className="flex justify-between items-center gap-2 mb-4">
             <div className="flex gap-2">
@@ -746,6 +700,53 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   </>
                 )}
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                onClick={async () => {
+                  if (!confirm('Public 폴더와 Originals 폴더의 이미지를 동기화하시겠습니까?')) return;
+                  try {
+                    setSyncing(true);
+                    const sabreIdStr = String(hotel.sabre_id);
+                    
+                    const res = await fetch('/api/hotel-images/sync-folders', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ sabreId: sabreIdStr })
+                    });
+                    
+                    const json = await res.json();
+                    
+                    if (!res.ok || !json.success) {
+                      alert(json.error || '폴더 동기화에 실패했습니다.');
+                      return;
+                    }
+                    
+                    alert(`폴더 동기화 완료: ${json.data?.message || '성공'}`);
+                    
+                    // 이미지 목록 새로고침
+                    try { onLoadStorageImages(hotelId, sabreIdStr) } catch {}
+                  } catch (err) {
+                    console.error('[폴더 동기화] 오류:', err);
+                    alert('폴더 동기화 요청 중 오류가 발생했습니다.');
+                  } finally {
+                    setSyncing(false);
+                  }
+                }}
+                disabled={syncing || importing || fileUploading}
+              >
+                {syncing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    동기화 중...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" /> Public / Original 폴더 동기화
+                  </>
+                )}
+              </Button>
               </div>
               <input
                 ref={fileInputRef}
@@ -757,74 +758,128 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
               />
             </div>
 
-          {localImages && localImages.length > 0 && (
-            <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg mb-3">
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedImages.size === localImages.length && localImages.length > 0}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedImages(new Set(localImages.map((img, idx) => 
-                          (img as any).storagePath || (img as any).path || img.name || String(idx)
-                        )))
-                      } else {
-                        setSelectedImages(new Set())
-                      }
-                    }}
-                    className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">
-                    전체 선택 ({selectedImages.size}개 선택됨)
-                  </span>
-                </label>
-              </div>
-              {selectedImages.size > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  onClick={async () => {
-                    if (!confirm(`선택한 ${selectedImages.size}개의 이미지를 삭제하시겠습니까?`)) return;
-                    try {
-                      const pathsToDelete = Array.from(selectedImages)
-                      const promises = pathsToDelete.map(path =>
-                        fetch(`/api/hotel-images/delete?filePath=${encodeURIComponent(path)}`, {
-                          method: 'DELETE',
-                        }).then(res => res.json())
-                      )
-                      const results = await Promise.all(promises)
-                      const successCount = results.filter(r => r.success).length
-                      const failCount = results.length - successCount
-                      alert(`${successCount}개 이미지 삭제 완료${failCount > 0 ? ` (${failCount}개 실패)` : ''}`)
-                      setSelectedImages(new Set())
-                      onLoadStorageImages(hotelId, String(hotel.sabre_id))
-                    } catch {
-                      alert('다중 삭제 중 오류가 발생했습니다.')
-                    }
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" /> 선택 삭제
-                </Button>
-              )}
-            </div>
-          )}
+          {localImages && localImages.length > 0 && (() => {
+            const publicImages = localImages.filter(img => img.folder === 'public');
+            const originalsImages = localImages.filter(img => img.folder === 'originals');
+            const displayImages = activeFolder === 'public' ? publicImages : originalsImages;
+            
+            return (
+              <>
+                {/* 탭 네비게이션 */}
+                <div className="mb-4 border-b border-gray-200">
+                  <nav className="-mb-px flex space-x-4">
+                    <button
+                      onClick={() => setActiveFolder('public')}
+                      className={`py-3 px-4 border-b-2 font-medium text-sm transition-colors ${
+                        activeFolder === 'public'
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Database className="h-4 w-4" />
+                        Public 폴더
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          activeFolder === 'public'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {publicImages.length}개
+                        </span>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setActiveFolder('originals')}
+                      className={`py-3 px-4 border-b-2 font-medium text-sm transition-colors ${
+                        activeFolder === 'originals'
+                          ? 'border-purple-500 text-purple-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Database className="h-4 w-4" />
+                        Originals 폴더
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          activeFolder === 'originals'
+                            ? 'bg-purple-100 text-purple-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {originalsImages.length}개
+                        </span>
+                      </div>
+                    </button>
+                  </nav>
+                </div>
 
-          <div className="space-y-3">
-            {localImages.map((image, _index) => (
-              <div key={(image as any).storagePath || (image as any).path || image.name || _index} className="relative">
-                <label className="absolute top-3 left-3 z-10 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedImages.has((image as any).storagePath || (image as any).path || image.name || String(_index))}
-                    onChange={(e) => {
-                      const path = (image as any).storagePath || (image as any).path || image.name || String(_index)
-                      if (e.target.checked) {
-                        setSelectedImages(new Set([...selectedImages, path]))
-                      } else {
-                        const newSet = new Set(selectedImages)
-                        newSet.delete(path)
+                <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg mb-3">
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedImages.size === displayImages.length && displayImages.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedImages(new Set(displayImages.map((img, idx) => 
+                              (img as any).storagePath || (img as any).path || img.name || String(idx)
+                            )))
+                          } else {
+                            setSelectedImages(new Set())
+                          }
+                        }}
+                        className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        전체 선택 ({selectedImages.size}개 선택됨)
+                      </span>
+                    </label>
+                  </div>
+                  {selectedImages.size > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={async () => {
+                        if (!confirm(`선택한 ${selectedImages.size}개의 이미지를 삭제하시겠습니까?`)) return;
+                        try {
+                          const pathsToDelete = Array.from(selectedImages)
+                          const promises = pathsToDelete.map(path =>
+                            fetch(`/api/hotel-images/delete?filePath=${encodeURIComponent(path)}`, {
+                              method: 'DELETE',
+                            }).then(res => res.json())
+                          )
+                          const results = await Promise.all(promises)
+                          const successCount = results.filter(r => r.success).length
+                          const failCount = results.length - successCount
+                          alert(`${successCount}개 이미지 삭제 완료${failCount > 0 ? ` (${failCount}개 실패)` : ''}`)
+                          setSelectedImages(new Set())
+                          onLoadStorageImages(hotelId, String(hotel.sabre_id))
+                        } catch {
+                          alert('다중 삭제 중 오류가 발생했습니다.')
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" /> 선택 삭제
+                    </Button>
+                  )}
+                </div>
+
+                {/* 선택된 폴더의 이미지 섹션 */}
+                {displayImages.length > 0 && (
+                  <div className="mb-6">
+                    <div className="space-y-3">
+                      {displayImages.map((image, _index) => (
+                        <div key={(image as any).storagePath || (image as any).path || image.name || _index} className="relative">
+                          <label className="absolute top-3 left-3 z-10 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedImages.has((image as any).storagePath || (image as any).path || image.name || String(_index))}
+                              onChange={(e) => {
+                                const path = (image as any).storagePath || (image as any).path || image.name || String(_index)
+                                if (e.target.checked) {
+                                  setSelectedImages(new Set([...selectedImages, path]))
+                                } else {
+                                  const newSet = new Set(selectedImages)
+                                  newSet.delete(path)
                         setSelectedImages(newSet)
                       }
                     }}
@@ -883,19 +938,31 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   }
                 }}
               />
-              </div>
-            ))}
-          </div>
-            
-            {(!state.storageImages || state.storageImages.length === 0) && (
-              <div className="text-center py-8 text-gray-500">
-                <ImageIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>Supabase Storage에 이미지가 없습니다.</p>
-                <p className="text-sm">호텔 이미지 마이그레이션을 통해 이미지를 업로드하세요.</p>
-              </div>
-            )}
-          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
+                {displayImages.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <ImageIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                    <p>{activeFolder === 'public' ? 'Public' : 'Originals'} 폴더에 이미지가 없습니다.</p>
+                    <p className="text-sm">이미지를 업로드하거나 폴더 동기화를 실행하세요.</p>
+                  </div>
+                )}
+
+                {publicImages.length === 0 && originalsImages.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <ImageIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                    <p>Supabase Storage에 이미지가 없습니다.</p>
+                    <p className="text-sm">호텔 이미지 마이그레이션을 통해 이미지를 업로드하세요.</p>
+                  </div>
+                )}
+              </>
+            )
+          })()}
+          </div>
         </div>
       )}
 

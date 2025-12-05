@@ -42,9 +42,8 @@ export async function GET(request: NextRequest) {
 
     // slug 정규화
     const normalizedSlug = hotel.slug ? normalizeSlug(hotel.slug) : null;
-    const storagePath = normalizedSlug ? `public/${normalizedSlug}` : null;
-
-    // Supabase Storage에서 실제 파일 목록 가져오기
+    
+    // Supabase Storage에서 실제 파일 목록 가져오기 (public과 originals 둘 다)
     const images: Array<{
       name: string;
       url: string;
@@ -53,38 +52,40 @@ export async function GET(request: NextRequest) {
       size?: number;
       createdAt?: string;
       path: string;
+      folder?: string;
     }> = [];
 
-    if (storagePath) {
-      const { data: files, error: storageError } = await supabase.storage
+    if (normalizedSlug) {
+      // 1. Public 폴더 확인
+      const publicPath = `public/${normalizedSlug}`;
+      const { data: publicFiles, error: publicError } = await supabase.storage
         .from("hotel-media")
-        .list(storagePath, {
+        .list(publicPath, {
           limit: 1000,
           sortBy: { column: "name", order: "asc" },
         });
 
-      if (storageError) {
-        console.error("Storage 조회 오류:", storageError);
-      } else if (files && files.length > 0) {
-        files.forEach((file, index) => {
-          if (file.name && !file.name.includes('.emptyFolderPlaceholder')) {
+      if (publicError) {
+        console.error("Public 폴더 조회 오류:", publicError);
+      } else if (publicFiles && publicFiles.length > 0) {
+        publicFiles.forEach((file, index) => {
+          if (file.name && !file.name.includes('.emptyFolderPlaceholder') && !file.name.startsWith('.')) {
+            const fullPath = `${publicPath}/${file.name}`;
             const { data: publicUrlData } = supabase.storage
               .from("hotel-media")
-              .getPublicUrl(`${storagePath}/${file.name}`);
+              .getPublicUrl(fullPath);
 
-            // 파일명에서 정확한 seq 추출: {slug}_{sabreId}_{seq}_{width}w.{ext}
-            // 예: sofitel-legend-the-grand-amsterdam_30708_21_1600w.avif → seq = 21
-            let seq = 0
-            const seqMatch = file.name.match(/_(\d+)_\d+w\./)
+            // 파일명에서 정확한 seq 추출
+            let seq = 0;
+            const seqMatch = file.name.match(/_(\d+)_\d+w\./);
             if (seqMatch) {
-              seq = parseInt(seqMatch[1], 10)
+              seq = parseInt(seqMatch[1], 10);
             } else {
-              // width 없이 _{width}w 패턴이 없는 경우: {slug}_{sabreId}_{seq}.{ext}
-              const seqMatch2 = file.name.match(/_(\d+)\./)
+              const seqMatch2 = file.name.match(/_(\d+)\./);
               if (seqMatch2) {
-                seq = parseInt(seqMatch2[1], 10)
+                seq = parseInt(seqMatch2[1], 10);
               } else {
-                seq = index + 1
+                seq = index + 1;
               }
             }
             
@@ -97,22 +98,73 @@ export async function GET(request: NextRequest) {
               role: role,
               size: (file as { metadata?: { size?: number } }).metadata?.size,
               createdAt: (file as { created_at?: string }).created_at,
-              path: `${storagePath}/${file.name}`,
+              path: fullPath,
+              folder: 'public',
             });
           }
         });
-        
-        // seq 숫자 순서로 정렬
-        images.sort((a, b) => a.seq - b.seq)
       }
+
+      // 2. Originals 폴더 확인
+      const originalsPath = `originals/${normalizedSlug}`;
+      const { data: originalsFiles, error: originalsError } = await supabase.storage
+        .from("hotel-media")
+        .list(originalsPath, {
+          limit: 1000,
+          sortBy: { column: "name", order: "asc" },
+        });
+
+      if (originalsError) {
+        console.error("Originals 폴더 조회 오류:", originalsError);
+      } else if (originalsFiles && originalsFiles.length > 0) {
+        originalsFiles.forEach((file, index) => {
+          if (file.name && !file.name.includes('.emptyFolderPlaceholder') && !file.name.startsWith('.')) {
+            const fullPath = `${originalsPath}/${file.name}`;
+            const { data: publicUrlData } = supabase.storage
+              .from("hotel-media")
+              .getPublicUrl(fullPath);
+
+            // 파일명에서 정확한 seq 추출
+            let seq = 0;
+            const seqMatch = file.name.match(/_(\d+)_\d+w\./);
+            if (seqMatch) {
+              seq = parseInt(seqMatch[1], 10);
+            } else {
+              const seqMatch2 = file.name.match(/_(\d+)\./);
+              if (seqMatch2) {
+                seq = parseInt(seqMatch2[1], 10);
+              } else {
+                seq = images.length + index + 1;
+              }
+            }
+            
+            const role = file.name.toLowerCase().includes('main') || file.name.toLowerCase().includes('primary') ? 'main' : undefined;
+
+            images.push({
+              name: file.name,
+              url: publicUrlData.publicUrl,
+              seq: seq,
+              role: role,
+              size: (file as { metadata?: { size?: number } }).metadata?.size,
+              createdAt: (file as { created_at?: string }).created_at,
+              path: fullPath,
+              folder: 'originals',
+            });
+          }
+        });
+      }
+      
+      // seq 숫자 순서로 정렬
+      images.sort((a, b) => a.seq - b.seq);
     }
 
     console.log(`호텔 ${sabreId} Storage 이미지 조회 결과:`, {
       slug: hotel.slug,
       normalizedSlug,
-      storagePath,
       totalImages: images.length,
-      imageNames: images.map(img => img.name)
+      publicImages: images.filter(img => img.folder === 'public').length,
+      originalsImages: images.filter(img => img.folder === 'originals').length,
+      imageNames: images.map(img => `${img.folder}/${img.name}`)
     });
 
     return NextResponse.json({
@@ -127,7 +179,8 @@ export async function GET(request: NextRequest) {
         },
         images,
         totalImages: images.length,
-        storagePath: storagePath,
+        publicImages: images.filter(img => img.folder === 'public').length,
+        originalsImages: images.filter(img => img.folder === 'originals').length,
       },
     });
   } catch (error) {

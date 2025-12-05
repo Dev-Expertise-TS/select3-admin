@@ -527,7 +527,7 @@ export function UrlGeneratorPanel({
   };
 
   return (
-    <>
+    <div>
       {/* 패널 헤더 */}
       <div className="flex items-center justify-between mb-6">
         <h4 className="text-lg font-medium text-gray-900">
@@ -980,6 +980,6 @@ export function UrlGeneratorPanel({
           {renderRoomTable(true)}
         </div>
       </Modal>
-    </>
+    </div>
   );
 }

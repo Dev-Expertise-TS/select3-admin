@@ -206,8 +206,8 @@ export function HotelListTable({
       </div>
 
       {/* 반응형 테이블 */}
-      <div className="overflow-x-hidden">
-        <table className="w-full table-fixed divide-y divide-gray-200" role="table">
+      <div className="overflow-x-auto">
+        <table className="w-full divide-y divide-gray-200" role="table">
           <thead className="bg-gray-50">
             <tr>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -478,9 +478,9 @@ export function HotelListTable({
                   {/* 확장 패널 */}
                   {isExpanded && expandedRowState && (
                     <tr>
-                      <td colSpan={showInitialHotels ? 7 : 5} className="px-0 py-0 w-full max-w-full overflow-x-hidden">
-                        <div className="bg-gray-50 border-t border-gray-200 w-full max-w-full">
-                          <div className="px-6 py-6 w-full max-w-full">
+                      <td colSpan={showInitialHotels ? 7 : 5} className="p-0">
+                        <div className="bg-gray-50 border-t border-gray-200">
+                          <div className="px-6 py-6">
                             {/* 이미지 관리 모드 */}
                             {expandedRowState.type === 'image-management' && expandedRowState.hotel && imageManagementState && (
                               <ImageManagementPanel 
