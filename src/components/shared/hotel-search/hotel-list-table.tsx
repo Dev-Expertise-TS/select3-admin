@@ -196,7 +196,7 @@ export function HotelListTable({
   const [internalCopied, setInternalCopied] = React.useState(false);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       {/* 테이블 헤더 정보 */}
       <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
         <h3 className="text-lg font-medium text-gray-900">검색 결과</h3>
@@ -478,7 +478,7 @@ export function HotelListTable({
                   {/* 확장 패널 */}
                   {isExpanded && expandedRowState && (
                     <tr>
-                      <td colSpan={showInitialHotels ? 7 : 5} className="p-0">
+                      <td colSpan={showInitialHotels ? 8 : 6} className="p-0">
                         <div className="bg-gray-50 border-t border-gray-200">
                           <div className="px-6 py-6">
                             {/* 이미지 관리 모드 */}
