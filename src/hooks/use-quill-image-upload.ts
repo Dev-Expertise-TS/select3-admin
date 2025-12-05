@@ -23,7 +23,34 @@ export function useQuillImageUpload({ sabreId, onError }: UseQuillImageUploadOpt
         body: formData
       })
 
-      const result = await response.json()
+      const contentType = response.headers.get('content-type') || ''
+      let result: any
+
+      if (!contentType.includes('application/json')) {
+        const text = await response.text().catch(() => '')
+        const snippet = text.slice(0, 100)
+
+        if (response.status === 413 || snippet.includes('Request Entity Too Large')) {
+          const errorMsg = '이미지 파일이 너무 큽니다. 업로드 가능한 최대 용량을 초과했습니다.'
+          if (onError) onError(errorMsg)
+          else alert(errorMsg)
+          return
+        }
+
+        const errorMsg = `서버에서 예상치 못한 응답 형식을 반환했습니다. (status: ${response.status})`
+        if (onError) onError(errorMsg)
+        else alert(errorMsg)
+        return
+      }
+
+      try {
+        result = await response.json()
+      } catch {
+        const errorMsg = '서버 응답을 JSON으로 파싱하는 중 오류가 발생했습니다.'
+        if (onError) onError(errorMsg)
+        else alert(errorMsg)
+        return
+      }
 
       if (result.success) {
         const quill = quillRef.current?.getEditor?.()
@@ -65,7 +92,34 @@ export function useQuillImageUpload({ sabreId, onError }: UseQuillImageUploadOpt
         })
       })
 
-      const result = await response.json()
+      const contentType = response.headers.get('content-type') || ''
+      let result: any
+
+      if (!contentType.includes('application/json')) {
+        const text = await response.text().catch(() => '')
+        const snippet = text.slice(0, 100)
+
+        if (response.status === 413 || snippet.includes('Request Entity Too Large')) {
+          const errorMsg = '이미지 파일이 너무 큽니다. 업로드 가능한 최대 용량을 초과했습니다.'
+          if (onError) onError(errorMsg)
+          else alert(errorMsg)
+          return
+        }
+
+        const errorMsg = `서버에서 예상치 못한 응답 형식을 반환했습니다. (status: ${response.status})`
+        if (onError) onError(errorMsg)
+        else alert(errorMsg)
+        return
+      }
+
+      try {
+        result = await response.json()
+      } catch {
+        const errorMsg = '서버 응답을 JSON으로 파싱하는 중 오류가 발생했습니다.'
+        if (onError) onError(errorMsg)
+        else alert(errorMsg)
+        return
+      }
 
       if (result.success) {
         const quill = quillRef.current?.getEditor?.()

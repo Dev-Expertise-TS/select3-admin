@@ -395,8 +395,35 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
           method: 'POST',
           body: formData,
         })
-        
-        return response.json()
+
+        const contentType = response.headers.get('content-type') || ''
+
+        // JSON 응답이 아닌 경우 (예: 413 Request Entity Too Large HTML 응답 등)
+        if (!contentType.includes('application/json')) {
+          const text = await response.text().catch(() => '')
+          const snippet = text.slice(0, 100)
+
+          if (response.status === 413 || snippet.includes('Request Entity Too Large')) {
+            return {
+              success: false,
+              error: '파일이 너무 큽니다. 업로드 가능한 최대 용량을 초과했습니다.',
+            }
+          }
+
+          return {
+            success: false,
+            error: `서버에서 예상치 못한 응답 형식을 반환했습니다. (status: ${response.status})`,
+          }
+        }
+
+        try {
+          return await response.json()
+        } catch (e) {
+          return {
+            success: false,
+            error: '서버 응답을 JSON으로 파싱하는 중 오류가 발생했습니다.',
+          }
+        }
       })
       
       const results = await Promise.all(uploadPromises)
