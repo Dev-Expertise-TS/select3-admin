@@ -42,49 +42,100 @@ async function searchHotels(query: string) {
   }
   
   // Sabre ID, 호텔명 (한글/영문) 검색
-  // sabre_id는 bigint이므로 정확히 일치하는 경우만 검색, 호텔명은 ilike로 부분 일치 검색
-  let queryBuilder = supabase
-    .from('select_hotels')
-    .select(`
-      sabre_id, 
-      property_name_ko, 
-      property_name_en, 
-      property_address, 
-      rate_plan_code, 
-      paragon_id, 
-      brand_id, 
-      id_old,
-      slug,
-      hotel_brands(
-        brand_id,
-        brand_name_ko,
-        brand_name_en,
+  // 특수문자가 포함될 수 있으므로 .or() 대신 개별 쿼리 실행 후 병합
+  const selectFields = `
+    sabre_id, 
+    property_name_ko, 
+    property_name_en, 
+    property_address, 
+    rate_plan_code, 
+    paragon_id, 
+    brand_id, 
+    id_old,
+    slug,
+    hotel_brands(
+      brand_id,
+      brand_name_ko,
+      brand_name_en,
+      chain_id,
+      hotel_chains(
         chain_id,
-        hotel_chains(
-          chain_id,
-          chain_name_ko,
-          chain_name_en
-        )
+        chain_name_ko,
+        chain_name_en
       )
-    `)
+    )
+  `
   
-  // 숫자인 경우 sabre_id로도 검색
+  const results: any[] = []
+  const seenIds = new Set<string>()
+  
+  // 1. Sabre ID로 검색 (숫자인 경우만)
   if (/^\d+$/.test(query)) {
-    queryBuilder = queryBuilder.or(`sabre_id.eq.${query},property_name_ko.ilike.%${query}%,property_name_en.ilike.%${query}%`)
-  } else {
-    queryBuilder = queryBuilder.or(`property_name_ko.ilike.%${query}%,property_name_en.ilike.%${query}%`)
+    const { data: sabreResults, error: sabreError } = await supabase
+      .from('select_hotels')
+      .select(selectFields)
+      .eq('sabre_id', query)
+      .limit(50)
+    
+    if (!sabreError && sabreResults) {
+      sabreResults.forEach(item => {
+        const id = `${item.sabre_id}-${item.paragon_id}`
+        if (!seenIds.has(id)) {
+          seenIds.add(id)
+          results.push(item)
+        }
+      })
+    }
   }
   
-  const { data, error } = await queryBuilder
+  // 2. 한글명으로 검색
+  const { data: koResults, error: koError } = await supabase
+    .from('select_hotels')
+    .select(selectFields)
+    .ilike('property_name_ko', `%${query}%`)
     .limit(50)
-    .order('property_name_en')
-
-  if (error) {
-    console.error('[hotel/search] error:', error)
-    throw error
+  
+  if (!koError && koResults) {
+    koResults.forEach(item => {
+      const id = `${item.sabre_id}-${item.paragon_id}`
+      if (!seenIds.has(id)) {
+        seenIds.add(id)
+        results.push(item)
+      }
+    })
   }
+  
+  // 3. 영문명으로 검색
+  const { data: enResults, error: enError } = await supabase
+    .from('select_hotels')
+    .select(selectFields)
+    .ilike('property_name_en', `%${query}%`)
+    .limit(50)
+  
+  if (!enError && enResults) {
+    enResults.forEach(item => {
+      const id = `${item.sabre_id}-${item.paragon_id}`
+      if (!seenIds.has(id)) {
+        seenIds.add(id)
+        results.push(item)
+      }
+    })
+  }
+  
+  // 에러가 모두 발생한 경우
+  if (koError && enError) {
+    console.error('[hotel/search] all queries failed:', { koError, enError })
+    throw koError || enError
+  }
+  
+  // 결과를 영문명 기준으로 정렬
+  results.sort((a, b) => {
+    const aName = a.property_name_en || a.property_name_ko || ''
+    const bName = b.property_name_en || b.property_name_ko || ''
+    return aName.localeCompare(bName)
+  })
 
-  return data || []
+  return results.slice(0, 50) // 최대 50개로 제한
 }
 
 export async function GET(req: NextRequest) {

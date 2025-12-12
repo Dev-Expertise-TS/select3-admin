@@ -69,14 +69,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`[sync-to-db] ✓ 기존 레코드 삭제 완료`);
 
-    // 2. Storage에서 이미지 목록 가져오기 (public과 originals 모두 확인)
+    // 2. Storage에서 이미지 목록 가져오기 (public 폴더만)
     const allImages: Array<{
       name: string;
       path: string;
       url: string;
       size?: number;
       contentType?: string;
-      folder: 'public' | 'originals';
+      folder: 'public';
     }> = [];
 
     // Public 폴더 이미지 추가
@@ -116,45 +116,11 @@ export async function POST(request: NextRequest) {
         });
     }
 
-    // Originals 폴더 확인 (두 가지 경로)
-    for (const originalsPath of originalsPaths) {
-      const { data: originalsFiles, error: originalsError } = await supabase.storage
-        .from(MEDIA_BUCKET)
-        .list(originalsPath, { limit: 1000 });
-
-      if (!originalsError && originalsFiles && originalsFiles.length > 0) {
-        console.log(`[sync-to-db] Originals 폴더 발견: ${originalsPath}, ${originalsFiles.length}개 파일`);
-        
-        originalsFiles.forEach((file) => {
-          if (file.name && !file.name.includes('.emptyFolderPlaceholder') && !file.name.startsWith('.')) {
-            const fullPath = `${originalsPath}/${file.name}`;
-            const { data: urlData } = supabase.storage
-              .from(MEDIA_BUCKET)
-              .getPublicUrl(fullPath);
-
-            // Public에 없는 파일만 추가 (중복 방지)
-            const existsInPublic = allImages.some(img => img.name === file.name);
-            if (!existsInPublic) {
-              allImages.push({
-                name: file.name,
-                path: fullPath,
-                url: urlData.publicUrl,
-                size: (file as { metadata?: { size?: number } }).metadata?.size,
-                contentType: (file as { metadata?: { mimetype?: string } }).metadata?.mimetype,
-                folder: 'originals'
-              });
-            }
-          }
-        });
-        break; // 첫 번째로 발견된 경로 사용
-      }
-    }
-
-    console.log(`[sync-to-db] 총 ${allImages.length}개 이미지 발견`);
+    console.log(`[sync-to-db] Public 폴더에서 총 ${allImages.length}개 이미지 발견`);
 
     if (allImages.length === 0) {
       return NextResponse.json(
-        { success: false, error: "Storage에 이미지가 없습니다." },
+        { success: false, error: "Public 폴더에 이미지가 없습니다." },
         { status: 404 }
       );
     }

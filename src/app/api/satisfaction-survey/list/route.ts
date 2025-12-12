@@ -15,6 +15,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('select_satisfaction_survey')
       .select('*')
+      .order('sort', { ascending: true, nullsFirst: false })
       .order('submitted_at', { ascending: false })
 
     console.log('📊 Supabase 쿼리 결과:', { data: data?.length || 0, error })

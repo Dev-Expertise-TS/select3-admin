@@ -28,6 +28,7 @@ export async function saveSatisfactionSurvey(formData: FormData): Promise<Action
     const lateCheckOut = formData.get('late_check_out') as string
     const roomUpgrade = formData.get('room_upgrade') as string
     const pick = formData.get('pick') as string
+    const sort = formData.get('sort') as string
 
     console.log('💾 설문 결과 저장:', {
       id,
@@ -52,6 +53,7 @@ export async function saveSatisfactionSurvey(formData: FormData): Promise<Action
       late_check_out: lateCheckOut === 'true' ? true : lateCheckOut === 'false' ? false : null,
       room_upgrade: roomUpgrade === 'true' ? true : roomUpgrade === 'false' ? false : null,
       pick: pick === 'true' ? true : pick === 'false' ? false : null,
+      sort: sort ? Number(sort) : null,
     }
 
     let result

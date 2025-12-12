@@ -30,6 +30,7 @@ import {
   Star,
   Link as LinkIcon,
   Hash,
+  BarChart3,
 } from 'lucide-react'
 
 interface NavItem {
@@ -51,6 +52,13 @@ const navSections: NavSection[] = [
     title: 'General',
     items: [
       { label: '홈', href: '/', icon: Home },
+    ],
+  },
+  {
+    title: '마케팅/제안',
+    requiredRole: 'admin',
+    items: [
+      { label: '투어비스 셀렉트 소개', href: '/admin/facility-proposal', icon: BarChart3, requiredRole: 'admin' },
     ],
   },
   {

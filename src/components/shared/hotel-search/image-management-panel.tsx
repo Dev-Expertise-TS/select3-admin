@@ -140,23 +140,35 @@ const SortableImageCard: React.FC<{
                             const dir = idx >= 0 ? currentPath.slice(0, idx) : ''
                             const newPath = dir ? `${dir}/${trimmed}` : trimmed
                             try {
+                              console.log('[파일명 변경] API 요청:', { fromPath: currentPath, toFilename: trimmed })
+                              
                               const res = await fetch('/api/hotel-images/rename', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ fromPath: currentPath, toFilename: trimmed })
                               })
+                              
+                              console.log('[파일명 변경] API 응답 상태:', res.status, res.statusText)
                               if (!res.ok) {
-                                let errorData: any = {}
+                                let errorData: any = null
                                 let errorMessage = '파일명 변경 요청이 실패했습니다.'
+                                let responseText = ''
                                 
                                 try {
-                                  const text = await res.text()
-                                  if (text) {
-                                    errorData = JSON.parse(text)
-                                    errorMessage = errorData.error || errorMessage
+                                  responseText = await res.text()
+                                  console.log('[파일명 변경] 응답 텍스트:', responseText.substring(0, 200))
+                                  
+                                  if (responseText) {
+                                    try {
+                                      errorData = JSON.parse(responseText)
+                                      errorMessage = errorData.error || errorMessage
+                                    } catch (jsonError) {
+                                      console.warn('[파일명 변경] JSON 파싱 실패, 원본 텍스트 사용')
+                                      errorMessage = responseText.substring(0, 100)
+                                    }
                                   }
                                 } catch (parseError) {
-                                  console.warn('[파일명 변경] 응답 파싱 실패:', parseError)
+                                  console.error('[파일명 변경] 응답 읽기 실패:', parseError)
                                 }
                                 
                                 if (res.status === 409) {
@@ -169,13 +181,25 @@ const SortableImageCard: React.FC<{
                                   status: res.status, 
                                   statusText: res.statusText,
                                   error: errorMessage, 
-                                  hasData: Object.keys(errorData).length > 0,
-                                  errorData: Object.keys(errorData).length > 0 ? errorData : undefined
+                                  responseText: responseText.substring(0, 200),
+                                  errorData
                                 })
                                 alert(`파일명 변경 실패:\n${errorMessage}\n\n상태: ${res.status} ${res.statusText}`)
                                 return
                               }
-                              const data = await res.json()
+                              let data: any = null
+                              try {
+                                const responseText = await res.text()
+                                console.log('[파일명 변경] 응답 본문:', responseText.substring(0, 300))
+                                data = JSON.parse(responseText)
+                              } catch (jsonErr) {
+                                console.error('[파일명 변경] JSON 파싱 실패:', jsonErr)
+                                alert('서버 응답을 파싱하는 중 오류가 발생했습니다.')
+                                return
+                              }
+                              
+                              console.log('[파일명 변경] 파싱된 데이터:', data)
+                              
                               if (!data.success) {
                                 if (data.code === 'DUPLICATE') {
                                   const errorMessage = data.error || '동일한 파일명이 이미 존재합니다.'
@@ -186,6 +210,8 @@ const SortableImageCard: React.FC<{
                                 alert(data.error || '파일명 변경에 실패했습니다.')
                                 return
                               }
+                              
+                              console.log('[파일명 변경] 성공!')
                               alert('파일명이 변경되었습니다.')
                               onRenameSuccess({ oldPath: currentPath, newPath, newName: trimmed })
                               return
@@ -462,7 +488,7 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
       return
     }
     
-    if (!confirm('Storage의 모든 이미지를 DB에 동기화합니다.\n기존 DB 레코드는 삭제되고 새로 생성됩니다.\n계속하시겠습니까?')) {
+    if (!confirm('Public 폴더의 모든 이미지를 DB에 동기화합니다.\n기존 DB 레코드는 삭제되고 새로 생성됩니다.\n계속하시겠습니까?')) {
       return
     }
     
