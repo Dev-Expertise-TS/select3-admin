@@ -18,7 +18,7 @@
 export const RATE_PLAN_CODES = [
   'API', 'ZP3', 'VMC', 'TLC', 'H01', 'S72', 'XLO', 'PPR', 
   'FAN', 'WMP', 'HPM', 'TID', 'STP', 'BAR', 'RAC', 'PKG',
-  'V8M', 'W9E', 'CDH', 'A72', 'L72', 'XMH'
+  'V8M', 'W9E', 'CDH', 'A72', 'L72', 'XMH', 'PUF'
 ] as const
 
 /**

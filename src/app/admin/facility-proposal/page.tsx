@@ -168,6 +168,13 @@ interface GoogleAnalyticsData {
     users: number
     conversions: number
   }>
+  monthlyKpiTrend?: Array<{
+    month: string
+    pageViews: number
+    users: number
+    impressions: number
+    clicks: number
+  }>
   seoRanking: {
     totalKeywords: number
     top10Keywords: number
@@ -278,6 +285,14 @@ export default function FacilityProposalPage() {
   const [brandTrafficMeta, setBrandTrafficMeta] = useState<{ articlesWithoutBrand?: number; hotelsWithoutBrand?: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const formatCompactNumber = (value: number) => {
+    try {
+      return new Intl.NumberFormat('ko-KR', { notation: 'compact' }).format(value)
+    } catch {
+      return value.toLocaleString()
+    }
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1026,17 +1041,17 @@ export default function FacilityProposalPage() {
     <div className="space-y-8">
       {/* 헤더 */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-blue-600 p-2">
-            <PresentationChart className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+      <div className="flex items-center gap-3">
+        <div className="rounded-lg bg-blue-600 p-2">
+          <PresentationChart className="h-6 w-6 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
               투어비스 셀렉트 소개
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              투어비스 셀렉트 사이트 현황 및 제안 내용
-            </p>
+          </h1>
+          <p className="text-sm text-gray-600 mt-1">
+            투어비스 셀렉트 사이트 현황 및 제안 내용
+          </p>
           </div>
         </div>
         {/* 다운로드 버튼 */}
@@ -1067,6 +1082,155 @@ export default function FacilityProposalPage() {
 
       {/* 다운로드용 콘텐츠 영역 */}
       <div id="facility-proposal-content" className="space-y-8">
+
+      {/* 월간 핵심 지표 (GA 기반) */}
+      {analytics && (
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="h-5 w-5 text-blue-600" />
+            <h2 className="text-xl font-semibold text-gray-900">월간 핵심 지표</h2>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">최근 30일 기준</span>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="월간 페이지뷰"
+              value={analytics.pageViews.last30Days.toLocaleString()}
+              icon={<Eye className="h-6 w-6" />}
+              description="GA4"
+              variant="primary"
+              trend={{
+                value: analytics.pageViews.growth,
+                label: "전월 대비"
+              }}
+            />
+            <StatCard
+              title="월간 사용자수"
+              value={analytics.users.last30Days.toLocaleString()}
+              icon={<Users className="h-6 w-6" />}
+              description="GA4"
+              variant="success"
+            />
+            <StatCard
+              title="월간 노출수"
+              value={(analytics.seoRanking?.totalImpressions ?? 0).toLocaleString()}
+              icon={<TrendingUp className="h-6 w-6" />}
+              description="검색 노출"
+              variant="default"
+            />
+            <StatCard
+              title="월간 클릭수"
+              value={(analytics.seoRanking?.totalClicks ?? 0).toLocaleString()}
+              icon={<MousePointerClick className="h-6 w-6" />}
+              description="검색 클릭"
+              variant="default"
+            />
+          </div>
+
+          {/* 최근 1년 추이 차트 */}
+          {(() => {
+            const fallback =
+              analytics.monthlyKpiTrend && analytics.monthlyKpiTrend.length > 0
+                ? analytics.monthlyKpiTrend
+                : analytics.monthlyTrend.slice(-12).map((m) => {
+                    const totalImpressions = analytics.seoRanking?.totalImpressions ?? 0
+                    const totalClicks = analytics.seoRanking?.totalClicks ?? 0
+                    const last12 = analytics.monthlyTrend.slice(-12)
+                    const sum = Math.max(1, last12.reduce((acc, x) => acc + Math.max(0, x.pageViews), 0))
+                    const ratio = Math.max(0, m.pageViews) / sum
+                    return {
+                      month: m.month,
+                      pageViews: m.pageViews,
+                      users: m.users,
+                      impressions: Math.round(totalImpressions * ratio),
+                      clicks: Math.round(totalClicks * ratio),
+                    }
+                  })
+
+            if (!fallback || fallback.length === 0) return null
+
+            return (
+            <div className="mt-6 rounded-lg border bg-white p-6">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold text-gray-900">2024년 7월 이후 추이 (월별)</h3>
+                {analytics.monthlyKpiTrendSource === 'search-console' && (
+                  <span className="text-xs text-gray-500">Search Console 실데이터</span>
+                )}
+              </div>
+              <p className="text-sm text-gray-600 mb-6">
+                월간 페이지뷰 / 사용자수 / 검색 노출수 / 검색 클릭수의 추이를 확인합니다.
+              </p>
+
+              {(() => {
+                const trend = fallback.filter((d) => d.month >= '2024-07')
+                const months = trend.map((d) => d.month)
+
+                const chart = (
+                  title: string,
+                  colorClass: string,
+                  getValue: (d: { month: string; pageViews: number; users: number; impressions: number; clicks: number }) => number,
+                ) => {
+                  const maxValue = Math.max(...trend.map(getValue), 1)
+                  const chartHeight = 120
+                  return (
+                    <div className="rounded-lg border bg-gray-50 p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-gray-900">{title}</span>
+                        <span className="text-xs text-gray-600">{months[0]} ~ {months[months.length - 1]}</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1.5" style={{ height: '170px' }}>
+                        {trend.map((data, index) => {
+                          const value = getValue(data)
+                          const heightPercent = (value / maxValue) * 100
+                          const barHeight = Math.max((heightPercent / 100) * chartHeight, 2)
+                          const [year, mm] = data.month.split('-')
+                          return (
+                            <div key={index} className="flex-1 flex flex-col items-center justify-end group relative h-full min-w-0">
+                              <div className="flex-1 flex items-end w-full relative">
+                                <div
+                                  className={cn("w-full rounded-t shadow-sm transition-all", colorClass)}
+                                  style={{ height: `${barHeight}px`, minHeight: '2px' }}
+                                  title={`${data.month}: ${value.toLocaleString()}`}
+                                >
+                                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none transition-opacity">
+                                    {value.toLocaleString()}
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                                  </div>
+                                </div>
+                                {/* 막대 상단 값 표시 */}
+                                <div
+                                  className="absolute left-1/2 -translate-x-1/2 text-[10px] text-gray-700 font-semibold whitespace-nowrap"
+                                  style={{ bottom: `${barHeight + 6}px` }}
+                                >
+                                  {formatCompactNumber(value)}
+                                </div>
+                              </div>
+                              <span className="text-[10px] text-gray-600 mt-2 font-medium text-center h-10 flex items-start justify-center">
+                                {year}년<br />
+                                {parseInt(mm, 10)}월
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {chart('월간 페이지뷰', 'bg-gradient-to-t from-green-500 to-green-400', (d) => d.pageViews)}
+                    {chart('월간 사용자수', 'bg-gradient-to-t from-blue-500 to-blue-400', (d) => d.users)}
+                    {chart('월간 검색 노출수', 'bg-gradient-to-t from-purple-500 to-purple-400', (d) => d.impressions)}
+                    {chart('월간 검색 클릭수', 'bg-gradient-to-t from-pink-500 to-pink-400', (d) => d.clicks)}
+                  </div>
+                )
+              })()}
+            </div>
+            )
+          })()}
+        </section>
+      )}
 
       {/* 등록 호텔 시설 */}
       <section>
@@ -1210,8 +1374,8 @@ export default function FacilityProposalPage() {
                 <div className="mb-4">
                   <div className="flex items-center gap-2 mb-1">
                     <h4 className="text-sm font-semibold text-gray-900">
-                      월별 트래픽 추이 (2024년 7월 오픈 이후 ~ 현재)
-                    </h4>
+                    월별 트래픽 추이 (2024년 7월 오픈 이후 ~ 현재)
+                  </h4>
                     <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">
                       Google Analytics GA4
                     </span>

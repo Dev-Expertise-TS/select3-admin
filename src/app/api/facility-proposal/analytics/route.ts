@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 
-export const revalidate = 3600 // 1시간 캐시
+// 관리 화면 차트/지표는 최신성이 중요하므로 캐시를 강제하지 않습니다.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 interface GoogleAnalyticsData {
   // 페이지뷰 통계
@@ -128,6 +130,15 @@ interface GoogleAnalyticsData {
     users: number
     conversions: number
   }>
+  // 월간 핵심 지표 추이 (최근 12개월) - pageViews/users는 GA4, impressions/clicks는 SEO 총합을 월별로 분배(추정)
+  monthlyKpiTrend: Array<{
+    month: string
+    pageViews: number
+    users: number
+    impressions: number
+    clicks: number
+  }>
+  monthlyKpiTrendSource: 'search-console' | 'estimated'
   // SEO 순위 지표
   seoRanking: {
     totalKeywords: number
@@ -146,6 +157,175 @@ interface GoogleAnalyticsData {
       ctr: number
     }>
   }
+}
+
+type MonthlySearchConsoleTrend = Array<{ month: string; impressions: number; clicks: number }>
+
+const KPI_TREND_START_MONTH = '2024-07'
+const KPI_TREND_START_DATE = '2024-07-01'
+
+function formatDateISO(d: Date) {
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+async function getGoogleAccessTokenForSearchConsole(): Promise<string | null> {
+  const clientId = process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID || process.env.GOOGLE_ANALYTICS_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET || process.env.GOOGLE_ANALYTICS_CLIENT_SECRET
+  const refreshToken = process.env.GOOGLE_SEARCH_CONSOLE_REFRESH_TOKEN || process.env.GOOGLE_ANALYTICS_REFRESH_TOKEN
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    console.warn('Search Console OAuth2 설정이 완료되지 않았습니다.')
+    return null
+  }
+
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    })
+
+    if (!response.ok) {
+      console.error('Search Console 액세스 토큰 갱신 실패:', await response.text())
+      return null
+    }
+
+    const data = await response.json()
+    return data.access_token || null
+  } catch (error) {
+    console.error('Search Console 액세스 토큰 가져오기 오류:', error)
+    return null
+  }
+}
+
+async function fetchSearchConsoleMonthlyTrend(): Promise<MonthlySearchConsoleTrend | null> {
+  const siteUrl = process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL
+  if (!siteUrl) {
+    console.warn('GOOGLE_SEARCH_CONSOLE_SITE_URL이 설정되지 않았습니다.')
+    return null
+  }
+
+  const accessToken = await getGoogleAccessTokenForSearchConsole()
+  if (!accessToken) return null
+
+  // 2024-07-01(오픈 시점)부터 현재까지 (일별 → 월별 합산)
+  const end = new Date()
+  const startDate = KPI_TREND_START_DATE
+
+  try {
+    const endpoint = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        startDate,
+        endDate: formatDateISO(end),
+        dimensions: ['date'],
+        rowLimit: 25000,
+      }),
+    })
+
+    if (!response.ok) {
+      console.error('Search Console 데이터 가져오기 실패:', response.status, await response.text())
+      return null
+    }
+
+    const data = await response.json()
+    const rows: Array<{ keys?: string[]; clicks?: number; impressions?: number }> = data.rows || []
+
+    const byMonth = new Map<string, { impressions: number; clicks: number }>()
+    for (const row of rows) {
+      const dateStr = row.keys?.[0]
+      if (!dateStr) continue
+      const month = dateStr.slice(0, 7) // YYYY-MM
+      const prev = byMonth.get(month) || { impressions: 0, clicks: 0 }
+      byMonth.set(month, {
+        impressions: prev.impressions + Number(row.impressions || 0),
+        clicks: prev.clicks + Number(row.clicks || 0),
+      })
+    }
+
+    return Array.from(byMonth.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, v]) => ({
+        month,
+        impressions: Math.round(v.impressions),
+        clicks: Math.round(v.clicks),
+      }))
+  } catch (error) {
+    console.error('Search Console 데이터 가져오기 오류:', error)
+    return null
+  }
+}
+
+function buildMonthlyKpiTrend(args: {
+  monthlyTrend: GoogleAnalyticsData['monthlyTrend']
+  totalImpressions: number
+  totalClicks: number
+}): GoogleAnalyticsData['monthlyKpiTrend'] {
+  const range = args.monthlyTrend.filter((m) => m.month >= KPI_TREND_START_MONTH)
+  const last12 = range.length > 0 ? range : args.monthlyTrend
+  const weights = last12.map((m) => Math.max(0, m.pageViews))
+  const weightSum = weights.reduce((sum, v) => sum + v, 0)
+
+  const distribute = (total: number) => {
+    if (total <= 0 || last12.length === 0) return last12.map(() => 0)
+    const base = last12.map((_, i) => {
+      const w = weightSum > 0 ? weights[i] / weightSum : 1 / last12.length
+      return Math.floor(total * w)
+    })
+    const used = base.reduce((sum, v) => sum + v, 0)
+    let remainder = total - used
+    // 잔여분을 월별로 1씩 분배 (앞에서부터)
+    let idx = 0
+    while (remainder > 0 && base.length > 0) {
+      base[idx] += 1
+      remainder -= 1
+      idx = (idx + 1) % base.length
+    }
+    return base
+  }
+
+  const impressionsByMonth = distribute(Math.max(0, args.totalImpressions))
+  const clicksByMonth = distribute(Math.max(0, args.totalClicks))
+
+  return last12.map((m, i) => ({
+    month: m.month,
+    pageViews: m.pageViews,
+    users: m.users,
+    impressions: impressionsByMonth[i] ?? 0,
+    clicks: clicksByMonth[i] ?? 0,
+  }))
+}
+
+function buildMonthlyKpiTrendFromSearchConsole(args: {
+  monthlyTrend: GoogleAnalyticsData['monthlyTrend']
+  searchConsole: MonthlySearchConsoleTrend
+}): GoogleAnalyticsData['monthlyKpiTrend'] {
+  const range = args.monthlyTrend.filter((m) => m.month >= KPI_TREND_START_MONTH)
+  const last12 = range.length > 0 ? range : args.monthlyTrend
+  const scMap = new Map(args.searchConsole.map((r) => [r.month, r]))
+  return last12.map((m) => {
+    const sc = scMap.get(m.month)
+    return {
+      month: m.month,
+      pageViews: m.pageViews,
+      users: m.users,
+      impressions: sc?.impressions ?? 0,
+      clicks: sc?.clicks ?? 0,
+    }
+  })
 }
 
 /**
@@ -181,10 +361,32 @@ async function fetchGoogleAnalyticsData(): Promise<GoogleAnalyticsData> {
     // 샘플 데이터 구조를 기반으로 실제 데이터 병합
     const sampleData = getSampleAnalyticsData()
     
-    return {
+    const merged: GoogleAnalyticsData = {
       ...sampleData,
       ...basicStats,
       monthlyTrend: monthlyTrend.length > 0 ? monthlyTrend : sampleData.monthlyTrend,
+    }
+    const searchConsole = await fetchSearchConsoleMonthlyTrend()
+
+    if (searchConsole && searchConsole.length > 0) {
+      return {
+        ...merged,
+        monthlyKpiTrend: buildMonthlyKpiTrendFromSearchConsole({
+          monthlyTrend: merged.monthlyTrend,
+          searchConsole,
+        }),
+        monthlyKpiTrendSource: 'search-console',
+      }
+    }
+
+    return {
+      ...merged,
+      monthlyKpiTrend: buildMonthlyKpiTrend({
+        monthlyTrend: merged.monthlyTrend,
+        totalImpressions: merged.seoRanking?.totalImpressions ?? 0,
+        totalClicks: merged.seoRanking?.totalClicks ?? 0,
+      }),
+      monthlyKpiTrendSource: 'estimated',
     }
   } catch (error) {
     console.error('Google Analytics API 오류:', error)
@@ -452,7 +654,8 @@ function getSampleAnalyticsData(): GoogleAnalyticsData {
   const baseUsers = 45000
   const baseSessions = 52000
 
-  return {
+  const monthlyTrend = generateMonthlyTrend()
+  const base: GoogleAnalyticsData = {
     pageViews: {
       total: basePageViews * 12, // 연간 추정
       last30Days: basePageViews,
@@ -576,7 +779,7 @@ function getSampleAnalyticsData(): GoogleAnalyticsData {
       hotelsViewed: 3200,
     },
     // 2024년 7월 1일 오픈 이후 현재 년월까지 월별 트래픽 추이 (동적 생성)
-    monthlyTrend: generateMonthlyTrend(),
+    monthlyTrend,
     // SEO 순위 지표 (개선된 지표)
     seoRanking: {
       totalKeywords: 2850,
@@ -605,6 +808,19 @@ function getSampleAnalyticsData(): GoogleAnalyticsData {
         { keyword: '리젠시 호텔', position: 1, impressions: 52000, clicks: 2000, ctr: 3.85 },
       ],
     },
+    // 아래에서 채움
+    monthlyKpiTrend: [],
+    monthlyKpiTrendSource: 'estimated',
+  }
+
+  return {
+    ...base,
+    monthlyKpiTrend: buildMonthlyKpiTrend({
+      monthlyTrend: base.monthlyTrend,
+      totalImpressions: base.seoRanking.totalImpressions,
+      totalClicks: base.seoRanking.totalClicks,
+    }),
+    monthlyKpiTrendSource: 'estimated',
   }
 }
 
@@ -679,10 +895,17 @@ export async function GET() {
   try {
     const analyticsData = await fetchGoogleAnalyticsData()
 
-    return NextResponse.json({
-      success: true,
-      data: analyticsData,
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        data: analyticsData,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      }
+    )
   } catch (error) {
     console.error('Analytics data fetch error:', error)
     return NextResponse.json(
