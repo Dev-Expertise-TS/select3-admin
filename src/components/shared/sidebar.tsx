@@ -76,6 +76,7 @@ const navSections: NavSection[] = [
       { label: '지역 코드 맵핑 관리', href: '/admin/region-mapping', icon: Globe, requiredRole: 'admin' },
       { label: '호텔 이미지 관리', href: '/admin/hotel-images', icon: Image, requiredRole: 'admin' },
       { label: '호텔 콘텐츠 관리', href: '/admin/hotel-content', icon: FileText, requiredRole: 'admin' },
+      { label: '호텔 소개 SEO 관리', href: '/admin/hotel-seo-intro', icon: Search, requiredRole: 'admin' },
       { label: '호텔 아티클 관리', href: '/admin/hotel-articles', icon: Newspaper, requiredRole: 'admin' },
       { label: '객실 타입 관리', href: '/admin/room-type', icon: LinkIcon, requiredRole: 'admin' },
       { label: '해시태그 관리', href: '/admin/hashtags', icon: Hash, requiredRole: 'admin' },

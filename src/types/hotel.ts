@@ -75,18 +75,25 @@ export interface HotelDetailsRequest {
 
 // 확장 패널 상태 타입
 export interface ExpandedRowState {
-  type: 'hotel-details' | 'image-management' | 'url-generation'
+  type: 'hotel-details' | 'image-management' | 'url-generation' | 'seo-management'
   hotelId: string
   hotel?: HotelSearchResult
-  currencyCode: string
-  adults: number
-  startDate: string
-  endDate: string
-  selectedRatePlanCodes: string[]
-  originalRatePlanCodes: string[]
-  isLoading: boolean
-  isSaving: boolean
-  testResult: unknown
-  error: string | null
-  saveSuccess: boolean
+  currencyCode?: string
+  adults?: number
+  startDate?: string
+  endDate?: string
+  selectedRatePlanCodes?: string[]
+  originalRatePlanCodes?: string[]
+  isLoading?: boolean
+  isSaving?: boolean
+  testResult?: unknown
+  error?: string | null
+  saveSuccess?: boolean
+  // SEO 관리 관련
+  seoData?: {
+    seoTitle: string | null
+    seoDescription: string | null
+    seoKeywords: string | null
+    canonicalUrl: string | null
+  }
 }

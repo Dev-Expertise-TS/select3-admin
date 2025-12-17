@@ -46,6 +46,31 @@ interface HotelSearchWidgetProps {
 
   /** URL 생성 모드 활성화 */
   enableUrlGeneration?: boolean
+  /** SEO 관리 모드 활성화 */
+  enableSeoManagement?: boolean
+  /** SEO 데이터 업데이트 핸들러 */
+  onSeoUpdate?: (sabreId: string, seoData: {
+    seoTitle: string;
+    seoDescription: string;
+    seoKeywords: string;
+    canonicalUrl: string;
+  }) => Promise<void>;
+  /** SEO 데이터 생성 핸들러 */
+  onSeoGenerate?: (sabreId: string) => Promise<{
+    seoTitle: string | null;
+    seoDescription: string | null;
+    seoKeywords: string | null;
+    canonicalUrl: string | null;
+  }>;
+  /** SEO 데이터 조회 핸들러 */
+  onSeoFetch?: (sabreId: string) => Promise<{
+    seoTitle: string | null;
+    seoDescription: string | null;
+    seoKeywords: string | null;
+    canonicalUrl: string | null;
+  }>;
+  /** 일괄 SEO 생성 핸들러 */
+  onBulkSeoGenerate?: (sabreIds: string[]) => Promise<void>;
 }
 
 export default function HotelSearchWidget({ 
@@ -62,6 +87,11 @@ export default function HotelSearchWidget({
   connectBrandId = null,
   onConnectSuccess,
   enableUrlGeneration = false,
+  enableSeoManagement = false,
+  onSeoUpdate,
+  onSeoGenerate,
+  onSeoFetch,
+  onBulkSeoGenerate,
 }: HotelSearchWidgetProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -73,6 +103,8 @@ export default function HotelSearchWidget({
   const [error, setError] = useState<string | null>(null);
   const [count, setCount] = useState<number>(0);
   const [hasSearched, setHasSearched] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [limit] = useState(20);
   // 입력 제안 상태
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [openSuggest, setOpenSuggest] = useState(false);
@@ -85,9 +117,15 @@ export default function HotelSearchWidget({
   // URL 파라미터가 있을 때 자동 검색
   useEffect(() => {
     const q = searchParams.get('q')
+    const page = parseInt(searchParams.get('page') || '1')
     if (q && q !== searchTerm) {
       setSearchTerm(q)
-      performSearch(q)
+      setCurrentPage(page)
+      performSearch(q, page)
+    } else if (!q && hasSearched) {
+      // 검색어가 없으면 첫 페이지로 초기화
+      setCurrentPage(1)
+      performSearch('', 1)
     }
   }, [searchParams])
 
@@ -787,13 +825,16 @@ export default function HotelSearchWidget({
   };
 
   // 검색 핸들러 + 외부 호출 함수로 분리 (자동완성 Enter 선택 시 재사용)
-  const performSearch = async (term: string) => {
+  const performSearch = async (term: string, page: number = 1) => {
     setLoading(true);
     setError(null);
     setResults([]);
     setHasSearched(true);
     setOpenSuggest(false);
     setSuppressSuggest(true);
+    setCurrentPage(page);
+
+    const offset = (page - 1) * limit;
 
     try {
       const response = await fetch('/api/hotel/search', {
@@ -801,7 +842,11 @@ export default function HotelSearchWidget({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ searching_string: term }),
+        body: JSON.stringify({ 
+          searching_string: term,
+          limit,
+          offset,
+        }),
       });
 
       if (!response.ok) {
@@ -836,6 +881,7 @@ export default function HotelSearchWidget({
     e.preventDefault();
     setOpenSuggest(false);
     setSuggestions([]);
+    setCurrentPage(1);
     
     // URL 업데이트
     const params = new URLSearchParams(searchParams.toString())
@@ -844,9 +890,10 @@ export default function HotelSearchWidget({
     } else {
       params.delete('q')
     }
+    params.delete('page')
     router.push(`?${params.toString()}`, { scroll: false })
     
-    await performSearch(searchTerm);
+    await performSearch(searchTerm, 1);
   };
 
   // 검색 결과 초기화
@@ -856,6 +903,7 @@ export default function HotelSearchWidget({
     setError(null);
     setCount(0);
     setHasSearched(false);
+    setCurrentPage(1);
     setExpandedRowId(null);
     setExpandedRowState(null);
     setSuggestions([]);
@@ -864,6 +912,20 @@ export default function HotelSearchWidget({
     // URL에서 검색 파라미터 제거
     const params = new URLSearchParams(searchParams.toString())
     params.delete('q')
+    params.delete('page')
+    router.push(`?${params.toString()}`, { scroll: false })
+  };
+
+  // 페이지 변경 핸들러
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    performSearch(searchTerm, page);
+    // URL 업데이트
+    const params = new URLSearchParams(searchParams.toString())
+    if (searchTerm.trim()) {
+      params.set('q', searchTerm.trim())
+    }
+    params.set('page', String(page))
     router.push(`?${params.toString()}`, { scroll: false })
   };
 
@@ -930,8 +992,51 @@ export default function HotelSearchWidget({
     performSearch(value);
   };
 
+  // SEO 데이터 조회 핸들러
+  const fetchSeoData = async (sabreId: string, currentExpandedRowId: string) => {
+    if (!onSeoFetch) return null;
+    try {
+      const seoData = await onSeoFetch(sabreId);
+      // 현재 확장된 행이 여전히 같은 행인지 확인 (비동기 작업 완료 후에도 유효한지 체크)
+      setExpandedRowState((prev) => {
+        if (prev && prev.hotelId === currentExpandedRowId && seoData) {
+          return { ...prev, seoData };
+        }
+        return prev;
+      });
+      return seoData;
+    } catch (error) {
+      console.error('SEO 데이터 조회 실패:', error);
+      return null;
+    }
+  };
+
   // 행 클릭 핸들러
   const handleRowClick = (hotel: HotelSearchResult) => {
+    if (enableSeoManagement) {
+      if (hotel.sabre_id !== null && hotel.sabre_id !== undefined) {
+        const hotelId = String(hotel.sabre_id);
+        
+        if (expandedRowId === hotelId) {
+          setExpandedRowId(null);
+          setExpandedRowState(null);
+        } else {
+          setExpandedRowId(hotelId);
+          setExpandedRowState({
+            type: 'seo-management',
+            hotelId: hotelId,
+            hotel: hotel,
+            seoData: undefined,
+          });
+          
+          // SEO 데이터 조회
+          fetchSeoData(hotel.sabre_id, hotelId);
+        }
+        return;
+      }
+      return;
+    }
+    
     if (enableImageManagement) {
       if (hotel.sabre_id !== null && hotel.sabre_id !== undefined) {
         const hotelId = String(hotel.sabre_id);
@@ -1337,6 +1442,16 @@ export default function HotelSearchWidget({
           handleTestHotelDetails={handleTestApi}
           handleCopyJson={handleCopyJson}
           copiedJson={copiedJson}
+          
+          enableSeoManagement={enableSeoManagement}
+          onSeoUpdate={onSeoUpdate}
+          onSeoGenerate={onSeoGenerate}
+          
+          currentPage={currentPage}
+          limit={limit}
+          onPageChange={handlePageChange}
+          
+          onBulkSeoGenerate={onBulkSeoGenerate}
         />
 
         {/* 빈 결과 메시지 */}

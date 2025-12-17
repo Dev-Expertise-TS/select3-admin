@@ -9,13 +9,16 @@ import {
   Copy,
   Check,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn, formatDate, parseRatePlanCode, formatJson } from '@/lib/utils'
 import { HotelSearchResult, ExpandedRowState } from '@/types/hotel'
 import { ImageManagementPanel } from './image-management-panel'
 import { UrlGeneratorPanel } from '../url-generator-panel'
+import { SeoManagementPanel } from './seo-management-panel'
 import DateInput from '@/components/shared/date-input'
 import { RatePlanCodeSelector } from '@/components/shared/rate-plan-code-selector'
 import { BaseButton } from '@/components/shared/form-actions'
@@ -53,6 +56,29 @@ interface HotelListTableProps {
   handleTestHotelDetails?: () => void
   handleCopyJson?: () => void
   copiedJson?: boolean
+  
+  // SEO Management
+  enableSeoManagement?: boolean
+  onSeoUpdate?: (sabreId: string, seoData: {
+    seoTitle: string;
+    seoDescription: string;
+    seoKeywords: string;
+    canonicalUrl: string;
+  }) => Promise<void>;
+  onSeoGenerate?: (sabreId: string) => Promise<{
+    seoTitle: string | null;
+    seoDescription: string | null;
+    seoKeywords: string | null;
+    canonicalUrl: string | null;
+  }>;
+  
+  // Pagination
+  currentPage?: number
+  limit?: number
+  onPageChange?: (page: number) => void
+  
+  // Bulk SEO Generation
+  onBulkSeoGenerate?: (sabreIds: string[]) => Promise<void>;
 }
 
 // 지정 경로 순회해서 RatePlan 행 추출 (AmountAfterTax 정렬은 호출부에서)
@@ -187,22 +213,102 @@ export function HotelListTable({
   updateExpandedRowState,
   handleTestHotelDetails,
   handleCopyJson,
-  copiedJson
+  copiedJson,
+  
+  enableSeoManagement,
+  onSeoUpdate,
+  onSeoGenerate,
+  
+  currentPage = 1,
+  limit = 20,
+  onPageChange,
+  
+  onBulkSeoGenerate,
 }: HotelListTableProps) {
   
   if (results.length === 0) return null
 
   // 클립보드 복사 상태 (내부 관리)
   const [internalCopied, setInternalCopied] = React.useState(false);
+  
+  // 선택된 호텔 관리
+  const [selectedHotels, setSelectedHotels] = React.useState<Set<string>>(new Set());
+  const [isBulkGenerating, setIsBulkGenerating] = React.useState(false);
+  
+  // 전체 선택/해제
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedHotels(new Set(results.map(h => String(h.sabre_id))))
+    } else {
+      setSelectedHotels(new Set())
+    }
+  };
+  
+  // 개별 선택/해제
+  const handleSelectHotel = (sabreId: string, checked: boolean) => {
+    setSelectedHotels(prev => {
+      const next = new Set(prev)
+      if (checked) {
+        next.add(sabreId)
+      } else {
+        next.delete(sabreId)
+      }
+      return next
+    })
+  };
+  
+  // 일괄 AI SEO 생성
+  const handleBulkGenerate = async () => {
+    if (!onBulkSeoGenerate || selectedHotels.size === 0) return;
+    
+    setIsBulkGenerating(true);
+    try {
+      await onBulkSeoGenerate(Array.from(selectedHotels));
+      setSelectedHotels(new Set());
+    } catch (error) {
+      console.error('일괄 SEO 생성 실패:', error);
+    } finally {
+      setIsBulkGenerating(false);
+    }
+  };
+  
+  const totalPages = Math.ceil(count / limit);
+  const isAllSelected = results.length > 0 && results.every(h => selectedHotels.has(String(h.sabre_id)));
+  const hasSelection = selectedHotels.size > 0;
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       {/* 테이블 헤더 정보 */}
       <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-        <h3 className="text-lg font-medium text-gray-900">검색 결과</h3>
-        <p className="text-sm text-gray-600 mt-1">
-          {count.toLocaleString()}개의 호텔이 검색되었습니다
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900">검색 결과</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              총 {count.toLocaleString()}개의 호텔이 검색되었습니다
+              {totalPages > 1 && (
+                <span className="ml-2">
+                  (페이지 {currentPage} / {totalPages})
+                </span>
+              )}
+            </p>
+          </div>
+          {enableSeoManagement && hasSelection && (
+            <Button
+              onClick={handleBulkGenerate}
+              disabled={isBulkGenerating}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isBulkGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  AI SEO 일괄 생성 중...
+                </>
+              ) : (
+                `AI SEO 일괄 생성 (${selectedHotels.size}개)`
+              )}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* 반응형 테이블 */}
@@ -210,6 +316,16 @@ export function HotelListTable({
         <table className="w-full divide-y divide-gray-200" role="table">
           <thead className="bg-gray-50">
             <tr>
+              {enableSeoManagement && (
+                <th scope="col" className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                </th>
+              )}
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Sabre ID
               </th>
@@ -261,19 +377,38 @@ export function HotelListTable({
           <tbody className="bg-white divide-y divide-gray-200">
             {results.map((hotel, index) => {
               const hotelId = String(hotel.sabre_id);
+              const hotelSabreId = String(hotel.sabre_id);
               const isExpanded = expandedRowId === hotelId;
+              const isSelected = selectedHotels.has(hotelSabreId);
               const hotelPageUrl = hotel.slug ? `https://luxury-select.co.kr/hotel/${hotel.slug}` : null;
               
               return (
                 <React.Fragment key={`hotel-${hotel.sabre_id}-${hotel.paragon_id}-${index}`}>
                   <tr 
-                    onClick={() => onRowClick(hotel)}
+                    onClick={(e) => {
+                      // 체크박스 클릭 시에는 행 클릭 이벤트 방지
+                      if ((e.target as HTMLElement).closest('input[type="checkbox"]')) {
+                        return;
+                      }
+                      onRowClick(hotel);
+                    }}
                     className={cn(
                       "transition-colors duration-150",
                       enableHotelEdit ? "hover:bg-green-50" : "hover:bg-blue-50 cursor-pointer",
-                      isExpanded ? "bg-blue-100" : index % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                      isExpanded ? "bg-blue-100" : index % 2 === 0 ? "bg-white" : "bg-gray-50/50",
+                      isSelected && "bg-blue-50"
                     )}
                   >
+                    {enableSeoManagement && (
+                      <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handleSelectHotel(hotelSabreId, e.target.checked)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
                       {hotel.sabre_id ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -478,7 +613,7 @@ export function HotelListTable({
                   {/* 확장 패널 */}
                   {isExpanded && expandedRowState && (
                     <tr>
-                      <td colSpan={showInitialHotels ? 8 : 6} className="p-0">
+                      <td colSpan={showInitialHotels ? (enableSeoManagement ? 9 : 8) : (enableSeoManagement ? 7 : 6)} className="p-0">
                         <div className="bg-gray-50 border-t border-gray-200">
                           <div className="px-6 py-6">
                             {/* 이미지 관리 모드 */}
@@ -508,9 +643,20 @@ export function HotelListTable({
                                 dbCodes={expandedRowState.originalRatePlanCodes}
                               />
                             )}
+
+                            {/* SEO 관리 모드 */}
+                            {expandedRowState.type === 'seo-management' && expandedRowState.hotel && (
+                              <SeoManagementPanel
+                                hotel={expandedRowState.hotel}
+                                hotelId={hotelId}
+                                initialSeoData={expandedRowState.seoData}
+                                onUpdate={onSeoUpdate}
+                                onGenerate={onSeoGenerate}
+                              />
+                            )}
                             
                             {/* 기존 패널 (호텔 상세 정보 테스트) */}
-                            {expandedRowState.type !== 'image-management' && expandedRowState.type !== 'url-generation' && updateExpandedRowState && handleTestHotelDetails && (
+                            {expandedRowState.type !== 'image-management' && expandedRowState.type !== 'url-generation' && expandedRowState.type !== 'seo-management' && updateExpandedRowState && handleTestHotelDetails && (
                               <>
                                 <div className="flex items-center justify-between mb-6">
                                   <h4 className="text-lg font-medium text-gray-900">
@@ -766,6 +912,67 @@ export function HotelListTable({
           </tbody>
         </table>
       </div>
+      
+      {/* 페이지네이션 */}
+      {onPageChange && totalPages > 1 && (
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-700">
+              {((currentPage - 1) * limit + 1).toLocaleString()} - {Math.min(currentPage * limit, count).toLocaleString()} / {count.toLocaleString()}개
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="flex items-center gap-1"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                이전
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => onPageChange(pageNum)}
+                      className="min-w-[40px]"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-1"
+              >
+                다음
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
