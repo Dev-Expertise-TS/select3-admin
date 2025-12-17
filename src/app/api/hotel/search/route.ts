@@ -56,8 +56,8 @@ async function searchHotels(query: string, limit: number = 20, offset: number = 
   
   // Sabre ID, 호텔명 (한글/영문) 검색
   // 특수문자가 포함될 수 있으므로 .or() 대신 개별 쿼리 실행 후 병합
-  const results: any[] = []
-  const seenIds = new Set<string>()
+  const allResults: any[] = []
+  const allSeenIds = new Set<string>()
   
   // 1. Sabre ID로 검색 (숫자인 경우만)
   if (/^\d+$/.test(query)) {
@@ -65,14 +65,13 @@ async function searchHotels(query: string, limit: number = 20, offset: number = 
       .from('select_hotels')
       .select(selectFields)
       .eq('sabre_id', query)
-      .limit(50)
     
     if (!sabreError && sabreResults) {
       sabreResults.forEach(item => {
         const id = `${item.sabre_id}-${item.paragon_id}`
-        if (!seenIds.has(id)) {
-          seenIds.add(id)
-          results.push(item)
+        if (!allSeenIds.has(id)) {
+          allSeenIds.add(id)
+          allResults.push(item)
         }
       })
     }
@@ -83,14 +82,13 @@ async function searchHotels(query: string, limit: number = 20, offset: number = 
     .from('select_hotels')
     .select(selectFields)
     .ilike('property_name_ko', `%${query}%`)
-    .limit(50)
   
   if (!koError && koResults) {
     koResults.forEach(item => {
       const id = `${item.sabre_id}-${item.paragon_id}`
-      if (!seenIds.has(id)) {
-        seenIds.add(id)
-        results.push(item)
+      if (!allSeenIds.has(id)) {
+        allSeenIds.add(id)
+        allResults.push(item)
       }
     })
   }
@@ -100,36 +98,35 @@ async function searchHotels(query: string, limit: number = 20, offset: number = 
     .from('select_hotels')
     .select(selectFields)
     .ilike('property_name_en', `%${query}%`)
-    .limit(50)
   
   if (!enError && enResults) {
     enResults.forEach(item => {
       const id = `${item.sabre_id}-${item.paragon_id}`
-      if (!seenIds.has(id)) {
-        seenIds.add(id)
-        results.push(item)
+      if (!allSeenIds.has(id)) {
+        allSeenIds.add(id)
+        allResults.push(item)
       }
     })
   }
   
   // 에러가 모두 발생한 경우
-  if (koError && enError) {
-    console.error('[hotel/search] all queries failed:', { koError, enError })
-    throw koError || enError
+  if (koError && enError && (!/^\d+$/.test(query) || sabreError)) {
+    console.error('[hotel/search] all queries failed:', { koError, enError, sabreError })
+    throw koError || enError || sabreError
   }
   
   // 결과를 영문명 기준으로 정렬
-  results.sort((a, b) => {
+  allResults.sort((a, b) => {
     const aName = a.property_name_en || a.property_name_ko || ''
     const bName = b.property_name_en || b.property_name_ko || ''
     return aName.localeCompare(bName)
   })
 
   // 전체 개수
-  const totalCount = results.length
+  const totalCount = allResults.length
   
   // 페이지네이션 적용
-  const paginatedResults = results.slice(offset, offset + limit)
+  const paginatedResults = allResults.slice(offset, offset + limit)
 
   return { data: paginatedResults, count: totalCount }
 }

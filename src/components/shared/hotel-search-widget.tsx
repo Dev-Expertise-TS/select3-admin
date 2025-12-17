@@ -117,15 +117,23 @@ export default function HotelSearchWidget({
   // URL 파라미터가 있을 때 자동 검색
   useEffect(() => {
     const q = searchParams.get('q')
-    const page = parseInt(searchParams.get('page') || '1')
-    if (q && q !== searchTerm) {
-      setSearchTerm(q)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
+
+    // 검색어가 있는 경우: q + page 기반으로 조회
+    if (q) {
+      if (q !== searchTerm || page !== currentPage) {
+        setSearchTerm(q)
+        setCurrentPage(page)
+        performSearch(q, page)
+      }
+      return
+    }
+
+    // 검색어가 없는 경우: page만으로도 페이지네이션이 동작해야 함
+    // (기존 로직은 q가 없으면 항상 1페이지로 리셋되어 2/3페이지가 안 보였음)
+    if (searchTerm.trim() === '' && (page !== currentPage || !hasSearched)) {
       setCurrentPage(page)
-      performSearch(q, page)
-    } else if (!q && hasSearched) {
-      // 검색어가 없으면 첫 페이지로 초기화
-      setCurrentPage(1)
-      performSearch('', 1)
+      performSearch('', page)
     }
   }, [searchParams])
 
@@ -917,9 +925,7 @@ export default function HotelSearchWidget({
   };
 
   // 페이지 변경 핸들러
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    performSearch(searchTerm, page);
+  const handlePageChange = async (page: number) => {
     // URL 업데이트
     const params = new URLSearchParams(searchParams.toString())
     if (searchTerm.trim()) {
@@ -927,6 +933,9 @@ export default function HotelSearchWidget({
     }
     params.set('page', String(page))
     router.push(`?${params.toString()}`, { scroll: false })
+    
+    // performSearch 내부에서 setCurrentPage를 호출하므로 여기서는 호출하지 않음
+    await performSearch(searchTerm, page);
   };
 
   // 초기 호텔 리스트 로딩
