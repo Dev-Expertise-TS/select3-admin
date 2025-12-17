@@ -108,10 +108,8 @@ export function SeoManagementPanel({
     }
   };
 
-  const sabreId = hotel.sabre_id ?? '';
-  const defaultCanonicalUrl = hotel.slug
-    ? `https://luxury-select.co.kr/hotel/${hotel.slug}`
-    : `https://luxury-select.co.kr/hotel/${sabreId}`;
+  // select_hotels.slug는 고유 경로 값이므로 기본 Canonical은 slug 기반을 사용합니다.
+  const defaultCanonicalUrl = hotel.slug ? `https://luxury-select.co.kr/hotel/${hotel.slug}` : '';
 
   return (
     <div className="space-y-6">
@@ -236,7 +234,7 @@ export function SeoManagementPanel({
               className="font-mono text-xs"
             />
             <p className="text-xs text-gray-500">
-              비워두면 기본 URL이 사용됩니다. (형식: /hotel/{sabreId})
+                    비워두면 기본 URL이 사용됩니다. (형식: {'/hotel/{slug}'})
             </p>
           </div>
         </div>

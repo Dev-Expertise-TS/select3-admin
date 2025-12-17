@@ -366,13 +366,7 @@ ${hotelInfo}${webSearchInstruction}
       // Canonical URL 생성 (slug 기반)
       const baseUrl = 'https://luxury-select.co.kr';
       const slug = String((hotel as { slug?: string | null }).slug ?? '').trim();
-      let canonicalUrl: string | null = null;
-
-      if (slug) {
-        canonicalUrl = `${baseUrl}/hotel/${slug}`;
-      } else {
-        canonicalUrl = `${baseUrl}/hotel/${sabreId}`;
-      }
+      const canonicalUrl: string | null = slug ? `${baseUrl}/hotel/${slug}` : null;
 
       const seoTitle = parsed.seoTitle?.trim() || null;
       const seoDescription = parsed.seoDescription?.trim() || null;
@@ -556,13 +550,7 @@ ${hotelInfo}${webSearchInstruction}
 
         const baseUrl = 'https://luxury-select.co.kr';
         const slug = String((hotel as { slug?: string | null }).slug ?? '').trim();
-        let canonicalUrl: string | null = null;
-
-        if (slug) {
-          canonicalUrl = `${baseUrl}/hotel/${slug}`;
-        } else {
-          canonicalUrl = `${baseUrl}/hotel/${sabreId}`;
-        }
+        const canonicalUrl: string | null = slug ? `${baseUrl}/hotel/${slug}` : null;
 
         const seoTitle = parsed.seoTitle?.trim() || null;
         const seoDescription = parsed.seoDescription?.trim() || null;
