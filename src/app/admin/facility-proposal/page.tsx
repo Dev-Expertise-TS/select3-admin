@@ -294,7 +294,7 @@ export default function FacilityProposalPage() {
   const t = {
     ko: {
       title: 'About Tourvis Select',
-      subtitle: '대한민국 NO.1 프리미엄 호텔 예약 플랫폼',
+      subtitle: '대한민국 No.1 프리미엄 호텔 예약 플랫폼',
       pngDownload: 'PNG 다운로드',
       pdfDownload: 'PDF 다운로드',
       markdownDownload: 'Markdown 다운로드',
