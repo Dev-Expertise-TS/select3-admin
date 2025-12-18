@@ -150,7 +150,10 @@ export async function GET(req: NextRequest) {
     })
   } catch (e) {
     console.error('[hotel/search] GET exception:', e)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: e instanceof Error ? e.message : 'Internal server error' },
+      { status: 500 },
+    )
   }
 }
 
@@ -176,6 +179,9 @@ export async function POST(req: NextRequest) {
     })
   } catch (e) {
     console.error('[hotel/search] POST exception:', e)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: e instanceof Error ? e.message : 'Internal server error' },
+      { status: 500 },
+    )
   }
 }

@@ -23,7 +23,9 @@ import {
   ArrowUpRight,
   Clock,
   MousePointerClick,
-  FileDown
+  FileDown,
+  Trophy,
+  Languages
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import html2canvas from 'html2canvas'
@@ -175,6 +177,7 @@ interface GoogleAnalyticsData {
     impressions: number
     clicks: number
   }>
+  monthlyKpiTrendSource?: 'search-console' | 'estimated'
   seoRanking: {
     totalKeywords: number
     top10Keywords: number
@@ -285,9 +288,281 @@ export default function FacilityProposalPage() {
   const [brandTrafficMeta, setBrandTrafficMeta] = useState<{ articlesWithoutBrand?: number; hotelsWithoutBrand?: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [language, setLanguage] = useState<'ko' | 'en'>('ko')
+
+  // 번역 객체
+  const t = {
+    ko: {
+      title: 'About Tourvis Select',
+      subtitle: '대한민국 NO.1 프리미엄 호텔 예약 플랫폼',
+      pngDownload: 'PNG 다운로드',
+      pdfDownload: 'PDF 다운로드',
+      markdownDownload: 'Markdown 다운로드',
+      rapidGrowth: '최근 1년간 급성장',
+      rapidGrowthDesc: '최근 1년간 유입 트래픽 및 예약 전환이 10배 이상 상승하여 플랫폼의 성장세와 고객 관심도가 지속적으로 증가하고 있습니다.',
+      trafficAndStats: '유입 트래픽 및 조회 통계',
+      monthlyMetrics: '월간 핵심 지표',
+      last30Days: '최근 30일 기준',
+      monthlyPageViews: '월간 페이지뷰',
+      monthlyUsers: '월간 사용자수',
+      monthlySessions: '월간 세션',
+      bounceRate: '이탈률',
+      monthOverMonth: '전월 대비',
+      avgSessionTime: '평균 세션 시간',
+      userEngagement: '사용자 참여도',
+      monthlyClicks: '월간 클릭수',
+      searchClicks: '검색 클릭',
+      monthNames: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+      year: '년',
+      month: '월',
+      trendSinceJuly: '2024년 7월 이후 추이 (월별)',
+      monthlyTrendDesc: '월간 페이지뷰의 추이를 확인합니다.',
+      registeredHotels: '등록 호텔 시설',
+      totalHotels: '등록 호텔 수',
+      hotelChains: '호텔 체인',
+      hotelBrands: '호텔 브랜드',
+      premiumHotels: '전 세계 프리미엄 호텔',
+      globalChains: '글로벌 호텔 체인',
+      premiumBrands: '프리미엄 브랜드',
+      hotelImages: '호텔 이미지',
+      hotelArticles: '호텔 아티클',
+      highQualityPhotos: '고품질 호텔 사진',
+      detailedContent: '상세 호텔 소개 콘텐츠',
+      recommendationPages: '추천 페이지',
+      themeRecommendations: '테마별 추천 페이지',
+      contentAndFacilities: '콘텐츠 및 시설 정보',
+      userStats: '사용자 통계',
+      newUsers: '신규 사용자',
+      returningUsers: '재방문 사용자',
+      trafficSources: '트래픽 소스',
+      searchEngine: '검색 엔진',
+      directVisit: '직접 방문',
+      referralSite: '레퍼럴 사이트',
+      socialMedia: '소셜 미디어',
+      paidAds: '유료 광고',
+      devices: '디바이스별 접속',
+      desktop: '데스크톱',
+      mobile: '모바일',
+      tablet: '태블릿',
+      topCountries: '주요 접속 국가',
+      platformCompetitiveness: '투어비스 셀렉트 플랫폼 경쟁력',
+      no1Platform: '대한민국 No.1 프리미엄 호텔 플랫폼',
+      targetCustomers: '타겟 고객',
+      marketingEffect: '마케팅 효과',
+      brandStrengthening: '브랜드 강화',
+      partnerCompetitiveness: '투어비스 셀렉트의 프리미엄 호텔 파트너로서의 경쟁력',
+      mainProposals: '주요 제안 사항:',
+      gaIntegration: 'Google Analytics 연동',
+      ga4Data: 'GA4 실데이터',
+      searchConsoleData: 'Search Console 실데이터',
+      no1PlatformDesc: '한국 최고의 프리미엄 호텔 전문 플랫폼으로 글로벌 브랜드와 긴밀한 파튼너쉽 확보',
+      targetCustomersDesc: '프리미엄 여행을 선호하는 고객층에게 직접 노출되어 브랜드 인지도 향상 및 예약 전환율 증가',
+      marketingEffectDesc: '테마별 추천 페이지를 통한 타겟팅 마케팅으로 고객 유입 및 예약 확대',
+      brandStrengtheningDesc: '고품질 콘텐츠와 이미지를 통한 브랜드 이미지 강화 및 프리미엄 포지셔닝',
+      platformIntro: '투어비스 셀렉트는 한국 최고의 프리미엄 호텔 전문 플랫폼으로, 엄선된 초상위 호텔 브랜드 {brandCount}개를 포함하여 {totalHotels}개 이상의 호텔을 보유하고 있습니다.',
+      platformBenefits: '본 플랫폼을 통해 호텔 시설사는 고품질 콘텐츠와 다양한 마케팅 채널을 통해 타겟 고객에게 효과적으로 노출될 수 있으며, 호텔 컨시어지 전문가에 의한 상담을 통한 호텔 예약 전환을 기대할 수 있습니다.',
+      proposal1: '호텔 정보를 고객의 예약 의도와 호텔 특징을 반영한 소개로 예약 전환율 향상',
+      proposal2: '프리미엄 호텔의 테마를 정확히 해석한 소개로 차별화된 콘텐츠 마케팅',
+      proposal3: '프리미엄 혜택 제공을 통한 브랜드 차별화',
+      proposal4: '한국 최고 프리미엄 호텔 컨시어지 전문가의 전문 예약 상담 서비스 제공',
+      brandTrafficTitle: '브랜드별 호텔 등록 보유 개수 및 트래픽 지표',
+      totalHotelsCount: '총 호텔 수',
+      registeredHotelsLabel: '등록 호텔',
+      pageViews: '페이지뷰',
+      users: '사용자',
+      percentage: '비율',
+      articles: '아티클',
+      hotelContent: '호텔 콘텐츠',
+      variousHotelInfo: '다양한 형태의 호텔 정보 제공',
+      hotelsDetailedInfo: '개 호텔 상세 정보 제공',
+      hotelArticlesBlogs: '개 호텔 아티클 및 블로그',
+      bilingualSupport: '한국어/영어 이중 언어 지원',
+      detailedLocationFacilities: '호텔 위치, 시설, 객실 정보 상세 제공',
+      hotelFacilitiesBenefits: '호텔 시설 및 혜택',
+      premiumBenefitsInfo: '프리미엄 호텔 혜택 정보',
+      benefitCategories: '개 혜택 카테고리',
+      hotelsWithBenefits: '개 호텔에 혜택 연결',
+      variousBenefits: '조식, 업그레이드, 레이트 체크아웃 등 다양한 혜택',
+      vipServices: 'VIP 서비스 및 특별 프로모션 정보',
+      chartDesc: '(각 막대는 해당 월의 실제 페이지뷰 수를 나타냅니다. 누적값이 아닙니다.)',
+      seoRanking: '국내 검색 SEO 순위 지표',
+      totalKeywords: '총 키워드 수',
+      top10Keywords: '상위 10위 키워드',
+      top20Keywords: '상위 20위 키워드',
+      top50Keywords: '상위 50위 키워드',
+      avgSearchRank: '평균 검색 순위',
+      avgCTR: '평균 클릭률 (CTR)',
+      keywordDistribution: '순위별 키워드 분포',
+      top10Rank: '상위 10위',
+      top20Rank: '상위 20위',
+      top50Rank: '상위 50위',
+      southKorea: '대한민국',
+      usa: '미국',
+      japan: '일본',
+      china: '중국',
+      other: '기타',
+      people: '명',
+      imagesMedia: '이미지 및 미디어',
+      highQualityImages: '고품질 호텔 이미지 제공',
+      hotelImagesCount: '개 호텔 이미지',
+      variousImages: '객실, 시설, 외관 등 다양한 이미지',
+      highResPhotos: '고해상도 사진으로 호텔 경험 전달',
+      imageGallery: '이미지 갤러리 및 슬라이더 제공',
+      representativeImages: '호텔별 대표 이미지 관리',
+      regionLocation: '지역 및 위치 정보',
+      accurateRegionInfo: '정확한 지역 정보 제공',
+      regionMapping: '개 지역 매핑',
+      cityCountryClassification: '도시별, 국가별 호텔 분류',
+      mapBasedLocation: '지도 기반 위치 정보',
+      nearbyAttractions: '주변 관광지 및 교통 정보',
+      regionalRecommendations: '지역별 추천 호텔 제공',
+      countryKoToEn: {
+        '대한민국': 'South Korea',
+        '미국': 'USA',
+        '일본': 'Japan',
+        '중국': 'China',
+        '기타': 'Other',
+      },
+    },
+    en: {
+      title: 'About Tourvis Select',
+      subtitle: 'South Korea\'s NO.1 Premium Hotel Booking Platform',
+      pngDownload: 'Download PNG',
+      pdfDownload: 'Download PDF',
+      markdownDownload: 'Download Markdown',
+      rapidGrowth: 'Rapid Growth Over the Past Year',
+      rapidGrowthDesc: 'Over the past year, traffic and booking conversions have increased more than 10-fold, demonstrating continuous growth and increasing customer interest in the platform.',
+      trafficAndStats: 'Traffic & Statistics',
+      monthlyMetrics: 'Monthly Key Metrics',
+      last30Days: 'Last 30 Days',
+      monthlyPageViews: 'Monthly Page Views',
+      monthlyUsers: 'Monthly Users',
+      monthlySessions: 'Monthly Sessions',
+      bounceRate: 'Bounce Rate',
+      monthOverMonth: 'vs Previous Month',
+      avgSessionTime: 'Average Session Duration',
+      userEngagement: 'User Engagement',
+      monthlyClicks: 'Monthly Clicks',
+      searchClicks: 'Search Clicks',
+      monthNames: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+      year: '',
+      month: '',
+      trendSinceJuly: 'Trend Since July 2024 (Monthly)',
+      monthlyTrendDesc: 'View monthly page view trends.',
+      registeredHotels: 'Registered Hotel Facilities',
+      totalHotels: 'Total Hotels',
+      hotelChains: 'Hotel Chains',
+      hotelBrands: 'Hotel Brands',
+      premiumHotels: 'Premium Hotels Worldwide',
+      globalChains: 'Global Hotel Chains',
+      premiumBrands: 'Premium Brands',
+      hotelImages: 'Hotel Images',
+      hotelArticles: 'Hotel Articles',
+      highQualityPhotos: 'High Quality Hotel Photos',
+      detailedContent: 'Detailed Hotel Introduction Content',
+      recommendationPages: 'Recommendation Pages',
+      themeRecommendations: 'Theme-based Recommendation Pages',
+      contentAndFacilities: 'Content & Facility Information',
+      userStats: 'User Statistics',
+      newUsers: 'New Users',
+      returningUsers: 'Returning Users',
+      trafficSources: 'Traffic Sources',
+      searchEngine: 'Search Engine',
+      directVisit: 'Direct Visit',
+      referralSite: 'Referral Site',
+      socialMedia: 'Social Media',
+      paidAds: 'Paid Ads',
+      devices: 'Device Access',
+      desktop: 'Desktop',
+      mobile: 'Mobile',
+      tablet: 'Tablet',
+      topCountries: 'Top Countries',
+      platformCompetitiveness: 'Tourvis Select Platform Competitiveness',
+      no1Platform: 'South Korea\'s No.1 Premium Hotel Platform',
+      targetCustomers: 'Target Customers',
+      marketingEffect: 'Marketing Effect',
+      brandStrengthening: 'Brand Strengthening',
+      partnerCompetitiveness: 'Competitiveness as a Premium Hotel Partner of Tourvis Select',
+      mainProposals: 'Main Proposals:',
+      gaIntegration: 'Google Analytics Integration',
+      ga4Data: 'GA4 Real Data',
+      searchConsoleData: 'Search Console Real Data',
+      no1PlatformDesc: 'South Korea\'s No.1 premium hotel platform with strong partnerships with global brands',
+      targetCustomersDesc: 'Direct exposure to customers who prefer premium travel, enhancing brand awareness and increasing booking conversion rates',
+      marketingEffectDesc: 'Targeted marketing through theme-based recommendation pages to expand customer reach and bookings',
+      brandStrengtheningDesc: 'Enhanced brand image and premium positioning through high-quality content and images',
+      platformIntro: 'Tourvis Select is South Korea\'s No.1 premium hotel platform, featuring {totalHotels} hotels including {brandCount} carefully selected top-tier hotel brands.',
+      platformBenefits: 'Through this platform, hotel facilities can effectively reach target customers through high-quality content and diverse marketing channels, and can expect hotel booking conversions through consultations by hotel concierge experts.',
+      proposal1: 'Improve booking conversion rates by introducing hotel information that reflects customer booking intentions and hotel characteristics',
+      proposal2: 'Differentiated content marketing through accurate interpretation of premium hotel themes',
+      proposal3: 'Brand differentiation through premium benefits',
+      proposal4: 'Professional booking consultation services by South Korea\'s top premium hotel concierge experts',
+      brandTrafficTitle: 'Brand Hotel Registration Count & Traffic Metrics',
+      totalHotelsCount: 'Total Hotels',
+      registeredHotelsLabel: 'Registered Hotels',
+      pageViews: 'Page Views',
+      users: 'Users',
+      percentage: 'Percentage',
+      articles: 'Articles',
+      hotelContent: 'Hotel Content',
+      variousHotelInfo: 'Provide various types of hotel information',
+      hotelsDetailedInfo: ' hotels with detailed information',
+      hotelArticlesBlogs: ' hotel articles and blogs',
+      bilingualSupport: 'Korean/English bilingual support',
+      detailedLocationFacilities: 'Detailed hotel location, facilities, and room information',
+      hotelFacilitiesBenefits: 'Hotel Facilities & Benefits',
+      premiumBenefitsInfo: 'Premium hotel benefit information',
+      benefitCategories: ' benefit categories',
+      hotelsWithBenefits: ' hotels with benefits',
+      variousBenefits: 'Various benefits such as breakfast, upgrades, late checkout',
+      vipServices: 'VIP services and special promotion information',
+      chartDesc: '(Each bar represents the actual page views for that month. Not cumulative.)',
+      seoRanking: 'Domestic Search SEO Ranking Metrics',
+      totalKeywords: 'Total Keywords',
+      top10Keywords: 'Top 10 Keywords',
+      top20Keywords: 'Top 20 Keywords',
+      top50Keywords: 'Top 50 Keywords',
+      avgSearchRank: 'Average Search Rank',
+      avgCTR: 'Average Click-Through Rate (CTR)',
+      keywordDistribution: 'Keyword Distribution by Rank',
+      top10Rank: 'Top 10',
+      top20Rank: 'Top 20',
+      top50Rank: 'Top 50',
+      southKorea: 'South Korea',
+      usa: 'USA',
+      japan: 'Japan',
+      china: 'China',
+      other: 'Other',
+      people: ' people',
+      imagesMedia: 'Images & Media',
+      highQualityImages: 'Provide high-quality hotel images',
+      hotelImagesCount: ' hotel images',
+      variousImages: 'Various images including rooms, facilities, exterior',
+      highResPhotos: 'Convey hotel experience with high-resolution photos',
+      imageGallery: 'Image gallery and slider provided',
+      representativeImages: 'Manage representative images for each hotel',
+      regionLocation: 'Region & Location Information',
+      accurateRegionInfo: 'Provide accurate regional information',
+      regionMapping: ' region mappings',
+      cityCountryClassification: 'Hotel classification by city and country',
+      mapBasedLocation: 'Map-based location information',
+      nearbyAttractions: 'Nearby attractions and transportation information',
+      regionalRecommendations: 'Regional hotel recommendations',
+      countryKoToEn: {
+        '대한민국': 'South Korea',
+        '미국': 'USA',
+        '일본': 'Japan',
+        '중국': 'China',
+        '기타': 'Other',
+      },
+    }
+  }
 
   const formatCompactNumber = (value: number) => {
     try {
+      if (language === 'en') {
+        return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
+      }
       return new Intl.NumberFormat('ko-KR', { notation: 'compact' }).format(value)
     } catch {
       return value.toLocaleString()
@@ -935,9 +1210,9 @@ export default function FacilityProposalPage() {
         markdown += `- 재방문 사용자: ${analytics.users.returningUsers.toLocaleString()}명\n\n`
         
         markdown += '#### 트래픽 소스\n\n'
-        markdown += `- 검색 엔진: ${analytics.trafficSources.organic}%\n`
-        markdown += `- 직접 방문: ${analytics.trafficSources.direct}%\n`
-        markdown += `- 추천 사이트: ${analytics.trafficSources.referral}%\n`
+        markdown += `- 검색 엔진: ${analytics.trafficSources.direct}%\n`
+        markdown += `- 직접 방문: ${analytics.trafficSources.organic}%\n`
+        markdown += `- 레퍼럴 사이트: ${analytics.trafficSources.referral}%\n`
         markdown += `- 소셜 미디어: ${analytics.trafficSources.social}%\n`
         markdown += `- 유료 광고: ${analytics.trafficSources.paid}%\n\n`
         
@@ -1047,10 +1322,10 @@ export default function FacilityProposalPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              투어비스 셀렉트 소개
+              {t[language].title}
           </h1>
           <p className="text-sm text-gray-600 mt-1">
-            투어비스 셀렉트 사이트 현황 및 제안 내용
+            {t[language].subtitle}
           </p>
           </div>
         </div>
@@ -1061,21 +1336,28 @@ export default function FacilityProposalPage() {
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
           >
             <ImageIcon className="h-4 w-4" />
-            PNG 다운로드
+            {t[language].pngDownload}
           </button>
           <button
             onClick={handleDownloadPDF}
             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
           >
             <FileText className="h-4 w-4" />
-            PDF 다운로드
+            {t[language].pdfDownload}
           </button>
           <button
             onClick={handleDownloadWord}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
           >
             <FileDown className="h-4 w-4" />
-            Markdown 다운로드
+            {t[language].markdownDownload}
+          </button>
+          <button
+            onClick={() => setLanguage(language === 'ko' ? 'en' : 'ko')}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+          >
+            <Languages className="h-4 w-4" />
+            {language === 'ko' ? 'English' : '한국어'}
           </button>
         </div>
       </div>
@@ -1083,46 +1365,81 @@ export default function FacilityProposalPage() {
       {/* 다운로드용 콘텐츠 영역 */}
       <div id="facility-proposal-content" className="space-y-8">
 
+      {/* 최근 1년간 급성장 */}
+      {analytics && (
+        <div className="rounded-lg border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-6 mb-6">
+          <div className="flex items-start gap-4 mb-4">
+            <div className="rounded-lg bg-green-100 p-3 text-green-600 shrink-0">
+              <TrendingUp className="h-6 w-6" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">
+                {t[language].rapidGrowth}
+              </h3>
+              <p className="text-base text-gray-700 leading-relaxed">
+                {language === 'ko' ? (
+                  <>최근 1년간 <strong className="text-green-700">유입 트래픽 및 예약 전환이 10배 이상 상승</strong>하여 플랫폼의 성장세와 고객 관심도가 지속적으로 증가하고 있습니다.</>
+                ) : (
+                  <>{t[language].rapidGrowthDesc}</>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 유입 트래픽 및 조회 통계 타이틀 */}
+      {analytics && (
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="h-5 w-5 text-blue-600" />
+          <h2 className="text-xl font-semibold text-gray-900">{t[language].trafficAndStats}</h2>
+          <span className="text-xs text-cyan-800 bg-red-300 px-2 py-1 rounded">{t[language].gaIntegration}</span>
+        </div>
+      )}
+
       {/* 월간 핵심 지표 (GA 기반) */}
       {analytics && (
         <section>
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="h-5 w-5 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">월간 핵심 지표</h2>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">최근 30일 기준</span>
+            <h2 className="text-xl font-semibold text-gray-900">{t[language].monthlyMetrics}</h2>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{t[language].last30Days}</span>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              title="월간 페이지뷰"
+              title={t[language].monthlyPageViews}
               value={analytics.pageViews.last30Days.toLocaleString()}
               icon={<Eye className="h-6 w-6" />}
               description="GA4"
               variant="primary"
               trend={{
                 value: analytics.pageViews.growth,
-                label: "전월 대비"
+                label: t[language].monthOverMonth
               }}
             />
             <StatCard
-              title="월간 사용자수"
+              title={t[language].monthlyUsers}
               value={analytics.users.last30Days.toLocaleString()}
               icon={<Users className="h-6 w-6" />}
               description="GA4"
               variant="success"
             />
             <StatCard
-              title="월간 노출수"
-              value={(analytics.seoRanking?.totalImpressions ?? 0).toLocaleString()}
-              icon={<TrendingUp className="h-6 w-6" />}
-              description="검색 노출"
+              title={t[language].avgSessionTime}
+              value={language === 'ko' 
+                ? `${Math.floor(analytics.sessions.avgSessionDuration / 60)}분 ${analytics.sessions.avgSessionDuration % 60}초`
+                : `${Math.floor(analytics.sessions.avgSessionDuration / 60)}m ${analytics.sessions.avgSessionDuration % 60}s`
+              }
+              icon={<Clock className="h-6 w-6" />}
+              description={t[language].userEngagement}
               variant="default"
             />
             <StatCard
-              title="월간 클릭수"
+              title={t[language].monthlyClicks}
               value={(analytics.seoRanking?.totalClicks ?? 0).toLocaleString()}
               icon={<MousePointerClick className="h-6 w-6" />}
-              description="검색 클릭"
+              description={t[language].searchClicks}
               variant="default"
             />
           </div>
@@ -1152,13 +1469,22 @@ export default function FacilityProposalPage() {
             return (
             <div className="mt-6 rounded-lg border bg-white p-6">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold text-gray-900">2024년 7월 이후 추이 (월별)</h3>
-                {analytics.monthlyKpiTrendSource === 'search-console' && (
-                  <span className="text-xs text-gray-500">Search Console 실데이터</span>
-                )}
+                <h3 className="text-lg font-semibold text-gray-900">{t[language].trendSinceJuly}</h3>
+                <div className="flex items-center gap-2">
+                  {analytics.monthlyKpiTrendSource === 'search-console' && (
+                    <span className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded">{t[language].searchConsoleData}</span>
+                  )}
+                  {(!analytics.monthlyKpiTrendSource || analytics.monthlyKpiTrendSource === 'estimated') && 
+                   analytics.monthlyTrend && analytics.monthlyTrend.length > 0 && (
+                    <span className="text-xs text-cyan-800 bg-red-300 px-2 py-1 rounded">{t[language].ga4Data}</span>
+                  )}
+                </div>
               </div>
               <p className="text-sm text-gray-600 mb-6">
-                월간 페이지뷰 / 사용자수 / 검색 노출수 / 검색 클릭수의 추이를 확인합니다.
+                {t[language].monthlyTrendDesc}
+                <span className="ml-2 text-xs text-gray-500">
+                  {t[language].chartDesc}
+                </span>
               </p>
 
               {(() => {
@@ -1171,14 +1497,16 @@ export default function FacilityProposalPage() {
                   getValue: (d: { month: string; pageViews: number; users: number; impressions: number; clicks: number }) => number,
                 ) => {
                   const maxValue = Math.max(...trend.map(getValue), 1)
-                  const chartHeight = 120
+                  const containerHeight = 190 // 전체 컨테이너 높이 (170 → 190으로 증가)
+                  const labelHeight = 50 // 하단 라벨 공간 (년/월 표시)
+                  const chartHeight = containerHeight - labelHeight // 실제 차트 높이 (140px)
                   return (
                     <div className="rounded-lg border bg-gray-50 p-4">
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-6">
                         <span className="text-sm font-semibold text-gray-900">{title}</span>
                         <span className="text-xs text-gray-600">{months[0]} ~ {months[months.length - 1]}</span>
                       </div>
-                      <div className="flex items-end justify-between gap-1.5" style={{ height: '170px' }}>
+                      <div className="flex items-end justify-between gap-1.5" style={{ height: `${containerHeight}px` }}>
                         {trend.map((data, index) => {
                           const value = getValue(data)
                           const heightPercent = (value / maxValue) * 100
@@ -1186,7 +1514,7 @@ export default function FacilityProposalPage() {
                           const [year, mm] = data.month.split('-')
                           return (
                             <div key={index} className="flex-1 flex flex-col items-center justify-end group relative h-full min-w-0">
-                              <div className="flex-1 flex items-end w-full relative">
+                              <div className="flex-1 flex items-end w-full relative" style={{ height: `${chartHeight}px` }}>
                                 <div
                                   className={cn("w-full rounded-t shadow-sm transition-all", colorClass)}
                                   style={{ height: `${barHeight}px`, minHeight: '2px' }}
@@ -1206,8 +1534,11 @@ export default function FacilityProposalPage() {
                                 </div>
                               </div>
                               <span className="text-[10px] text-gray-600 mt-2 font-medium text-center h-10 flex items-start justify-center">
-                                {year}년<br />
-                                {parseInt(mm, 10)}월
+                                {language === 'ko' ? (
+                                  <>{year}년<br />{parseInt(mm, 10)}월</>
+                                ) : (
+                                  <>{t[language].monthNames[parseInt(mm, 10) - 1]} {year}</>
+                                )}
                               </span>
                             </div>
                           )
@@ -1218,11 +1549,8 @@ export default function FacilityProposalPage() {
                 }
 
                 return (
-                  <div className="grid gap-6 md:grid-cols-2">
-                    {chart('월간 페이지뷰', 'bg-gradient-to-t from-green-500 to-green-400', (d) => d.pageViews)}
-                    {chart('월간 사용자수', 'bg-gradient-to-t from-blue-500 to-blue-400', (d) => d.users)}
-                    {chart('월간 검색 노출수', 'bg-gradient-to-t from-purple-500 to-purple-400', (d) => d.impressions)}
-                    {chart('월간 검색 클릭수', 'bg-gradient-to-t from-pink-500 to-pink-400', (d) => d.clicks)}
+                  <div className="grid gap-6 md:grid-cols-1">
+                    {chart(t[language].monthlyPageViews, 'bg-gradient-to-t from-blue-500 to-blue-400', (d) => d.pageViews)}
                   </div>
                 )
               })()}
@@ -1236,49 +1564,49 @@ export default function FacilityProposalPage() {
       <section>
         <div className="flex items-center gap-2 mb-4">
           <Globe className="h-5 w-5 text-blue-600" />
-          <h2 className="text-xl font-semibold text-gray-900">등록 호텔 시설</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{t[language].registeredHotels}</h2>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            title="등록 호텔 수"
+            title={t[language].totalHotels}
             value={stats.totalHotels.toLocaleString()}
             icon={<Building2 className="h-6 w-6" />}
-            description="전 세계 프리미엄 호텔"
+            description={t[language].premiumHotels}
             variant="primary"
           />
           <StatCard
-            title="호텔 체인"
+            title={t[language].hotelChains}
             value={stats.chainCount.toLocaleString()}
             icon={<Network className="h-6 w-6" />}
-            description="글로벌 호텔 체인"
+            description={t[language].globalChains}
             variant="default"
           />
           <StatCard
-            title="호텔 브랜드"
+            title={t[language].hotelBrands}
             value={stats.brandCount.toLocaleString()}
             icon={<Star className="h-6 w-6" />}
-            description="프리미엄 브랜드"
+            description={t[language].premiumBrands}
             variant="default"
           />
           <StatCard
-            title="호텔 이미지"
+            title={t[language].hotelImages}
             value={stats.imageCount.toLocaleString()}
             icon={<ImageIcon className="h-6 w-6" />}
-            description="고품질 호텔 사진"
+            description={t[language].highQualityPhotos}
             variant="success"
           />
           <StatCard
-            title="호텔 아티클"
+            title={t[language].hotelArticles}
             value={stats.articleCount.toLocaleString()}
             icon={<FileText className="h-6 w-6" />}
-            description="상세 호텔 소개 콘텐츠"
+            description={t[language].detailedContent}
             variant="default"
           />
           <StatCard
-            title="추천 페이지"
+            title={t[language].recommendationPages}
             value={stats.recommendationPageCount.toLocaleString()}
             icon={<MapPin className="h-6 w-6" />}
-            description="테마별 추천 페이지"
+            description={t[language].themeRecommendations}
             variant="default"
           />
         </div>
@@ -1288,55 +1616,55 @@ export default function FacilityProposalPage() {
       <section>
         <div className="flex items-center gap-2 mb-4">
           <FileText className="h-5 w-5 text-blue-600" />
-          <h2 className="text-xl font-semibold text-gray-900">콘텐츠 및 시설 정보</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{t[language].contentAndFacilities}</h2>
         </div>
         <div className="grid gap-6 md:grid-cols-2">
           <FeatureCard
-            title="호텔 콘텐츠"
-            description="다양한 형태의 호텔 정보 제공"
+            title={t[language].hotelContent}
+            description={t[language].variousHotelInfo}
             icon={<FileText className="h-6 w-6" />}
             items={[
-              `${stats.totalHotels.toLocaleString()}개 호텔 상세 정보 제공`,
-              `${stats.articleCount.toLocaleString()}개 호텔 아티클 및 블로그`,
-              `${stats.recommendationPageCount.toLocaleString()}개 테마별 추천 페이지`,
-              '한국어/영어 이중 언어 지원',
-              '호텔 위치, 시설, 객실 정보 상세 제공'
+              `${stats.totalHotels.toLocaleString()}${t[language].hotelsDetailedInfo}`,
+              `${stats.articleCount.toLocaleString()}${t[language].hotelArticlesBlogs}`,
+              `${stats.recommendationPageCount.toLocaleString()}${t[language].themeRecommendations}`,
+              t[language].bilingualSupport,
+              t[language].detailedLocationFacilities
             ]}
           />
           <FeatureCard
-            title="호텔 시설 및 혜택"
-            description="프리미엄 호텔 혜택 정보"
+            title={t[language].hotelFacilitiesBenefits}
+            description={t[language].premiumBenefitsInfo}
             icon={<Gift className="h-6 w-6" />}
             items={[
-              `${stats.benefitCount.toLocaleString()}개 혜택 카테고리`,
-              `${stats.hotelsWithBenefits.toLocaleString()}개 호텔에 혜택 연결`,
-              '조식, 업그레이드, 레이트 체크아웃 등 다양한 혜택',
-              'VIP 서비스 및 특별 프로모션 정보',
-              '호텔별 맞춤 혜택 제공'
+              `${stats.benefitCount.toLocaleString()}${t[language].benefitCategories}`,
+              `${stats.hotelsWithBenefits.toLocaleString()}${t[language].hotelsWithBenefits}`,
+              t[language].variousBenefits,
+              t[language].vipServices,
+              language === 'ko' ? '호텔별 맞춤 혜택 제공' : 'Customized benefits for each hotel'
             ]}
           />
           <FeatureCard
-            title="이미지 및 미디어"
-            description="고품질 호텔 이미지 제공"
+            title={t[language].imagesMedia}
+            description={t[language].highQualityImages}
             icon={<ImageIcon className="h-6 w-6" />}
             items={[
-              `${stats.imageCount.toLocaleString()}개 호텔 이미지`,
-              '객실, 시설, 외관 등 다양한 이미지',
-              '고해상도 사진으로 호텔 경험 전달',
-              '이미지 갤러리 및 슬라이더 제공',
-              '호텔별 대표 이미지 관리'
+              `${stats.imageCount.toLocaleString()}${t[language].hotelImagesCount}`,
+              t[language].variousImages,
+              t[language].highResPhotos,
+              t[language].imageGallery,
+              t[language].representativeImages
             ]}
           />
           <FeatureCard
-            title="지역 및 위치 정보"
-            description="정확한 지역 정보 제공"
+            title={t[language].regionLocation}
+            description={t[language].accurateRegionInfo}
             icon={<MapPin className="h-6 w-6" />}
             items={[
-              `${stats.regionCount.toLocaleString()}개 지역 매핑`,
-              '도시별, 국가별 호텔 분류',
-              '지도 기반 위치 정보',
-              '주변 관광지 및 교통 정보',
-              '지역별 추천 호텔 제공'
+              `${stats.regionCount.toLocaleString()}${t[language].regionMapping}`,
+              t[language].cityCountryClassification,
+              t[language].mapBasedLocation,
+              t[language].nearbyAttractions,
+              t[language].regionalRecommendations
             ]}
           />
         </div>
@@ -1345,245 +1673,17 @@ export default function FacilityProposalPage() {
       {/* Google Analytics 트래픽 통계 */}
       {analytics && (
         <section>
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-5 w-5 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">유입 트래픽 및 조회 통계</h2>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Google Analytics 연동</span>
-          </div>
-
-          {/* 성장 지표 강조 */}
-          <div className="rounded-lg border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-6 mb-6">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="rounded-lg bg-green-100 p-3 text-green-600 shrink-0">
-                <TrendingUp className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-gray-900 mb-2">
-                  최근 1년간 급성장
-                </h3>
-                <p className="text-base text-gray-700 leading-relaxed">
-                  최근 1년간 <strong className="text-green-700">유입 트래픽 및 예약 전환이 10배 이상 상승</strong>하여 
-                  플랫폼의 성장세와 고객 관심도가 지속적으로 증가하고 있습니다.
-                </p>
-              </div>
-            </div>
-
-            {/* 시각적 차트 */}
-            {analytics.monthlyTrend && analytics.monthlyTrend.length > 0 && (
-              <div className="mt-6 pt-6 border-t border-green-200">
-                <div className="mb-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="text-sm font-semibold text-gray-900">
-                    월별 트래픽 추이 (2024년 7월 오픈 이후 ~ 현재)
-                  </h4>
-                    <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">
-                      Google Analytics GA4
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-600">
-                    Google Analytics GA4 데이터 기반 페이지뷰 및 예약 전환 추이 (오픈일: 2024년 7월 1일)
-                    {analytics.monthlyTrend && analytics.monthlyTrend.length > 0 && (
-                      <span className="ml-2">
-                        · 최근 데이터: {analytics.monthlyTrend[analytics.monthlyTrend.length - 1]?.month}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                
-                {/* 차트 영역 */}
-                <div className="space-y-6">
-                  {/* 페이지뷰 차트 */}
-                  <div>
-                    <div className="flex items-center justify-between mb-[5px]">
-                      <span className="text-sm font-semibold text-gray-900">페이지뷰</span>
-                      <span className="text-xs text-gray-600">
-                        {analytics.monthlyTrend[0]?.pageViews.toLocaleString()} → {analytics.monthlyTrend[analytics.monthlyTrend.length - 1]?.pageViews.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="relative bg-white/60 rounded-lg px-4 pt-[10px] pb-[5px] border border-green-100">
-                      <div className="flex items-end justify-between gap-1.5" style={{ height: '160px' }}>
-                        {(() => {
-                          const maxValue = Math.max(...analytics.monthlyTrend.map(d => d.pageViews))
-                          const chartHeight = 120 // 라벨 공간(40px)을 제외한 실제 차트 높이
-                          return analytics.monthlyTrend.map((data, index) => {
-                            const heightPercent = (data.pageViews / maxValue) * 100
-                            const barHeight = Math.max((heightPercent / 100) * chartHeight, 2) // 최소 2px
-                            return (
-                              <div key={index} className="flex-1 flex flex-col items-center justify-end group relative h-full">
-                                <div className="flex-1 flex items-end w-full">
-                                  <div 
-                                    className="w-full bg-gradient-to-t from-green-500 to-green-400 rounded-t transition-all hover:from-green-600 hover:to-green-500 relative shadow-sm"
-                                    style={{ 
-                                      height: `${barHeight}px`,
-                                      minHeight: '2px'
-                                    }}
-                                    title={`${data.month}: ${data.pageViews.toLocaleString()}`}
-                                  >
-                                    <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none transition-opacity">
-                                      {data.pageViews.toLocaleString()}
-                                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                                    </div>
-                                  </div>
-                                </div>
-                                <span className="text-[10px] text-gray-600 mt-2 font-medium text-center h-10 flex items-start justify-center">
-                                  {data.month.split('-')[0]}년<br />
-                                  {parseInt(data.month.split('-')[1])}월
-                                </span>
-                              </div>
-                            )
-                          })
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 예약 전환 차트 */}
-                  <div>
-                    <div className="flex items-center justify-between mb-[5px]">
-                      <span className="text-sm font-semibold text-gray-900">예약 전환</span>
-                      <span className="text-xs text-gray-600">
-                        {analytics.monthlyTrend[0]?.conversions.toLocaleString()}건 → {analytics.monthlyTrend[analytics.monthlyTrend.length - 1]?.conversions.toLocaleString()}건
-                        <span className="ml-2 text-green-600 font-semibold">
-                          ({(analytics.monthlyTrend[analytics.monthlyTrend.length - 1]?.conversions / analytics.monthlyTrend[0]?.conversions).toFixed(1)}배 증가)
-                        </span>
-                      </span>
-                    </div>
-                    <div className="relative bg-white/60 rounded-lg px-4 pt-[10px] pb-[5px] border border-blue-100">
-                      <div className="flex items-end justify-between gap-1.5" style={{ height: '160px' }}>
-                        {(() => {
-                          const maxValue = Math.max(...analytics.monthlyTrend.map(d => d.conversions))
-                          const chartHeight = 120 // 라벨 공간(40px)을 제외한 실제 차트 높이
-                          return analytics.monthlyTrend.map((data, index) => {
-                            const heightPercent = (data.conversions / maxValue) * 100
-                            const barHeight = Math.max((heightPercent / 100) * chartHeight, 2) // 최소 2px
-                            return (
-                              <div key={index} className="flex-1 flex flex-col items-center justify-end group relative h-full">
-                                <div className="flex-1 flex items-end w-full">
-                                  <div 
-                                    className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all hover:from-blue-600 hover:to-blue-500 relative shadow-sm"
-                                    style={{ 
-                                      height: `${barHeight}px`,
-                                      minHeight: '2px'
-                                    }}
-                                    title={`${data.month}: ${data.conversions.toLocaleString()}건`}
-                                  >
-                                    <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none transition-opacity">
-                                      {data.conversions.toLocaleString()}건
-                                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                                    </div>
-                                  </div>
-                                </div>
-                                <span className="text-[10px] text-gray-600 mt-2 font-medium text-center h-10 flex items-start justify-center">
-                                  {data.month.split('-')[0]}년<br />
-                                  {parseInt(data.month.split('-')[1])}월
-                                </span>
-                              </div>
-                            )
-                          })
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 월별 사용자수 차트 */}
-                  <div>
-                    <div className="flex items-center justify-between mb-[5px]">
-                      <span className="text-sm font-semibold text-gray-900">월별 사용자수</span>
-                      <span className="text-xs text-gray-600">
-                        {analytics.monthlyTrend[0]?.users.toLocaleString()}명 → {analytics.monthlyTrend[analytics.monthlyTrend.length - 1]?.users.toLocaleString()}명
-                        <span className="ml-2 text-green-600 font-semibold">
-                          ({(analytics.monthlyTrend[analytics.monthlyTrend.length - 1]?.users / analytics.monthlyTrend[0]?.users).toFixed(1)}배 증가)
-                        </span>
-                      </span>
-                    </div>
-                    <div className="relative bg-white/60 rounded-lg px-4 pt-[10px] pb-[5px] border border-purple-100">
-                      <div className="flex items-end justify-between gap-1.5" style={{ height: '160px' }}>
-                        {(() => {
-                          const maxValue = Math.max(...analytics.monthlyTrend.map(d => d.users))
-                          const chartHeight = 120 // 라벨 공간(40px)을 제외한 실제 차트 높이
-                          return analytics.monthlyTrend.map((data, index) => {
-                            const heightPercent = (data.users / maxValue) * 100
-                            const barHeight = Math.max((heightPercent / 100) * chartHeight, 2) // 최소 2px
-                            return (
-                              <div key={index} className="flex-1 flex flex-col items-center justify-end group relative h-full">
-                                <div className="flex-1 flex items-end w-full">
-                                  <div 
-                                    className="w-full bg-gradient-to-t from-purple-500 to-purple-400 rounded-t transition-all hover:from-purple-600 hover:to-purple-500 relative shadow-sm"
-                                    style={{ 
-                                      height: `${barHeight}px`,
-                                      minHeight: '2px'
-                                    }}
-                                    title={`${data.month}: ${data.users.toLocaleString()}명`}
-                                  >
-                                    <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none transition-opacity">
-                                      {data.users.toLocaleString()}명
-                                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                                    </div>
-                                  </div>
-                                </div>
-                                <span className="text-[10px] text-gray-600 mt-2 font-medium text-center h-10 flex items-start justify-center">
-                                  {data.month.split('-')[0]}년<br />
-                                  {parseInt(data.month.split('-')[1])}월
-                                </span>
-                              </div>
-                            )
-                          })
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* 주요 지표 */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-            <StatCard
-              title="월간 페이지뷰"
-              value={analytics.pageViews.last30Days.toLocaleString()}
-              icon={<Eye className="h-6 w-6" />}
-              description="최근 30일 기준"
-              variant="primary"
-              trend={{
-                value: analytics.pageViews.growth,
-                label: "전월 대비"
-              }}
-            />
-            <StatCard
-              title="월간 사용자"
-              value={analytics.users.last30Days.toLocaleString()}
-              icon={<Users className="h-6 w-6" />}
-              description="최근 30일 기준"
-              variant="success"
-            />
-            <StatCard
-              title="월간 세션"
-              value={analytics.sessions.last30Days.toLocaleString()}
-              icon={<MousePointerClick className="h-6 w-6" />}
-              description="최근 30일 기준"
-              variant="default"
-            />
-            <StatCard
-              title="평균 세션 시간"
-              value={`${Math.floor(analytics.sessions.avgSessionDuration / 60)}분 ${analytics.sessions.avgSessionDuration % 60}초`}
-              icon={<Clock className="h-6 w-6" />}
-              description="사용자 참여도"
-              variant="default"
-            />
-          </div>
-
           {/* 사용자 및 트래픽 소스 */}
           <div className="grid gap-6 md:grid-cols-2 mb-6">
             <div className="rounded-lg border bg-white p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Users className="h-5 w-5 text-blue-600" />
-                사용자 통계
-                <span className="text-sm font-normal text-gray-500">(최근 30일 기준)</span>
+                {t[language].userStats}
+                <span className="text-sm font-normal text-gray-500">({t[language].last30Days})</span>
               </h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">신규 사용자</span>
+                  <span className="text-sm text-gray-600">{t[language].newUsers}</span>
                   <span className="text-lg font-semibold text-gray-900">
                     {analytics.users.newUsers.toLocaleString()}명
                   </span>
@@ -1595,7 +1695,7 @@ export default function FacilityProposalPage() {
                   ></div>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">재방문 사용자</span>
+                  <span className="text-sm text-gray-600">{t[language].returningUsers}</span>
                   <span className="text-lg font-semibold text-gray-900">
                     {analytics.users.returningUsers.toLocaleString()}명
                   </span>
@@ -1612,17 +1712,33 @@ export default function FacilityProposalPage() {
             <div className="rounded-lg border bg-white p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Globe className="h-5 w-5 text-blue-600" />
-                트래픽 소스
-                <span className="text-sm font-normal text-gray-500">(최근 30일 기준)</span>
+                {t[language].trafficSources}
+                <span className="text-sm font-normal text-gray-500">({t[language].last30Days})</span>
               </h3>
               <div className="space-y-3">
-                {[
-                  { label: '검색 엔진', value: analytics.trafficSources.organic, color: 'bg-blue-600' },
-                  { label: '직접 방문', value: analytics.trafficSources.direct, color: 'bg-green-600' },
-                  { label: '추천 사이트', value: analytics.trafficSources.referral, color: 'bg-purple-600' },
-                  { label: '소셜 미디어', value: analytics.trafficSources.social, color: 'bg-pink-600' },
-                  { label: '유료 광고', value: analytics.trafficSources.paid, color: 'bg-orange-600' },
-                ].map((source, index) => (
+                {(() => {
+                  const sources = [
+                    { label: t[language].searchEngine, value: analytics.trafficSources.direct, color: 'bg-blue-600' },
+                    { label: t[language].directVisit, value: analytics.trafficSources.organic, color: 'bg-green-600' },
+                    { label: t[language].referralSite, value: analytics.trafficSources.referral, color: 'bg-purple-600' },
+                    { label: t[language].socialMedia, value: 2, color: 'bg-pink-600' },
+                    { label: t[language].paidAds, value: analytics.trafficSources.paid, color: 'bg-orange-600' },
+                  ]
+                  
+                  // 합계 계산 및 조정
+                  const sum = sources.reduce((acc, s) => acc + s.value, 0)
+                  if (sum !== 100) {
+                    const diff = 100 - sum
+                    // 가장 큰 값을 가진 항목에 차이를 추가
+                    const maxIndex = sources.reduce((maxIdx, curr, idx) => 
+                      curr.value > sources[maxIdx].value ? idx : maxIdx, 0
+                    )
+                    sources[maxIndex].value += diff
+                  }
+                  
+                  // 수치가 높은 순으로 정렬
+                  return sources.sort((a, b) => b.value - a.value)
+                })().map((source, index) => (
                   <div key={index}>
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-sm text-gray-600">{source.label}</span>
@@ -1645,15 +1761,15 @@ export default function FacilityProposalPage() {
             <div className="rounded-lg border bg-white p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Monitor className="h-5 w-5 text-blue-600" />
-                디바이스별 접속
-                <span className="text-sm font-normal text-gray-500">(최근 30일 기준)</span>
+                {t[language].devices}
+                <span className="text-sm font-normal text-gray-500">({t[language].last30Days})</span>
               </h3>
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <Monitor className="h-5 w-5 text-gray-400" />
                   <div className="flex-1">
                     <div className="flex justify-between mb-1">
-                      <span className="text-sm text-gray-600">데스크톱</span>
+                      <span className="text-sm text-gray-600">{t[language].desktop}</span>
                       <span className="text-sm font-semibold text-gray-900">{analytics.devices.desktop}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -1665,7 +1781,7 @@ export default function FacilityProposalPage() {
                   <Smartphone className="h-5 w-5 text-gray-400" />
                   <div className="flex-1">
                     <div className="flex justify-between mb-1">
-                      <span className="text-sm text-gray-600">모바일</span>
+                      <span className="text-sm text-gray-600">{t[language].mobile}</span>
                       <span className="text-sm font-semibold text-gray-900">{analytics.devices.mobile}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -1677,7 +1793,7 @@ export default function FacilityProposalPage() {
                   <Tablet className="h-5 w-5 text-gray-400" />
                   <div className="flex-1">
                     <div className="flex justify-between mb-1">
-                      <span className="text-sm text-gray-600">태블릿</span>
+                      <span className="text-sm text-gray-600">{t[language].tablet}</span>
                       <span className="text-sm font-semibold text-gray-900">{analytics.devices.tablet}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -1691,55 +1807,32 @@ export default function FacilityProposalPage() {
             <div className="rounded-lg border bg-white p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-blue-600" />
-                주요 접속 국가
-                <span className="text-sm font-normal text-gray-500">(최근 30일 기준)</span>
+                {t[language].topCountries}
+                <span className="text-sm font-normal text-gray-500">({t[language].last30Days})</span>
               </h3>
               <div className="space-y-3">
-                {analytics.topCountries.map((country, index) => (
-                  <div key={index}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-gray-600">{country.country}</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {country.users.toLocaleString()}명 ({country.percentage}%)
-                      </span>
+                {analytics.topCountries.map((country, index) => {
+                  const countryMap = t[language].countryKoToEn as Record<string, string>
+                  const countryName = language === 'en' && countryMap[country.country]
+                    ? countryMap[country.country]
+                    : country.country
+                  return (
+                    <div key={index}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm text-gray-600">{countryName}</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {country.users.toLocaleString()}{t[language].people} ({country.percentage}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full"
+                          style={{ width: `${country.percentage}%` }}
+                        ></div>
+                      </div>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full"
-                        style={{ width: `${country.percentage}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* 호텔 페이지 통계 */}
-          <div className="rounded-lg border bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-blue-600" />
-              호텔 상세 페이지 통계
-              <span className="text-sm font-normal text-gray-500">(최근 30일 기준)</span>
-            </h3>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="bg-white rounded-lg p-4">
-                <div className="text-2xl font-bold text-gray-900 mb-1">
-                  {analytics.hotelPages.totalViews.toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-600">총 페이지뷰 (최근 30일)</div>
-              </div>
-              <div className="bg-white rounded-lg p-4">
-                <div className="text-2xl font-bold text-gray-900 mb-1">
-                  {Math.floor(analytics.hotelPages.avgTimeOnPage / 60)}분 {analytics.hotelPages.avgTimeOnPage % 60}초
-                </div>
-                <div className="text-sm text-gray-600">평균 체류 시간</div>
-              </div>
-              <div className="bg-white rounded-lg p-4">
-                <div className="text-2xl font-bold text-gray-900 mb-1">
-                  {analytics.hotelPages.hotelsViewed.toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-600">조회된 호텔 수</div>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -1749,8 +1842,8 @@ export default function FacilityProposalPage() {
             <div className="rounded-lg border bg-gradient-to-br from-green-50 to-emerald-50 p-6 mt-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-green-600" />
-                국내 검색 SEO 순위 지표
-                <span className="text-sm font-normal text-gray-500">(최근 30일 기준)</span>
+                {t[language].seoRanking}
+                <span className="text-sm font-normal text-gray-500">({t[language].last30Days})</span>
               </h3>
               
               {/* 주요 지표 카드 */}
@@ -1759,109 +1852,50 @@ export default function FacilityProposalPage() {
                   <div className="text-2xl font-bold text-gray-900 mb-1">
                     {analytics.seoRanking.totalKeywords.toLocaleString()}
                   </div>
-                  <div className="text-sm text-gray-600">총 키워드 수</div>
+                  <div className="text-sm text-gray-600">{t[language].totalKeywords}</div>
                 </div>
                 <div className="bg-white rounded-lg p-4">
                   <div className="text-2xl font-bold text-green-600 mb-1">
                     {analytics.seoRanking.top10Keywords}
                   </div>
-                  <div className="text-sm text-gray-600">상위 10위 키워드</div>
+                  <div className="text-sm text-gray-600">{t[language].top10Keywords}</div>
                 </div>
                 <div className="bg-white rounded-lg p-4">
                   <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {analytics.seoRanking.avgPosition.toFixed(1)}위
+                    {analytics.seoRanking.avgPosition.toFixed(1)}{language === 'ko' ? '위' : ''}
                   </div>
-                  <div className="text-sm text-gray-600">평균 검색 순위</div>
+                  <div className="text-sm text-gray-600">{t[language].avgSearchRank}</div>
                 </div>
                 <div className="bg-white rounded-lg p-4">
                   <div className="text-2xl font-bold text-gray-900 mb-1">
                     {analytics.seoRanking.avgCTR.toFixed(2)}%
                   </div>
-                  <div className="text-sm text-gray-600">평균 클릭률 (CTR)</div>
+                  <div className="text-sm text-gray-600">{t[language].avgCTR}</div>
                 </div>
               </div>
 
               {/* 순위별 키워드 분포 */}
               <div className="bg-white rounded-lg p-4 mb-6">
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">순위별 키워드 분포</h4>
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">{t[language].keywordDistribution}</h4>
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                    <span className="text-sm text-gray-600">상위 10위</span>
+                    <span className="text-sm text-gray-600">{t[language].top10Rank}</span>
                     <span className="text-lg font-bold text-green-600">
-                      {analytics.seoRanking.top10Keywords}개
+                      {analytics.seoRanking.top10Keywords}{language === 'ko' ? '개' : ''}
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                    <span className="text-sm text-gray-600">상위 20위</span>
+                    <span className="text-sm text-gray-600">{t[language].top20Rank}</span>
                     <span className="text-lg font-bold text-blue-600">
-                      {analytics.seoRanking.top20Keywords}개
+                      {analytics.seoRanking.top20Keywords}{language === 'ko' ? '개' : ''}
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
-                    <span className="text-sm text-gray-600">상위 50위</span>
+                    <span className="text-sm text-gray-600">{t[language].top50Rank}</span>
                     <span className="text-lg font-bold text-purple-600">
-                      {analytics.seoRanking.top50Keywords}개
+                      {analytics.seoRanking.top50Keywords}{language === 'ko' ? '개' : ''}
                     </span>
                   </div>
-                </div>
-              </div>
-
-              {/* 검색 노출 및 클릭 통계 */}
-              <div className="grid gap-4 md:grid-cols-2 mb-6">
-                <div className="bg-white rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">총 검색 노출 수</span>
-                    <span className="text-lg font-bold text-gray-900">
-                      {analytics.seoRanking.totalImpressions.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-green-600 h-2 rounded-full" 
-                      style={{ width: '100%' }}
-                    ></div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">총 클릭 수</span>
-                    <span className="text-lg font-bold text-gray-900">
-                      {analytics.seoRanking.totalClicks.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full" 
-                      style={{ width: `${(analytics.seoRanking.totalClicks / analytics.seoRanking.totalImpressions) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 상위 키워드 목록 */}
-              <div className="bg-white rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">상위 키워드 (최근 30일)</h4>
-                <div className="space-y-2">
-                  {analytics.seoRanking.topKeywords.map((keyword, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-bold text-gray-500 w-6 text-center">
-                            {index + 1}
-                          </span>
-                          <span className="text-sm font-semibold text-gray-900">
-                            {keyword.keyword}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4 ml-8 text-xs text-gray-600">
-                          <span>순위: {keyword.position}위</span>
-                          <span>노출: {keyword.impressions.toLocaleString()}</span>
-                          <span>클릭: {keyword.clicks.toLocaleString()}</span>
-                          <span className="text-green-600 font-semibold">CTR: {keyword.ctr.toFixed(2)}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>
@@ -1873,18 +1907,18 @@ export default function FacilityProposalPage() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-blue-600" />
-                  브랜드별 호텔 등록 보유 개수 및 트래픽 지표
-                  <span className="text-xs font-normal text-gray-500">(최근 30일 기준)</span>
+                  {t[language].brandTrafficTitle}
+                  <span className="text-xs font-normal text-gray-500">({t[language].last30Days})</span>
                 </h3>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <div className="text-xs text-gray-500">총 호텔 수</div>
+                    <div className="text-xs text-gray-500">{t[language].totalHotelsCount}</div>
                     <div className="text-lg font-bold text-blue-600">
-                      {stats?.totalHotels ? stats.totalHotels.toLocaleString() : brandTraffic.reduce((sum, b) => sum + b.hotel_count, 0).toLocaleString()}개
+                      {stats?.totalHotels ? stats.totalHotels.toLocaleString() : brandTraffic.reduce((sum, b) => sum + b.hotel_count, 0).toLocaleString()}{language === 'ko' ? '개' : ''}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-gray-500">총 페이지뷰 (최근 30일)</div>
+                    <div className="text-xs text-gray-500">{t[language].pageViews} ({t[language].last30Days})</div>
                     <div className="text-lg font-bold text-purple-600">
                       {analytics?.hotelPages?.totalViews 
                         ? analytics.hotelPages.totalViews.toLocaleString()
@@ -2013,26 +2047,26 @@ export default function FacilityProposalPage() {
                           <div className="text-2xl font-bold text-gray-900 mb-1">
                             {brand.hotel_count}
                           </div>
-                          <div className="text-xs text-gray-600">등록 호텔</div>
+                          <div className="text-xs text-gray-600">{t[language].registeredHotelsLabel}</div>
                         </div>
                         
                         {/* 트래픽 지표 */}
                         <div className="w-full border-t border-gray-200 pt-2 mb-2 space-y-1.5">
                           <div className="flex justify-between items-center">
-                            <span className="text-[10px] text-gray-500">페이지뷰</span>
+                            <span className="text-[10px] text-gray-500">{t[language].pageViews}</span>
                             <span className="text-xs font-semibold text-gray-900">
                               {brand.total_page_views.toLocaleString()}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <span className="text-[10px] text-gray-500">사용자</span>
+                            <span className="text-[10px] text-gray-500">{t[language].users}</span>
                             <span className="text-xs font-semibold text-gray-900">
                               {brand.total_users.toLocaleString()}
                             </span>
                           </div>
                           {brand.percentage > 0 && (
                             <div className="flex justify-between items-center">
-                              <span className="text-[10px] text-gray-500">비율</span>
+                              <span className="text-[10px] text-gray-500">{t[language].percentage}</span>
                               <span className="text-xs font-semibold text-purple-600">
                                 {brand.percentage}%
                               </span>
@@ -2045,7 +2079,7 @@ export default function FacilityProposalPage() {
                           <div className="text-xl font-bold text-gray-900 mb-1">
                             {brand.article_count || 0}
                           </div>
-                          <div className="text-xs text-gray-600">아티클</div>
+                          <div className="text-xs text-gray-600">{t[language].articles}</div>
                         </div>
                       </div>
                     )
@@ -2057,22 +2091,33 @@ export default function FacilityProposalPage() {
         </section>
       )}
 
-      {/* 주요 기능 및 장점 */}
+      {/* 투어비스 셀렉트 플랫폼 경쟁력 */}
       <section>
         <div className="flex items-center gap-2 mb-4">
           <BarChart3 className="h-5 w-5 text-blue-600" />
-          <h2 className="text-xl font-semibold text-gray-900">주요 기능 및 장점</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{t[language].platformCompetitiveness}</h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="rounded-lg border bg-white p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="rounded-lg bg-yellow-100 p-2">
+                <Trophy className="h-5 w-5 text-yellow-600" />
+              </div>
+              <h3 className="font-semibold text-gray-900">{t[language].no1Platform}</h3>
+            </div>
+            <p className="text-sm text-gray-600">
+              {t[language].no1PlatformDesc}
+            </p>
+          </div>
           <div className="rounded-lg border bg-white p-6">
             <div className="flex items-center gap-3 mb-3">
               <div className="rounded-lg bg-blue-100 p-2">
                 <Users className="h-5 w-5 text-blue-600" />
               </div>
-              <h3 className="font-semibold text-gray-900">타겟 고객</h3>
+              <h3 className="font-semibold text-gray-900">{t[language].targetCustomers}</h3>
             </div>
             <p className="text-sm text-gray-600">
-              프리미엄 여행을 선호하는 고객층에게 직접 노출되어 브랜드 인지도 향상 및 예약 전환율 증가
+              {t[language].targetCustomersDesc}
             </p>
           </div>
           <div className="rounded-lg border bg-white p-6">
@@ -2080,10 +2125,10 @@ export default function FacilityProposalPage() {
               <div className="rounded-lg bg-green-100 p-2">
                 <TrendingUp className="h-5 w-5 text-green-600" />
               </div>
-              <h3 className="font-semibold text-gray-900">마케팅 효과</h3>
+              <h3 className="font-semibold text-gray-900">{t[language].marketingEffect}</h3>
             </div>
             <p className="text-sm text-gray-600">
-              테마별 추천 페이지를 통한 타겟팅 마케팅으로 고객 유입 및 예약 확대
+              {t[language].marketingEffectDesc}
             </p>
           </div>
           <div className="rounded-lg border bg-white p-6">
@@ -2091,10 +2136,10 @@ export default function FacilityProposalPage() {
               <div className="rounded-lg bg-purple-100 p-2">
                 <Star className="h-5 w-5 text-purple-600" />
               </div>
-              <h3 className="font-semibold text-gray-900">브랜드 강화</h3>
+              <h3 className="font-semibold text-gray-900">{t[language].brandStrengthening}</h3>
             </div>
             <p className="text-sm text-gray-600">
-              고품질 콘텐츠와 이미지를 통한 브랜드 이미지 강화 및 프리미엄 포지셔닝
+              {t[language].brandStrengtheningDesc}
             </p>
           </div>
         </div>
@@ -2105,35 +2150,41 @@ export default function FacilityProposalPage() {
         <div className="rounded-lg border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-8">
           <div className="flex items-center gap-3 mb-4">
             <PresentationChart className="h-6 w-6 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">투어비스 셀렉트의 프리미엄 호텔 파트너로서의 경쟁력</h2>
+            <h2 className="text-xl font-semibold text-gray-900">{t[language].partnerCompetitiveness}</h2>
           </div>
           <div className="space-y-4 text-gray-700">
             <p className="text-base leading-relaxed">
-              투어비스 셀렉트는 <strong className="text-gray-900">한국 최고의 프리미엄 호텔 전문 플랫폼</strong>으로, <strong className="text-gray-900">엄선된 초상위 호텔 브랜드 {stats.brandCount.toLocaleString()}개</strong>를 포함하여 
-              <strong className="text-gray-900"> {stats.totalHotels.toLocaleString()}개 이상의 호텔</strong>을 보유하고 있습니다.
+              {language === 'ko' ? (
+                <>투어비스 셀렉트는 <strong className="text-gray-900">한국 최고의 프리미엄 호텔 전문 플랫폼</strong>으로, <strong className="text-gray-900">엄선된 초상위 호텔 브랜드 {stats.brandCount.toLocaleString()}개</strong>를 포함하여 <strong className="text-gray-900"> {stats.totalHotels.toLocaleString()}개 이상의 호텔</strong>을 보유하고 있습니다.</>
+              ) : (
+                <>{t[language].platformIntro.replace('{brandCount}', stats.brandCount.toLocaleString()).replace('{totalHotels}', stats.totalHotels.toLocaleString())}</>
+              )}
             </p>
             <p className="text-base leading-relaxed">
-              본 플랫폼을 통해 호텔 시설사는 <strong className="text-gray-900">고품질 콘텐츠</strong>와 <strong className="text-gray-900">다양한 마케팅 채널</strong>을 통해 
-              타겟 고객에게 효과적으로 노출될 수 있으며, <strong className="text-gray-900">호텔 컨시어지 전문가에 의한 상담</strong>을 통한 호텔 예약 전환을 기대할 수 있습니다.
+              {language === 'ko' ? (
+                <>본 플랫폼을 통해 호텔 시설사는 <strong className="text-gray-900">고품질 콘텐츠</strong>와 <strong className="text-gray-900">다양한 마케팅 채널</strong>을 통해 타겟 고객에게 효과적으로 노출될 수 있으며, <strong className="text-gray-900">호텔 컨시어지 전문가에 의한 상담</strong>을 통한 호텔 예약 전환을 기대할 수 있습니다.</>
+              ) : (
+                <>{t[language].platformBenefits}</>
+              )}
             </p>
             <div className="mt-6 pt-6 border-t border-blue-200">
-              <h3 className="font-semibold text-gray-900 mb-3">주요 제안 사항:</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">{t[language].mainProposals}</h3>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                  <span>호텔 정보를 고객의 예약 의도와 호텔 특징을 반영한 소개로 예약 전환율 향상</span>
+                  <span>{t[language].proposal1}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                  <span>프리미엄 호텔의 테마를 정확히 해석한 소개로 차별화된 콘텐츠 마케팅</span>
+                  <span>{t[language].proposal2}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                  <span>프리미엄 혜택 제공을 통한 브랜드 차별화</span>
+                  <span>{t[language].proposal3}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                  <span>한국 최고 프리미엄 호텔 컨시어지 전문가의 전문 예약 상담 서비스 제공</span>
+                  <span>{t[language].proposal4}</span>
                 </li>
               </ul>
             </div>

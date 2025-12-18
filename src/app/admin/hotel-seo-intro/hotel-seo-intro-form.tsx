@@ -162,7 +162,8 @@ export function HotelSeoIntroManagementForm({
     try {
       const response = await fetch(`/api/hotel-seo-intro/fetch?sabreId=${sabreId}`);
       if (!response.ok) {
-        throw new Error(`API 오류: ${response.status}`);
+        const bodyText = await response.text().catch(() => '');
+        throw new Error(`API 오류: ${response.status}${bodyText ? ` - ${bodyText}` : ''}`);
       }
       const data = await response.json();
       if (data.success && data.data) {

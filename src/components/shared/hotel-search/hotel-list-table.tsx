@@ -234,6 +234,7 @@ export function HotelListTable({
   // 선택된 호텔 관리
   const [selectedHotels, setSelectedHotels] = React.useState<Set<string>>(new Set());
   const [isBulkGenerating, setIsBulkGenerating] = React.useState(false);
+  const [bulkMessage, setBulkMessage] = React.useState<{ type: 'success' | 'error'; text: string } | null>(null);
   
   // 전체 선택/해제
   const handleSelectAll = (checked: boolean) => {
@@ -262,11 +263,17 @@ export function HotelListTable({
     if (!onBulkSeoGenerate || selectedHotels.size === 0) return;
     
     setIsBulkGenerating(true);
+    setBulkMessage(null);
     try {
       await onBulkSeoGenerate(Array.from(selectedHotels));
       setSelectedHotels(new Set());
+      setBulkMessage({ type: 'success', text: 'AI SEO 일괄 생성이 완료되었습니다.' });
     } catch (error) {
       console.error('일괄 SEO 생성 실패:', error);
+      setBulkMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : '일괄 SEO 생성 중 오류가 발생했습니다.',
+      });
     } finally {
       setIsBulkGenerating(false);
     }
@@ -309,6 +316,17 @@ export function HotelListTable({
             </Button>
           )}
         </div>
+        {bulkMessage && (
+          <div
+            className={cn(
+              'mt-3 rounded-md px-3 py-2 text-sm',
+              bulkMessage.type === 'success' && 'bg-green-50 text-green-700',
+              bulkMessage.type === 'error' && 'bg-red-50 text-red-700',
+            )}
+          >
+            {bulkMessage.text}
+          </div>
+        )}
       </div>
 
       {/* 반응형 테이블 */}
