@@ -21,6 +21,9 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     const sabreIdEditable = formData.get('sabre_id_editable') as string
     const isNew = formData.get('is_new') === 'true'
 
+    const duplicateSabreIdMessage =
+      '동일한 Sabre ID가 이미 존재 합니다. 해당 아이디로 검색 후 호텔 정보 수정을 해주세요'
+
     console.log('[updateHotel] FormData 수신:', {
       sabreId,
       sabreIdEditable,
@@ -37,6 +40,30 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     const targetSabreId = sabreIdEditable || sabreId
     
     console.log('[updateHotel] 대상 Sabre ID:', targetSabreId, '원본 Sabre ID:', sabreId)
+
+    // 신규 호텔 생성 시 sabre_id 중복 방지
+    if (isNew) {
+      const { data: existingHotel, error: existingError } = await supabase
+        .from('select_hotels')
+        .select('sabre_id')
+        .eq('sabre_id', targetSabreId)
+        .maybeSingle()
+
+      if (existingError) {
+        console.error('[updateHotel] sabre_id 중복 확인 오류:', existingError)
+        return {
+          success: false,
+          error: 'Sabre ID 중복 확인 중 오류가 발생했습니다.',
+        }
+      }
+
+      if (existingHotel) {
+        return {
+          success: false,
+          error: duplicateSabreIdMessage,
+        }
+      }
+    }
 
     // FormData에서 필드 추출
     const updateData: Record<string, unknown> = {}
@@ -162,6 +189,18 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
 
       if (error) {
         console.error('호텔 생성 오류:', error)
+        const err = error as { code?: string; message?: string }
+        const isUniqueViolation = err.code === '23505'
+        const message = (err.message || '').toLowerCase()
+        const isSabreIdConflict =
+          isUniqueViolation && (message.includes('sabre_id') || message.includes('sabre id'))
+
+        if (isSabreIdConflict) {
+          return {
+            success: false,
+            error: duplicateSabreIdMessage,
+          }
+        }
         return {
           success: false,
           error: `호텔 생성에 실패했습니다: ${error.message}`,

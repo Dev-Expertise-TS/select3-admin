@@ -5,6 +5,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { sabre_id, hotel_data } = body
+    const duplicateSabreIdMessage =
+      '동일한 Sabre ID가 이미 존재 합니다. 해당 아이디로 검색 후 호텔 정보 수정을 해주세요'
     
     if (!sabre_id) {
       return NextResponse.json(
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     if (existingHotel) {
       return NextResponse.json(
-        { success: false, error: '해당 Sabre ID의 호텔이 이미 존재합니다' },
+        { success: false, error: duplicateSabreIdMessage },
         { status: 409 }
       )
     }
@@ -61,6 +63,18 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('호텔 데이터 생성 오류:', error)
+      const err = error as { code?: string; message?: string }
+      const isUniqueViolation = err.code === '23505'
+      const message = (err.message || '').toLowerCase()
+      const isSabreIdConflict =
+        isUniqueViolation && (message.includes('sabre_id') || message.includes('sabre id'))
+
+      if (isSabreIdConflict) {
+        return NextResponse.json(
+          { success: false, error: duplicateSabreIdMessage },
+          { status: 409 }
+        )
+      }
       return NextResponse.json(
         { success: false, error: '호텔 데이터 생성 중 오류가 발생했습니다' },
         { status: 500 }

@@ -24,6 +24,11 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
   const [isEditMode, setIsEditMode] = React.useState(isNewHotel)
   const formRef = React.useRef<HTMLFormElement>(null)
   const [isPending, startTransition] = useTransition()
+  const [sabreIdCheck, setSabreIdCheck] = React.useState<{
+    status: 'idle' | 'checking' | 'available' | 'exists' | 'error'
+    message?: string
+    checkedSabreId?: string
+  }>({ status: 'idle' })
 
   // 폼 데이터 상태 관리
   const [formData, setFormData] = React.useState({
@@ -135,6 +140,56 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
   const handleInputChange = useCallback((field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }, [])
+
+  const handleCheckSabreId = useCallback(async () => {
+    const sabreIdInput = document.querySelector('input[name="sabre_id_editable"]') as HTMLInputElement
+    const sabreId = (sabreIdInput?.value || formData.sabre_id || '').trim()
+
+    if (!sabreId) {
+      setSabreIdCheck({
+        status: 'error',
+        message: 'Sabre ID를 먼저 입력해주세요.',
+      })
+      return
+    }
+
+    setSabreIdCheck({ status: 'checking', checkedSabreId: sabreId })
+
+    try {
+      const res = await fetch(`/api/hotel/check-sabre-id?sabreId=${encodeURIComponent(sabreId)}`)
+      const json = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        setSabreIdCheck({
+          status: 'error',
+          checkedSabreId: sabreId,
+          message: json?.error || `확인 중 오류가 발생했습니다. (status: ${res.status})`,
+        })
+        return
+      }
+
+      const exists = Boolean(json?.data?.exists)
+      if (exists) {
+        setSabreIdCheck({
+          status: 'exists',
+          checkedSabreId: sabreId,
+          message: '이미 존재하는 아이디 입니다.',
+        })
+      } else {
+        setSabreIdCheck({
+          status: 'available',
+          checkedSabreId: sabreId,
+          message: '등록 가능',
+        })
+      }
+    } catch (e) {
+      setSabreIdCheck({
+        status: 'error',
+        checkedSabreId: sabreId,
+        message: e instanceof Error ? e.message : '확인 중 오류가 발생했습니다.',
+      })
+    }
+  }, [formData.sabre_id])
 
   // 체인/브랜드 변경 추적
   const [chainBrandChanged, setChainBrandChanged] = React.useState(false)
@@ -332,15 +387,51 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           <div className="space-y-1 md:col-span-1">
               <label className="block text-sm font-medium text-gray-700">Sabre ID</label>
               {isEditMode ? (
-                <input 
-                key="sabre_id_input"
-                type="text"
-                  name="sabre_id_editable" 
-                defaultValue={formData.sabre_id}
-                onBlur={(e) => handleInputChange('sabre_id', e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Sabre ID"
-                />
+                <>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      key="sabre_id_input"
+                      type="text"
+                      name="sabre_id_editable" 
+                      defaultValue={formData.sabre_id}
+                      onBlur={(e) => {
+                        handleInputChange('sabre_id', e.target.value)
+                        // 값이 바뀌면 이전 확인 결과는 무효화
+                        setSabreIdCheck({ status: 'idle' })
+                      }}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Sabre ID"
+                    />
+
+                    {isNewHotel && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleCheckSabreId}
+                        disabled={sabreIdCheck.status === 'checking'}
+                        className="whitespace-nowrap"
+                      >
+                        {sabreIdCheck.status === 'checking' ? '확인 중...' : 'Sabre Id 확인'}
+                      </Button>
+                    )}
+                  </div>
+
+                  {isNewHotel && sabreIdCheck.status !== 'idle' && (
+                    <p
+                      className={cn(
+                        'text-xs mt-1',
+                        sabreIdCheck.status === 'available' && 'text-green-700',
+                        sabreIdCheck.status === 'exists' && 'text-red-700',
+                        sabreIdCheck.status === 'error' && 'text-red-700',
+                        sabreIdCheck.status === 'checking' && 'text-gray-600',
+                      )}
+                    >
+                      {sabreIdCheck.message}
+                      {sabreIdCheck.checkedSabreId ? ` (Sabre ID: ${sabreIdCheck.checkedSabreId})` : ''}
+                    </p>
+                  )}
+                </>
               ) : (
                 <div className={cn(
                   "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
@@ -751,7 +842,19 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           </div>
         </div>
     </div>
-  ), [formData, isEditMode, highlightedFields, selectedChain, selectedBrand, handleInputChange])
+  ), [
+    formData,
+    isEditMode,
+    highlightedFields,
+    selectedChain,
+    selectedBrand,
+    handleInputChange,
+    isNewHotel,
+    handleCheckSabreId,
+    sabreIdCheck.status,
+    sabreIdCheck.message,
+    sabreIdCheck.checkedSabreId,
+  ])
 
   // 혜택 탭 콘텐츠
   const BenefitsTab = React.useCallback(() => (
