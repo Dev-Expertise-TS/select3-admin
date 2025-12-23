@@ -369,6 +369,9 @@ export async function createRegion(input: RegionFormInput): Promise<ActionResult
     const payload: Record<string, unknown> = {
       region_type: input.region_type,
       status: input.status || 'active',
+      area_ko: normalizeString((input as any).area_ko),
+      area_en: normalizeString((input as any).area_en),
+      area_sort_order: normalizeString((input as any).area_sort_order), // text 타입이므로 normalizeString 사용
       city_ko: normalizeString(input.city_ko),
       city_en: normalizeString(input.city_en),
       city_code: normalizeString((input as any).city_code),
@@ -424,6 +427,9 @@ export async function updateRegion(id: number, input: RegionFormInput): Promise<
     const payload: Record<string, unknown> = {
       region_type: input.region_type,
       status: input.status || 'active',
+      area_ko: normalizeString((input as any).area_ko),
+      area_en: normalizeString((input as any).area_en),
+      area_sort_order: normalizeString((input as any).area_sort_order), // text 타입이므로 normalizeString 사용
       city_ko: normalizeString(input.city_ko),
       city_en: normalizeString(input.city_en),
       city_code: normalizeString((input as any).city_code),
@@ -498,6 +504,9 @@ export async function upsertRegion(input: RegionFormInput & { id?: number }): Pr
     const payload: Record<string, unknown> = {
       region_type: input.region_type,
       status: input.status, // ✅ 자동 'active' 제거, 사용자가 설정한 값만 사용
+      area_ko: normalizeString((input as Record<string, unknown>).area_ko as string),
+      area_en: normalizeString((input as Record<string, unknown>).area_en as string),
+      area_sort_order: normalizeString((input as Record<string, unknown>).area_sort_order as string), // text 타입이므로 normalizeString 사용
       city_ko: normalizeString(input.city_ko),
       city_en: normalizeString(input.city_en),
       city_code: normalizeString((input as Record<string, unknown>).city_code as string),
@@ -1324,6 +1333,32 @@ export async function mapRegionToHotels(regionId: number, regionType: RegionType
       if (!updateErr && count !== null) updated = count
     }
     
+    if (regionType === 'area') {
+      // area_ko, area_en이 일치하는 호텔들에 area_code, area_ko, area_en 저장
+      // area_code에 select_regions.id 저장
+      const areaKo = r.area_ko
+      const areaEn = r.area_en
+      const regionId = String(r.id)
+      
+      const updatePayload = {
+        area_code: regionId,
+        area_ko: areaKo || null,
+        area_en: areaEn || null,
+      }
+      
+      let query = supabase.from('select_hotels').update(updatePayload)
+      if (areaKo && areaEn) {
+        query = query.or(`area_ko.eq.${areaKo},area_en.eq.${areaEn}`)
+      } else if (areaKo) {
+        query = query.eq('area_ko', areaKo)
+      } else if (areaEn) {
+        query = query.eq('area_en', areaEn)
+      }
+      
+      const { error: updateErr, count } = await query
+      if (!updateErr && count !== null) updated = count
+    }
+    
     revalidatePath('/admin/region-mapping')
     revalidatePath('/admin/hotel-search')
     revalidatePath('/admin/hotel-update')
@@ -1342,7 +1377,7 @@ export async function bulkUpdateHotelRegionCodes(): Promise<ActionResult<{ updat
   try {
     const supabase = createServiceRoleClient()
     
-    // 1. 모든 region 레코드 가져오기 (city, country, continent, region 모두)
+    // 1. 모든 region 레코드 가져오기 (city, country, continent, region, area 모두)
     const { data: regions, error: regionsError } = await supabase
       .from('select_regions')
       .select('*')
@@ -1360,13 +1395,86 @@ export async function bulkUpdateHotelRegionCodes(): Promise<ActionResult<{ updat
       city: 0,
       country: 0,
       continent: 0,
-      region: 0
+      region: 0,
+      area: 0
     }
     
     // 2. 각 region에 대해 매칭되는 호텔 업데이트
     for (const region of regions) {
       try {
-        const regionType = region.region_type as 'city' | 'country' | 'continent' | 'region'
+        const regionType = region.region_type as 'city' | 'country' | 'continent' | 'region' | 'area'
+        
+        // area 타입은 별도 처리 (hotel_area에 region.id 저장)
+        if (regionType === 'area') {
+          const areaKo = region.area_ko as string | null
+          const areaEn = region.area_en as string | null
+          const regionId = String(region.id)
+          
+          // area_ko 또는 area_en이 있어야 매칭 가능
+          if (!areaKo && !areaEn) {
+            continue
+          }
+          
+          // 호텔 찾기 (area_ko OR area_en)
+          let query = supabase
+            .from('select_hotels')
+            .select('sabre_id')
+          
+          const conditions: string[] = []
+          if (areaKo && areaKo.trim()) {
+            conditions.push(`area_ko.eq.${areaKo}`)
+          }
+          if (areaEn && areaEn.trim()) {
+            conditions.push(`area_en.eq.${areaEn}`)
+          }
+          
+          if (conditions.length === 0) {
+            continue
+          }
+          
+          query = query.or(conditions.join(','))
+          
+          const { data: hotels, error: hotelsError } = await query
+          
+          if (hotelsError) {
+            const displayName = areaKo || areaEn || `id:${region.id}`
+            errors.push(`${displayName}: 호텔 조회 실패 - ${hotelsError.message}`)
+            continue
+          }
+          
+          if (!hotels || hotels.length === 0) {
+            continue // 매칭되는 호텔 없음
+          }
+          
+          // 중복 제거
+          const uniqueHotels = Array.from(
+            new Map(hotels.map(h => [h.sabre_id, h])).values()
+          )
+          
+          // 각 호텔의 area_code, area_ko, area_en 저장
+          // area_code에 select_regions.id 저장
+          for (const hotel of uniqueHotels) {
+            const updatePayload = {
+              area_code: regionId,
+              area_ko: areaKo || null,
+              area_en: areaEn || null,
+            }
+            
+            const { error: updateError } = await supabase
+              .from('select_hotels')
+              .update(updatePayload)
+              .eq('sabre_id', hotel.sabre_id)
+            
+            if (updateError) {
+              errors.push(`${hotel.sabre_id}: 업데이트 실패 - ${updateError.message}`)
+            } else {
+              updated++
+              details.area++
+            }
+          }
+          
+          continue // area 처리 완료, 다음 region으로
+        }
         
         // 타입별 컬럼 매핑
         const columnMap = {
@@ -1506,7 +1614,8 @@ export async function bulkUpdateHotelRegionCodes(): Promise<ActionResult<{ updat
           (region.city_ko || region.city_en || 
            region.country_ko || region.country_en || 
            region.continent_ko || region.continent_en || 
-           region.region_name_ko || region.region_name_en || 
+           region.region_name_ko || region.region_name_en ||
+           region.area_ko || region.area_en ||
            `id:${region.id}`) as string
         errors.push(`${displayName}: ${e instanceof Error ? e.message : '알 수 없는 오류'}`)
       }
@@ -1543,12 +1652,37 @@ export async function bulkUpdateHotelRegionCodes(): Promise<ActionResult<{ updat
  */
 export async function getMappedHotels(
   code: string | null, 
-  codeType: 'city' | 'country' | 'continent' | 'region',
+  codeType: 'city' | 'country' | 'continent' | 'region' | 'area',
   nameKo?: string | null,
   nameEn?: string | null
 ): Promise<ActionResult<{ hotels: Array<{ sabre_id: string; property_name_ko: string | null; property_name_en: string | null; property_address: string | null }> }>> {
   try {
     const supabase = createServiceRoleClient()
+    
+    // area 타입은 area_code에 region.id가 저장되므로 별도 처리
+    if (codeType === 'area') {
+      // code는 region.id (문자열)
+      if (!code || !code.trim()) {
+        return { success: true, data: { hotels: [] } }
+      }
+      
+      const { data, error } = await supabase
+        .from('select_hotels')
+        .select('sabre_id, property_name_ko, property_name_en, property_address')
+        .eq('area_code', code.trim())
+        .order('property_name_en')
+      
+      if (error) {
+        console.error(`[regions] get mapped hotels error for area id=${code}:`, error)
+        return { success: false, error: '호텔 조회 실패' }
+      }
+      
+      const uniqueHotels = Array.from(
+        new Map(data?.map(h => [h.sabre_id, h]) || []).values()
+      )
+      
+      return { success: true, data: { hotels: uniqueHotels } }
+    }
     
     const columnMap = {
       city: { code: 'city_code', nameKo: 'city_ko', nameEn: 'city_en' },

@@ -446,13 +446,14 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
             </div>
             
             {/* 호텔명(한글) */}
-          <div className="space-y-1 md:col-span-1">
+            <div className="space-y-1 md:col-span-1">
               <label className="block text-sm font-medium text-gray-700">호텔명(한글)</label>
               {isEditMode ? (
                 <input
                   type="text"
                   name="property_name_ko"
-                  defaultValue={String(formData.property_name_ko ?? '')}
+                  defaultValue={formData.property_name_ko}
+                  onBlur={(e) => handleInputChange('property_name_ko', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="호텔명(한글)"
                 />
@@ -467,17 +468,16 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
             </div>
             
             {/* 호텔명(영문) */}
-          <div className="space-y-1 md:col-span-1">
+            <div className="space-y-1 md:col-span-1">
               <label className="block text-sm font-medium text-gray-700">호텔명(영문)</label>
               {isEditMode ? (
                 <input 
-                key="property_name_en_input"
-                type="text"
+                  type="text"
                   name="property_name_en" 
-                defaultValue={formData.property_name_en}
-                onBlur={(e) => handleInputChange('property_name_en', e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="호텔명(영문)"
+                  defaultValue={formData.property_name_en}
+                  onBlur={(e) => handleInputChange('property_name_en', e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="호텔명(영문)"
                 />
               ) : (
                 <div className={cn(
@@ -494,7 +494,6 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
             <label className="block text-sm font-medium text-gray-700">Slug</label>
             {isEditMode ? (
               <input
-                key="slug_input"
                 type="text"
                 name="slug"
                 defaultValue={formData.slug}
@@ -984,15 +983,12 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
   ), [])
 
   // 탭 아이템 정의
-  // 탭 컴포넌트들은 클로저를 통해 최신 상태를 참조하므로 의존성 배열 불필요
   const tabItems = [
     {
       id: 'basic',
       label: '기본 정보',
-      // ⚠️ useCallback으로 만든 함수를 JSX 컴포넌트처럼 쓰면( <BasicInfoTab /> )
-      // 의존성 변경 시 함수 레퍼런스가 바뀌어 "컴포넌트 타입"이 달라지고,
-      // 매 키 입력마다 언마운트/마운트가 발생하면서 포커스/입력이 깨질 수 있음.
-      // ReactNode로 평가해서 전달하면 리컨실리에이션이 정상 동작함.
+      // ⚠️ useCallback으로 만든 함수를 JSX 컴포넌트처럼 쓰면(<BasicInfoTab />)
+      // 의존성 변경 시 언마운트/마운트가 발생할 수 있으므로, ReactNode로 "호출 결과"를 전달합니다.
       content: BasicInfoTab()
     },
     {

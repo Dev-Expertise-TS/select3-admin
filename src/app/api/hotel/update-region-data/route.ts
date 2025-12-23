@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
 
     // 허용된 필드만 업데이트
     const allowedFields = [
+      'area_code', 'area_ko', 'area_en',
       'city_code', 'city_ko', 'city_en',
       'country_code', 'country_ko', 'country_en',
       'continent_code', 'continent_ko', 'continent_en',

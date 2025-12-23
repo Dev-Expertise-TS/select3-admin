@@ -1,10 +1,13 @@
-export type RegionType = 'city' | 'country' | 'continent' | 'region'
+export type RegionType = 'city' | 'country' | 'continent' | 'region' | 'area'
 export type RegionStatus = 'active' | 'inactive'
 
 export interface SelectRegion {
   id: number
   region_type: RegionType
   status: RegionStatus
+  area_ko: string | null
+  area_en: string | null
+  area_sort_order: number | null
   city_ko: string | null
   city_en: string | null
   city_code?: string | null
@@ -31,6 +34,9 @@ export interface SelectRegion {
 export interface RegionFormInput {
   region_type: RegionType
   status?: RegionStatus
+  area_ko?: string | null
+  area_en?: string | null
+  area_sort_order?: number | null
   city_ko?: string | null
   city_en?: string | null
   city_code?: string | null
@@ -59,7 +65,7 @@ export interface RegionsQueryParams {
   type?: RegionType
   search?: string
   sortKey?: keyof Pick<SelectRegion,
-    'city_sort_order' | 'country_sort_order' | 'continent_sort_order' | 'region_name_sort_order' | 'id'>
+    'area_sort_order' | 'city_sort_order' | 'country_sort_order' | 'continent_sort_order' | 'region_name_sort_order' | 'id'>
   sortOrder?: 'asc' | 'desc'
 }
 

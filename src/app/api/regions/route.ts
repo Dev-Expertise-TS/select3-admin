@@ -26,6 +26,8 @@ export async function GET(req: NextRequest) {
       const q = search.trim()
       query = query.or(
         [
+          `area_ko.ilike.%${q}%`,
+          `area_en.ilike.%${q}%`,
           `city_ko.ilike.%${q}%`,
           `city_en.ilike.%${q}%`,
           `country_ko.ilike.%${q}%`,
@@ -44,6 +46,8 @@ export async function GET(req: NextRequest) {
     
     if (type === 'city') {
       query = query.order('city_sort_order', { ascending: true, nullsFirst: false })
+    } else if (type === 'area') {
+      query = query.order('area_sort_order', { ascending: true, nullsFirst: false })
     } else if (type === 'country') {
       query = query.order('country_sort_order', { ascending: true, nullsFirst: false })
     } else if (type === 'continent') {
@@ -104,6 +108,9 @@ export async function POST(req: NextRequest) {
 
     const payload = {
       region_type: body.region_type,
+      area_ko: normalizeString(body.area_ko),
+      area_en: normalizeString(body.area_en),
+      area_sort_order: normalizeString(body.area_sort_order), // text 타입이므로 normalizeString 사용
       city_ko: normalizeString(body.city_ko),
       city_en: normalizeString(body.city_en),
       city_sort_order: normalizeNumber(body.city_sort_order),
@@ -154,6 +161,9 @@ export async function PATCH(req: NextRequest) {
 
     const payload = {
       region_type: body.region_type,
+      area_ko: normalizeString(body.area_ko),
+      area_en: normalizeString(body.area_en),
+      area_sort_order: normalizeString(body.area_sort_order), // text 타입이므로 normalizeString 사용
       city_ko: normalizeString(body.city_ko),
       city_en: normalizeString(body.city_en),
       city_sort_order: normalizeNumber(body.city_sort_order),

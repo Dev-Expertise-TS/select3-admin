@@ -17,6 +17,9 @@ interface RegionFormModalProps {
 interface FormData {
   region_type: RegionType
   status?: RegionStatus
+  area_ko?: string
+  area_en?: string
+  area_sort_order?: number
   city_ko?: string
   city_en?: string
   city_code?: string
@@ -52,6 +55,9 @@ export function RegionFormModal({ isOpen, onClose, onSave, regionType, initialDa
       setFormData({
         region_type: initialData.region_type,
         status: initialData.status || 'active',
+        area_ko: initialData.area_ko || '',
+        area_en: initialData.area_en || '',
+        area_sort_order: initialData.area_sort_order ?? null,
         city_ko: initialData.city_ko || '',
         city_en: initialData.city_en || '',
         city_code: initialData.city_code || '',
@@ -109,6 +115,7 @@ export function RegionFormModal({ isOpen, onClose, onSave, regionType, initialDa
             </h2>
             <p className="text-sm text-gray-600 mt-1">
               {regionType === 'city' && '도시 정보를 입력하세요'}
+              {regionType === 'area' && '지역(Area) 정보를 입력하세요'}
               {regionType === 'country' && '국가 정보를 입력하세요'}
               {regionType === 'continent' && '대륙 정보를 입력하세요'}
               {regionType === 'region' && '지역 정보를 입력하세요'}
@@ -326,6 +333,52 @@ export function RegionFormModal({ isOpen, onClose, onSave, regionType, initialDa
                         className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 lowercase"
                       />
                     </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Area 타입 필드 */}
+            {regionType === 'area' && (
+              <>
+                <div className="border-b pb-4 mb-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">지역(Area) 정보</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        지역명 (한글) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.area_ko || ''}
+                        onChange={(e) => handleChange('area_ko', e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        지역명 (영문) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.area_en || ''}
+                        onChange={(e) => handleChange('area_en', e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      정렬 순서
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.area_sort_order ?? 0}
+                      onChange={(e) => handleChange('area_sort_order', Number(e.target.value) || 0)}
+                      className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
                 </div>
               </>

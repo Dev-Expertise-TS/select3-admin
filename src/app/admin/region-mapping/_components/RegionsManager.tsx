@@ -227,6 +227,22 @@ export function RegionsManager({ initialItems }: Props) {
   const [editingRowId, setEditingRowId] = useState<number | 'new' | null>(null)
   const [editingData, setEditingData] = useState<Partial<EditingRow>>({})
   const [isSavingOrder, setIsSavingOrder] = useState(false)
+
+  const toOrderNumber = (value: unknown): number => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (trimmed === '') return 0
+      const n = Number(trimmed)
+      return Number.isFinite(n) ? n : 0
+    }
+    return 0
+  }
+
+  const formatOrderValueForType = (_type: RegionType, order: number): number => {
+    // area_sort_order도 int2로 통일됨
+    return order
+  }
   
   // 콤보박스용 데이터
   const [countryOptions, setCountryOptions] = useState<SelectRegion[]>([])
@@ -347,6 +363,15 @@ export function RegionsManager({ initialItems }: Props) {
       { key: 'id', label: 'ID', width: '64px' }, 
       { key: 'region_type', label: '유형', width: '100px' }
     ]
+    if (selectedType === 'area') {
+      return [
+        ...base,
+        { key: 'area_sort_order', label: '순서', width: '70px' },
+        { key: 'area_ko', label: 'Area(한)', width: '140px' },
+        { key: 'area_en', label: 'Area(영)', width: '140px' },
+        { key: 'status', label: '상태', width: '90px' },
+      ]
+    }
     if (selectedType === 'city') {
       return [
         ...base,
@@ -747,12 +772,12 @@ export function RegionsManager({ initialItems }: Props) {
         
         const updatedActiveItems = reorderedActiveItems.map((item, index) => ({
           ...item,
-          [sortOrderKey]: index + 1  // active: 1부터 시작
+          [sortOrderKey]: formatOrderValueForType(selectedType, index + 1)  // active: 1부터 시작
         }))
         
         const updatedInactiveItems = reorderedInactiveItems.map((item, index) => ({
           ...item,
-          [sortOrderKey]: activeCount + index + 1  // inactive: active 마지막 + 1부터
+          [sortOrderKey]: formatOrderValueForType(selectedType, activeCount + index + 1)  // inactive: active 마지막 + 1부터
         }))
         
         console.log(`[RegionsManager] Updated sort orders:`, {
@@ -834,6 +859,9 @@ export function RegionsManager({ initialItems }: Props) {
         id: item.id,
         region_type: item.region_type,
         status: item.status,
+        area_ko: (item as any).area_ko,
+        area_en: (item as any).area_en,
+        area_sort_order: (item as any).area_sort_order,
         city_ko: item.city_ko,
         city_en: item.city_en,
         city_code: item.city_code,
@@ -920,10 +948,12 @@ export function RegionsManager({ initialItems }: Props) {
   // 타입별 sort_order 키 가져오기
   const getSortOrderKey = (type: RegionType): string => {
     switch (type) {
+      case 'area': return 'area_sort_order'
       case 'city': return 'city_sort_order'
       case 'country': return 'country_sort_order'
       case 'continent': return 'continent_sort_order'
       case 'region': return 'region_name_sort_order'
+      default: return 'id'
     }
   }
 
@@ -1114,6 +1144,16 @@ export function RegionsManager({ initialItems }: Props) {
         return
       }
     }
+    
+    // area 타입 필수 필드 검증
+    if (editingData.region_type === 'area') {
+      const areaKo = (editingData as any).area_ko
+      const areaEn = (editingData as any).area_en
+      if (!areaKo && !areaEn) {
+        alert('지역(Area)명(한글 또는 영문)을 입력해주세요.')
+        return
+      }
+    }
 
     setLoading(true)
     
@@ -1140,6 +1180,9 @@ export function RegionsManager({ initialItems }: Props) {
       id: targetId, // ✅ ID 먼저 설정
       region_type: editingData.region_type,
       status: editingData.status, // ✅ 자동 'active' 제거
+      area_ko: (editingData as any).area_ko,
+      area_en: (editingData as any).area_en,
+      area_sort_order: (editingData as any).area_sort_order,
       city_ko: editingData.city_ko,
       city_en: editingData.city_en,
       city_code: editingData.city_code,
@@ -1232,7 +1275,7 @@ export function RegionsManager({ initialItems }: Props) {
 
   const refreshData = async () => {
     try {
-      const typeParam = selectedType === 'city' || selectedType === 'country' || selectedType === 'continent' || selectedType === 'region' ? `&type=${selectedType}` : ''
+      const typeParam = selectedType ? `&type=${selectedType}` : ''
       const response = await fetch(`/api/regions?page=1&pageSize=${pageSize}${typeParam}`, { cache: 'no-store' })
       const data = await response.json()
       if (data.success && Array.isArray(data.data)) {
@@ -1259,13 +1302,13 @@ export function RegionsManager({ initialItems }: Props) {
         // 타입별 sort_order로 정렬
         const sortOrderKey = getSortOrderKey(selectedType)
         activeItems.sort((a, b) => {
-          const aOrder = (a[sortOrderKey as keyof SelectRegion] as number) || 0
-          const bOrder = (b[sortOrderKey as keyof SelectRegion] as number) || 0
+          const aOrder = toOrderNumber(a[sortOrderKey as keyof SelectRegion])
+          const bOrder = toOrderNumber(b[sortOrderKey as keyof SelectRegion])
           return aOrder - bOrder
         })
         inactiveItems.sort((a, b) => {
-          const aOrder = (a[sortOrderKey as keyof SelectRegion] as number) || 0
-          const bOrder = (b[sortOrderKey as keyof SelectRegion] as number) || 0
+          const aOrder = toOrderNumber(a[sortOrderKey as keyof SelectRegion])
+          const bOrder = toOrderNumber(b[sortOrderKey as keyof SelectRegion])
           return aOrder - bOrder
         })
         
@@ -1358,19 +1401,35 @@ export function RegionsManager({ initialItems }: Props) {
       updateData.region_en = selectedRegion.region_name_en ?? null
       
       console.log('[RegionsManager] Region mapping - updateData:', updateData)
+    } else if (selectedRegion.region_type === 'area') {
+      // Area 정보 매핑: select_hotels.area_code에 select_regions.id 저장
+      // area_ko, area_en도 함께 저장
+      updateData.area_code = String(selectedRegion.id)
+      updateData.area_ko = selectedRegion.area_ko ?? null
+      updateData.area_en = selectedRegion.area_en ?? null
+      console.log('[RegionsManager] Area mapping - updateData:', updateData)
     }
     
     console.log('[RegionsManager] Final updateData to be sent:', updateData)
 
-    const codeField = `${selectedRegion.region_type}_code`
-    const hasCode = selectedRegion.region_type === 'city' ? selectedRegion.city_code
-      : selectedRegion.region_type === 'country' ? selectedRegion.country_code
-      : selectedRegion.region_type === 'continent' ? selectedRegion.continent_code
-      : selectedRegion.region_code
+    // area는 id만 있으면 매핑 가능
+    const hasRequiredValue = selectedRegion.region_type === 'area'
+      ? Boolean(selectedRegion.id)
+      : selectedRegion.region_type === 'city'
+        ? Boolean(selectedRegion.city_code)
+        : selectedRegion.region_type === 'country'
+          ? Boolean(selectedRegion.country_code)
+          : selectedRegion.region_type === 'continent'
+            ? Boolean(selectedRegion.continent_code)
+            : Boolean(selectedRegion.region_code)
 
-    if (!hasCode) {
+    if (!hasRequiredValue) {
       setLoading(false)
-      alert(`이 레코드에는 ${selectedRegion.region_type} 코드가 없습니다. 먼저 코드를 설정해주세요.`)
+      alert(
+        selectedRegion.region_type === 'area'
+          ? '이 레코드에는 area 이름(한글/영문)이 없습니다. 먼저 값을 설정해주세요.'
+          : `이 레코드에는 ${selectedRegion.region_type} 코드가 없습니다. 먼저 코드를 설정해주세요.`
+      )
       return
     }
 
@@ -1433,7 +1492,7 @@ export function RegionsManager({ initialItems }: Props) {
     let code: string | null = null
     let nameKo: string | null = null
     let nameEn: string | null = null
-    let codeType: 'city' | 'country' | 'continent' | 'region' | null = null
+    let codeType: 'city' | 'country' | 'continent' | 'region' | 'area' | null = null
     let title = ''
     
     if (row.region_type === 'city') {
@@ -1468,6 +1527,14 @@ export function RegionsManager({ initialItems }: Props) {
       const displayName = row.region_name_ko || row.region_name_en || '이름없음'
       const displayCode = code ? ` (${code})` : ''
       title = `지역 "${displayName}"${displayCode} 매핑된 호텔`
+    } else if (row.region_type === 'area') {
+      // area는 area_code에 id가 저장되므로 id를 code로 전달
+      code = String(row.id)
+      nameKo = null
+      nameEn = null
+      codeType = 'area'
+      const displayName = row.area_ko || row.area_en || '이름없음'
+      title = `Area "${displayName}" (ID: ${row.id}) 매핑된 호텔`
     }
     
     if (!codeType) {
@@ -1475,8 +1542,8 @@ export function RegionsManager({ initialItems }: Props) {
       return
     }
     
-    // 코드 또는 이름이 있어야 조회 가능
-    if (!code && !nameKo && !nameEn) {
+    // area는 id만 있으면 조회 가능, 다른 타입은 코드 또는 이름이 있어야 함
+    if (row.region_type !== 'area' && !code && !nameKo && !nameEn) {
       alert('이 레코드에는 코드나 이름이 없습니다.')
       return
     }
@@ -1653,6 +1720,9 @@ export function RegionsManager({ initialItems }: Props) {
                 id: row.id, // ✅ row.id 직접 사용
                 region_type: row.region_type,
                 status: newStatus,
+                area_ko: row.area_ko,
+                area_en: row.area_en,
+                area_sort_order: row.area_sort_order,
                 city_ko: row.city_ko,
                 city_en: row.city_en,
                 city_code: row.city_code,
@@ -2623,6 +2693,7 @@ export function RegionsManager({ initialItems }: Props) {
           disabled={loading || editingRowId !== null}
         >
           <option value="city">city</option>
+          <option value="area">area</option>
           <option value="country">country</option>
           <option value="continent">continent</option>
           <option value="region">region</option>
