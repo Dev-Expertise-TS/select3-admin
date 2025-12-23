@@ -38,7 +38,9 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
     slug: String(initialData.slug ?? ''),
     publish: initialData.publish === true || initialData.publish === 'true',
     property_address: String(initialData.property_address ?? ''),
-    hotel_area: String(initialData.hotel_area ?? ''),
+    area_code: String(initialData.area_code ?? ''),
+    area_ko: String(initialData.area_ko ?? ''),
+    area_en: String(initialData.area_en ?? ''),
     city_ko: String(initialData.city_ko ?? ''),
     city_en: String(initialData.city_en ?? ''),
     city_code: String(initialData.city_code ?? ''),
@@ -61,6 +63,33 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
               : [])
         : []
   })
+
+  // Area 리스트 상태
+  const [areaList, setAreaList] = React.useState<Array<{ id: number; area_ko: string | null; area_en: string | null }>>([])
+  
+  // Area 리스트 로드
+  React.useEffect(() => {
+    const loadAreas = async () => {
+      try {
+        const response = await fetch('/api/regions?type=area&pageSize=1000&status=active')
+        const data = await response.json()
+        if (data.success && Array.isArray(data.data)) {
+          setAreaList(
+            data.data
+              .filter((r: any) => r.status === 'active' && (r.area_ko || r.area_en))
+              .map((r: any) => ({
+                id: r.id,
+                area_ko: r.area_ko,
+                area_en: r.area_en
+              }))
+          )
+        }
+      } catch (error) {
+        console.error('Area 리스트 로드 실패:', error)
+      }
+    }
+    loadAreas()
+  }, [])
 
   // 하이라이트된 필드 추적
   const [highlightedFields, setHighlightedFields] = React.useState<Set<string>>(new Set())
@@ -110,7 +139,9 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           slug: String(initialData.slug ?? ''),
           publish: initialData.publish === true || initialData.publish === 'true',
           property_address: String(initialData.property_address ?? ''),
-          hotel_area: String(initialData.hotel_area ?? ''),
+          area_code: String(initialData.area_code ?? ''),
+          area_ko: String(initialData.area_ko ?? ''),
+          area_en: String(initialData.area_en ?? ''),
           city_ko: String(initialData.city_ko ?? ''),
           city_en: String(initialData.city_en ?? ''),
           city_code: String(initialData.city_code ?? ''),
@@ -308,7 +339,9 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
         formDataToSubmit.append('slug', currentValues.slug)
         formDataToSubmit.append('publish', String(currentValues.publish))
         formDataToSubmit.append('property_address', formData.property_address)
-        formDataToSubmit.append('hotel_area', formData.hotel_area)
+        formDataToSubmit.append('area_code', formData.area_code)
+        formDataToSubmit.append('area_ko', formData.area_ko)
+        formDataToSubmit.append('area_en', formData.area_en)
         formDataToSubmit.append('city_ko', formData.city_ko)
         formDataToSubmit.append('city_en', formData.city_en)
         formDataToSubmit.append('city_code', formData.city_code)
@@ -698,22 +731,35 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">호텔 지역</label>
                 {isEditMode ? (
-                  <input
-                    type="text"
-                    name="hotel_area"
-                    value={formData.hotel_area}
-                    onChange={(e) => handleInputChange('hotel_area', e.target.value)}
+                  <select
+                    name="area_code"
+                    value={formData.area_code}
+                    onChange={(e) => {
+                      const selectedArea = areaList.find(a => String(a.id) === e.target.value)
+                      setFormData(prev => ({
+                        ...prev,
+                        area_code: e.target.value,
+                        area_ko: selectedArea?.area_ko ?? '',
+                        area_en: selectedArea?.area_en ?? ''
+                      }))
+                    }}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="예) 강남, 명동, 시내 중심가 등"
-                  />
+                  >
+                    <option value="">선택하세요</option>
+                    {areaList.map((area) => (
+                      <option key={area.id} value={String(area.id)}>
+                        {area.area_ko || area.area_en || `ID: ${area.id}`}
+                      </option>
+                    ))}
+                  </select>
                 ) : (
                   <div
                     className={cn(
                       "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
-                      highlightedFields.has('hotel_area') ? "bg-yellow-100" : "bg-gray-50"
+                      highlightedFields.has('area_ko') || highlightedFields.has('area_code') ? "bg-yellow-100" : "bg-gray-50"
                     )}
                   >
-                    {formData.hotel_area || '-'}
+                    {formData.area_ko || formData.area_en || '-'}
                   </div>
                 )}
               </div>

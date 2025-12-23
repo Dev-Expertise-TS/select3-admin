@@ -74,7 +74,9 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     const slug = formData.get('slug') as string
     const publish = formData.get('publish') as string
     const propertyAddress = formData.get('property_address') as string
-    const hotelArea = formData.get('hotel_area') as string
+    const areaCode = formData.get('area_code') as string
+    const areaKo = formData.get('area_ko') as string
+    const areaEn = formData.get('area_en') as string
     const cityKo = formData.get('city_ko') as string
     const cityEn = formData.get('city_en') as string
     const cityCode = formData.get('city_code') as string
@@ -122,7 +124,9 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     }
     
     if (propertyAddress) updateData.property_address = propertyAddress
-    if (hotelArea !== undefined) updateData.hotel_area = hotelArea || null
+    if (areaCode !== undefined) updateData.area_code = areaCode || null
+    if (areaKo !== undefined) updateData.area_ko = areaKo || null
+    if (areaEn !== undefined) updateData.area_en = areaEn || null
     if (cityKo !== undefined) updateData.city_ko = cityKo || null
     if (cityEn !== undefined) updateData.city_en = cityEn || null
     if (cityCode !== undefined) updateData.city_code = cityCode || null

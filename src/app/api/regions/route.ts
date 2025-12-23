@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     const pageSize = Number(searchParams.get('pageSize') || '20')
     const type = searchParams.get('type') as RegionsQueryParams['type']
     const search = searchParams.get('search') || undefined
+    const status = searchParams.get('status') as 'active' | 'inactive' | null
     const sortKey = (searchParams.get('sortKey') as RegionsQueryParams['sortKey']) || 'id'
     const sortOrder = (searchParams.get('sortOrder') as RegionsQueryParams['sortOrder']) || 'asc'
 
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
     let query = supabase.from('select_regions').select('*', { count: 'exact' })
 
     if (type) query = query.eq('region_type', type)
+    if (status) query = query.eq('status', status)
     if (search && search.trim() !== '') {
       const q = search.trim()
       query = query.or(
