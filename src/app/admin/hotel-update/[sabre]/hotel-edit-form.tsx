@@ -38,6 +38,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
     slug: String(initialData.slug ?? ''),
     publish: initialData.publish === true || initialData.publish === 'true',
     property_address: String(initialData.property_address ?? ''),
+    hotel_area: String(initialData.hotel_area ?? ''),
     city_ko: String(initialData.city_ko ?? ''),
     city_en: String(initialData.city_en ?? ''),
     city_code: String(initialData.city_code ?? ''),
@@ -109,6 +110,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           slug: String(initialData.slug ?? ''),
           publish: initialData.publish === true || initialData.publish === 'true',
           property_address: String(initialData.property_address ?? ''),
+          hotel_area: String(initialData.hotel_area ?? ''),
           city_ko: String(initialData.city_ko ?? ''),
           city_en: String(initialData.city_en ?? ''),
           city_code: String(initialData.city_code ?? ''),
@@ -306,6 +308,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
         formDataToSubmit.append('slug', currentValues.slug)
         formDataToSubmit.append('publish', String(currentValues.publish))
         formDataToSubmit.append('property_address', formData.property_address)
+        formDataToSubmit.append('hotel_area', formData.hotel_area)
         formDataToSubmit.append('city_ko', formData.city_ko)
         formDataToSubmit.append('city_en', formData.city_en)
         formDataToSubmit.append('city_code', formData.city_code)
@@ -446,14 +449,12 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           <div className="space-y-1 md:col-span-1">
               <label className="block text-sm font-medium text-gray-700">호텔명(한글)</label>
               {isEditMode ? (
-                <input 
-                key="property_name_ko_input"
-                type="text"
-                  name="property_name_ko" 
-                defaultValue={formData.property_name_ko}
-                onBlur={(e) => handleInputChange('property_name_ko', e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="호텔명(한글)"
+                <input
+                  type="text"
+                  name="property_name_ko"
+                  defaultValue={String(formData.property_name_ko ?? '')}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="호텔명(한글)"
                 />
               ) : (
                 <div className={cn(
@@ -690,6 +691,30 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
                     highlightedFields.has('property_address') ? "bg-yellow-100" : "bg-gray-50"
                   )}>
                     {formData.property_address || '-'}
+                  </div>
+                )}
+              </div>
+
+              {/* 호텔 지역 (Area) */}
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">호텔 지역</label>
+                {isEditMode ? (
+                  <input
+                    type="text"
+                    name="hotel_area"
+                    value={formData.hotel_area}
+                    onChange={(e) => handleInputChange('hotel_area', e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="예) 강남, 명동, 시내 중심가 등"
+                  />
+                ) : (
+                  <div
+                    className={cn(
+                      "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                      highlightedFields.has('hotel_area') ? "bg-yellow-100" : "bg-gray-50"
+                    )}
+                  >
+                    {formData.hotel_area || '-'}
                   </div>
                 )}
               </div>
@@ -964,32 +989,36 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
     {
       id: 'basic',
       label: '기본 정보',
-      content: <BasicInfoTab />
+      // ⚠️ useCallback으로 만든 함수를 JSX 컴포넌트처럼 쓰면( <BasicInfoTab /> )
+      // 의존성 변경 시 함수 레퍼런스가 바뀌어 "컴포넌트 타입"이 달라지고,
+      // 매 키 입력마다 언마운트/마운트가 발생하면서 포커스/입력이 깨질 수 있음.
+      // ReactNode로 평가해서 전달하면 리컨실리에이션이 정상 동작함.
+      content: BasicInfoTab()
     },
     {
       id: 'benefits',
       label: '혜택 관리',
-      content: <BenefitsTab />
+      content: BenefitsTab()
     },
     {
       id: 'chain-brand',
       label: '체인/브랜드',
-      content: <ChainBrandTab />
+      content: ChainBrandTab()
     },
     {
       id: 'images',
       label: '이미지 관리',
-      content: <ImagesTab />
+      content: ImagesTab()
     },
     {
       id: 'content',
       label: '호텔 소개',
-      content: <ContentTab />
+      content: ContentTab()
     },
     {
       id: 'articles',
       label: '아티클',
-      content: <ArticlesTab />
+      content: ArticlesTab()
     }
   ]
 

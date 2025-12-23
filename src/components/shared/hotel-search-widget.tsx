@@ -882,6 +882,8 @@ export default function HotelSearchWidget({
       setError('네트워크 오류가 발생했습니다.');
     } finally {
       setLoading(false);
+      // 검색 완료 후 자동완성 다시 활성화
+      setSuppressSuggest(false);
     }
   };
 
@@ -916,6 +918,7 @@ export default function HotelSearchWidget({
     setExpandedRowState(null);
     setSuggestions([]);
     setOpenSuggest(false);
+    setSuppressSuggest(false);
     
     // URL에서 검색 파라미터 제거
     const params = new URLSearchParams(searchParams.toString())
