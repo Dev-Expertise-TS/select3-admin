@@ -381,6 +381,186 @@ export function RegionFormModal({ isOpen, onClose, onSave, regionType, initialDa
                     />
                   </div>
                 </div>
+
+                {/* Area의 상위 지역: 도시 정보 */}
+                <div className="border-b pb-4 mb-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                    도시 정보 <span className="text-xs text-gray-500">(선택사항 - 호텔 매핑 시 함께 적용됨)</span>
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        도시명 (한글)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.city_ko || ''}
+                        onChange={(e) => handleChange('city_ko', e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="예: 방콕"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        도시명 (영문)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.city_en || ''}
+                        onChange={(e) => handleChange('city_en', e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="예: Bangkok"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        도시 코드 (IATA)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.city_code || ''}
+                        onChange={(e) => handleChange('city_code', e.target.value.toUpperCase())}
+                        placeholder="예: BKK"
+                        maxLength={3}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        도시 슬러그
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.city_slug || ''}
+                        onChange={(e) => handleChange('city_slug', e.target.value.toLowerCase())}
+                        placeholder="예: bangkok"
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 lowercase"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Area의 상위 지역: 국가 정보 */}
+                <div className="border-b pb-4 mb-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                    국가 정보 <span className="text-xs text-gray-500">(선택사항 - 호텔 매핑 시 함께 적용됨)</span>
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        국가명 (한글)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.country_ko || ''}
+                        onChange={(e) => handleChange('country_ko', e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="예: 태국"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        국가명 (영문)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.country_en || ''}
+                        onChange={(e) => handleChange('country_en', e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="예: Thailand"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        국가 코드 (ISO)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.country_code || ''}
+                        onChange={(e) => handleChange('country_code', e.target.value.toUpperCase())}
+                        placeholder="예: TH"
+                        maxLength={2}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        국가 슬러그
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.country_slug || ''}
+                        onChange={(e) => handleChange('country_slug', e.target.value.toLowerCase())}
+                        placeholder="예: thailand"
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 lowercase"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Area의 상위 지역: 대륙 정보 */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                    대륙 정보 <span className="text-xs text-gray-500">(선택사항 - 호텔 매핑 시 함께 적용됨)</span>
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        대륙명 (한글)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.continent_ko || ''}
+                        onChange={(e) => handleChange('continent_ko', e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="예: 아시아"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        대륙명 (영문)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.continent_en || ''}
+                        onChange={(e) => handleChange('continent_en', e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="예: Asia"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        대륙 코드
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.continent_code || ''}
+                        onChange={(e) => handleChange('continent_code', e.target.value.toUpperCase())}
+                        placeholder="예: AS"
+                        maxLength={2}
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        대륙 슬러그
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.continent_slug || ''}
+                        onChange={(e) => handleChange('continent_slug', e.target.value.toLowerCase())}
+                        placeholder="예: asia"
+                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 lowercase"
+                      />
+                    </div>
+                  </div>
+                </div>
               </>
             )}
 

@@ -2,6 +2,7 @@
 
 import React, { useTransition, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
 import { BenefitsManager, type BenefitRow as BBRow } from '@/features/hotels/components/benefits-manager'
 import { BenefitsAddButton } from '@/features/hotels/components/benefits-add-button'
 import { ChainBrandPicker, type Chain, type Brand } from '@/features/hotels/components/chain-brand-picker'
@@ -29,6 +30,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
     message?: string
     checkedSabreId?: string
   }>({ status: 'idle' })
+  const [isSearchingAddress, setIsSearchingAddress] = React.useState(false)
 
   // 폼 데이터 상태 관리
   const [formData, setFormData] = React.useState({
@@ -173,6 +175,62 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
   const handleInputChange = useCallback((field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }, [])
+
+  const handleSearchAddress = useCallback(async () => {
+    const hotelNameEn = formData.property_name_en?.trim()
+    if (!hotelNameEn || hotelNameEn.length < 2) {
+      alert('호텔 영문명을 먼저 입력해주세요.')
+      return
+    }
+
+    // 즉시 로딩 상태 표시 (동기적으로 상태 업데이트)
+    setIsSearchingAddress(true)
+    
+    // 다음 프레임에서 API 호출 (상태 업데이트가 UI에 반영되도록)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    
+    try {
+      const response = await fetch('/api/hotel/search-address', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hotelNameEn }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '주소 검색에 실패했습니다.')
+      }
+
+      if (data.data?.address) {
+        let finalAddress = data.data.address.trim()
+        
+        // 주소 맨 왼쪽에 호텔 영문명이 없으면 추가
+        const hotelNameLower = hotelNameEn.toLowerCase().trim()
+        const addressLower = finalAddress.toLowerCase().trim()
+        
+        // 호텔명이 주소 맨 앞에 시작하는지 확인 (대소문자 무시)
+        // 주소의 첫 부분(콤마 전까지)에 호텔명이 포함되어 있는지 확인
+        const addressFirstPart = addressLower.split(',')[0].trim()
+        const hotelNameFirstWord = hotelNameLower.split(/\s+/)[0] // 호텔명의 첫 단어
+        
+        // 호텔명의 첫 단어가 주소 첫 부분에 포함되어 있지 않으면 호텔명 추가
+        if (!addressFirstPart.includes(hotelNameFirstWord) && !addressLower.startsWith(hotelNameLower)) {
+          finalAddress = `${hotelNameEn}, ${finalAddress}`
+        }
+        
+        setFormData(prev => ({ ...prev, property_address: finalAddress }))
+        alert('주소가 자동으로 입력되었습니다.')
+      } else {
+        throw new Error('주소를 찾을 수 없습니다.')
+      }
+    } catch (error) {
+      console.error('[handleSearchAddress] 오류:', error)
+      alert(error instanceof Error ? error.message : '주소 검색 중 오류가 발생했습니다.')
+    } finally {
+      setIsSearchingAddress(false)
+    }
+  }, [formData.property_name_en])
 
   const handleCheckSabreId = useCallback(async () => {
     const sabreIdInput = document.querySelector('input[name="sabre_id_editable"]') as HTMLInputElement
@@ -709,14 +767,47 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">호텔 주소</label>
                 {isEditMode ? (
-                  <input 
-                type="text"
-                    name="property_address" 
-                    value={formData.property_address}
-                    onChange={(e) => handleInputChange('property_address', e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="호텔 주소"
-                  />
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      name="property_address" 
+                      value={formData.property_address}
+                      onChange={(e) => handleInputChange('property_address', e.target.value)}
+                      disabled={isSearchingAddress}
+                      className={cn(
+                        "flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        isSearchingAddress && "bg-gray-100 opacity-60 cursor-not-allowed"
+                      )}
+                      placeholder="호텔 주소"
+                    />
+                    <Button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        // 즉시 로딩 상태로 변경
+                        setIsSearchingAddress(true)
+                        handleSearchAddress()
+                      }}
+                      disabled={isSearchingAddress || !formData.property_name_en?.trim()}
+                      className={cn(
+                        "px-4 py-2 text-sm whitespace-nowrap transition-all duration-150",
+                        isSearchingAddress 
+                          ? "bg-blue-100 border-blue-300 text-blue-700 cursor-wait opacity-100" 
+                          : "hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 active:bg-blue-100 active:scale-[0.98]"
+                      )}
+                      variant="outline"
+                    >
+                      {isSearchingAddress ? (
+                        <span className="flex items-center">
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          검색 중...
+                        </span>
+                      ) : (
+                        'AI 검색 확인'
+                      )}
+                    </Button>
+                  </div>
                 ) : (
                   <div className={cn(
                     "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",

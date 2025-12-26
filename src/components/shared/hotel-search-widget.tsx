@@ -1135,10 +1135,27 @@ export default function HotelSearchWidget({
 
     const hotelId = String(hotel.sabre_id);
     
+    // 같은 호텔을 다시 클릭하면 확장 패널을 닫고 지도 상태를 초기화
     if (expandedRowId === hotelId) {
       setExpandedRowId(null);
       setExpandedRowState(null);
+      // 지도 상태 초기화를 위한 이벤트 발생 (지도 컴포넌트가 리스닝할 수 있도록)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('hotel-map-reset', { 
+          detail: { hotelId } 
+        }));
+      }
     } else {
+      // 다른 호텔을 클릭하거나 처음 클릭하는 경우
+      // 기존 확장 패널이 있으면 먼저 닫고 지도 상태 초기화
+      if (expandedRowId) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('hotel-map-reset', { 
+            detail: { hotelId: expandedRowId } 
+          }));
+        }
+      }
+      
       setExpandedRowId(hotelId);
       setExpandedRowState({
         type: 'hotel-details',
@@ -1156,6 +1173,13 @@ export default function HotelSearchWidget({
         error: null,
         saveSuccess: false
       });
+      
+      // 새 호텔 선택 시 지도 초기화 이벤트 발생
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('hotel-map-init', { 
+          detail: { hotelId, hotel } 
+        }));
+      }
     }
   };
 

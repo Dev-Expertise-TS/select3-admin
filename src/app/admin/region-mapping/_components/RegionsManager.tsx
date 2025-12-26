@@ -248,6 +248,7 @@ export function RegionsManager({ initialItems }: Props) {
   const [countryOptions, setCountryOptions] = useState<SelectRegion[]>([])
   const [continentOptions, setContinentOptions] = useState<SelectRegion[]>([])
   const [regionOptions, setRegionOptions] = useState<SelectRegion[]>([])
+  const [cityOptions, setCityOptions] = useState<SelectRegion[]>([])
   
   // 도시 이미지 관리 모달
   const [showImageModal, setShowImageModal] = useState(false)
@@ -369,6 +370,18 @@ export function RegionsManager({ initialItems }: Props) {
         { key: 'area_sort_order', label: '순서', width: '70px' },
         { key: 'area_ko', label: 'Area(한)', width: '140px' },
         { key: 'area_en', label: 'Area(영)', width: '140px' },
+        { key: 'region_name_ko', label: '지역(한)', width: '100px', isParent: true },
+        { key: 'region_name_en', label: '지역(영)', width: '100px', isParent: true },
+        { key: 'region_code', label: '지역코드', width: '80px', isParent: true },
+        { key: 'continent_ko', label: '대륙(한)', width: '80px', isParent: true },
+        { key: 'continent_en', label: '대륙(영)', width: '80px', isParent: true },
+        { key: 'continent_code', label: '대륙코드', width: '70px', isParent: true },
+        { key: 'country_ko', label: '국가(한)', width: '90px', isParent: true },
+        { key: 'country_en', label: '국가(영)', width: '90px', isParent: true },
+        { key: 'country_code', label: '국가코드', width: '70px', isParent: true },
+        { key: 'city_ko', label: '도시(한)', width: '100px', isParent: true },
+        { key: 'city_en', label: '도시(영)', width: '100px', isParent: true },
+        { key: 'city_code', label: '도시코드', width: '80px', isParent: true },
         { key: 'status', label: '상태', width: '90px' },
       ]
     }
@@ -462,6 +475,13 @@ export function RegionsManager({ initialItems }: Props) {
         const regionData = await regionRes.json()
         if (regionData?.success && Array.isArray(regionData.data)) {
           setRegionOptions(regionData.data as SelectRegion[])
+        }
+        
+        // 도시 옵션
+        const cityRes = await fetch('/api/regions?page=1&pageSize=1000&type=city', { cache: 'no-store' })
+        const cityData = await cityRes.json()
+        if (cityData?.success && Array.isArray(cityData.data)) {
+          setCityOptions(cityData.data as SelectRegion[])
         }
       } catch (error) {
         console.error('Failed to fetch options:', error)
@@ -1583,6 +1603,10 @@ export function RegionsManager({ initialItems }: Props) {
         country_code: country.country_code,
         country_ko: country.country_ko,
         country_en: country.country_en,
+        // 국가 변경 시 도시 초기화
+        city_code: null,
+        city_ko: null,
+        city_en: null,
       }))
     }
   }
@@ -1604,11 +1628,38 @@ export function RegionsManager({ initialItems }: Props) {
   const handleContinentSelect = (continentId: string) => {
     const continent = continentOptions.find(c => String(c.id) === continentId)
     if (continent) {
+      setEditingData(prev => {
+        const update: Partial<EditingRow> = {
+          ...prev,
+          continent_code: continent.continent_code,
+          continent_ko: continent.continent_ko,
+          continent_en: continent.continent_en,
+        }
+        
+        // area 타입일 때만 국가와 도시 초기화 (country 타입일 때는 국가 데이터 보존)
+        if (selectedType === 'area') {
+          update.country_code = null
+          update.country_ko = null
+          update.country_en = null
+          update.city_code = null
+          update.city_ko = null
+          update.city_en = null
+        }
+        
+        return update
+      })
+    }
+  }
+
+  const handleCitySelect = (cityId: string) => {
+    const city = cityOptions.find(c => String(c.id) === cityId)
+    if (city) {
       setEditingData(prev => ({
         ...prev,
-        continent_code: continent.continent_code,
-        continent_ko: continent.continent_ko,
-        continent_en: continent.continent_en,
+        city_code: city.city_code,
+        city_ko: city.city_ko,
+        city_en: city.city_en,
+        city_slug: city.city_slug,
       }))
     }
   }
@@ -1778,8 +1829,8 @@ export function RegionsManager({ initialItems }: Props) {
         )
       }
       // 상위 지역 필드는 회색으로 표시
-      if (isParent && value) {
-        return <span className="text-xs text-gray-600">{value}</span>
+      if (isParent) {
+        return <span className="text-xs text-gray-600">{value ?? '-'}</span>
       }
       return <span className="text-sm">{value ?? '-'}</span>
     }
@@ -1892,7 +1943,50 @@ export function RegionsManager({ initialItems }: Props) {
         )
       }
       // 다른 타입: 콤보박스
-      const currentCountry = countryOptions.find(c => 
+      // area 타입일 때는 선택된 대륙에 맞는 국가만 필터링
+      let filteredCountries = countryOptions
+      if (selectedType === 'area' && editingData.continent_code) {
+        // 선택된 대륙 코드와 일치하는 국가만 필터링
+        const selectedContinentCode = String(editingData.continent_code).trim().toUpperCase()
+        filteredCountries = countryOptions.filter(country => {
+          // 국가 레코드에 continent_code가 직접 있는 경우
+          if (country.continent_code) {
+            const countryContinentCode = String(country.continent_code).trim().toUpperCase()
+            return countryContinentCode === selectedContinentCode
+          }
+          // 국가 레코드에 continent_code가 없으면, continent_ko나 continent_en으로 매칭 시도
+          if (editingData.continent_ko && country.continent_ko) {
+            return String(country.continent_ko).trim() === String(editingData.continent_ko).trim()
+          }
+          if (editingData.continent_en && country.continent_en) {
+            return String(country.continent_en).trim().toLowerCase() === String(editingData.continent_en).trim().toLowerCase()
+          }
+          return false
+        })
+        console.log('[RegionsManager] Filtering countries by continent:', {
+          selectedContinentCode,
+          selectedContinentKo: editingData.continent_ko,
+          selectedContinentEn: editingData.continent_en,
+          totalCountries: countryOptions.length,
+          filteredCount: filteredCountries.length,
+          sampleCountries: filteredCountries.slice(0, 3).map(c => ({ 
+            id: c.id, 
+            country_ko: c.country_ko, 
+            continent_code: c.continent_code,
+            continent_ko: c.continent_ko,
+            continent_en: c.continent_en
+          })),
+          sampleAllCountries: countryOptions.slice(0, 3).map(c => ({
+            id: c.id,
+            country_ko: c.country_ko,
+            continent_code: c.continent_code,
+            continent_ko: c.continent_ko,
+            continent_en: c.continent_en
+          }))
+        })
+      }
+      
+      const currentCountry = filteredCountries.find(c => 
         c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
       )
       return (
@@ -1905,10 +1999,11 @@ export function RegionsManager({ initialItems }: Props) {
               handleCountrySelect(e.target.value)
             }
           }}
-          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+          disabled={selectedType === 'area' && !editingData.continent_code && !editingData.region_code}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
         >
           <option value="">선택</option>
-          {countryOptions.map(country => (
+          {filteredCountries.map(country => (
             <option key={country.id} value={country.id}>
               {country.country_ko || '(이름 없음)'}
             </option>
@@ -1930,7 +2025,87 @@ export function RegionsManager({ initialItems }: Props) {
         )
       }
       // 다른 타입: 콤보박스
-      const currentCountry = countryOptions.find(c => 
+      // area 타입일 때는 선택된 대륙 또는 지역에 맞는 국가만 필터링
+      let filteredCountries = countryOptions
+      if (selectedType === 'area') {
+        // 1순위: 지역(region) 선택 시 해당 지역의 국가 필터링
+        if (editingData.region_code) {
+          const selectedRegionCode = String(editingData.region_code).trim().toUpperCase()
+          
+          // 방법 1: 지역 레코드에 직접 country_code가 있는 경우
+          const regionRecord = regionOptions.find(r => 
+            r.region_code && String(r.region_code).trim().toUpperCase() === selectedRegionCode
+          )
+          if (regionRecord?.country_code) {
+            filteredCountries = countryOptions.filter(country => 
+              country.country_code && String(country.country_code).trim().toUpperCase() === String(regionRecord.country_code).trim().toUpperCase()
+            )
+          } else {
+            // 방법 2: 도시 레코드를 통해 간접적으로 필터링
+            const citiesInRegion = cityOptions.filter(city => {
+              if (city.region_code) {
+                return String(city.region_code).trim().toUpperCase() === selectedRegionCode
+              }
+              return false
+            })
+            
+            const countryCodesInRegion = new Set(
+              citiesInRegion
+                .map(city => city.country_code)
+                .filter((code): code is string => code !== null && code !== undefined && code !== '')
+            )
+            
+            if (countryCodesInRegion.size > 0) {
+              filteredCountries = countryOptions.filter(country => 
+                country.country_code && countryCodesInRegion.has(country.country_code)
+              )
+            }
+          }
+        }
+        // 2순위: 대륙(continent) 선택 시 해당 대륙의 국가 필터링 (지역이 선택되지 않은 경우)
+        else if (editingData.continent_code) {
+          const selectedContinentCode = String(editingData.continent_code).trim().toUpperCase()
+          filteredCountries = countryOptions.filter(country => {
+            // 국가 레코드에 continent_code가 직접 있는 경우
+            if (country.continent_code) {
+              const countryContinentCode = String(country.continent_code).trim().toUpperCase()
+              return countryContinentCode === selectedContinentCode
+            }
+            // 국가 레코드에 continent_code가 없으면, continent_ko나 continent_en으로 매칭 시도
+            if (editingData.continent_ko && country.continent_ko) {
+              return String(country.continent_ko).trim() === String(editingData.continent_ko).trim()
+            }
+            if (editingData.continent_en && country.continent_en) {
+              return String(country.continent_en).trim().toLowerCase() === String(editingData.continent_en).trim().toLowerCase()
+            }
+            return false
+          })
+          
+          // 방법 2: 도시 레코드를 통해 간접적으로 필터링 (continent_code로 매칭이 안 될 때)
+          if (filteredCountries.length === 0) {
+            const citiesInContinent = cityOptions.filter(city => {
+              if (city.continent_code) {
+                return String(city.continent_code).trim().toUpperCase() === selectedContinentCode
+              }
+              return false
+            })
+            
+            const countryCodesInContinent = new Set(
+              citiesInContinent
+                .map(city => city.country_code)
+                .filter((code): code is string => code !== null && code !== undefined && code !== '')
+            )
+            
+            if (countryCodesInContinent.size > 0) {
+              filteredCountries = countryOptions.filter(country => 
+                country.country_code && countryCodesInContinent.has(country.country_code)
+              )
+            }
+          }
+        }
+      }
+      
+      const currentCountry = filteredCountries.find(c => 
         c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
       )
       return (
@@ -1943,10 +2118,11 @@ export function RegionsManager({ initialItems }: Props) {
               handleCountrySelect(e.target.value)
             }
           }}
-          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+          disabled={selectedType === 'area' && !editingData.continent_code && !editingData.region_code}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
         >
           <option value="">선택</option>
-          {countryOptions.map(country => (
+          {filteredCountries.map(country => (
             <option key={country.id} value={country.id}>
               {country.country_en || '(이름 없음)'}
             </option>
@@ -1969,7 +2145,87 @@ export function RegionsManager({ initialItems }: Props) {
         )
       }
       // 다른 타입: 콤보박스
-      const currentCountry = countryOptions.find(c => 
+      // area 타입일 때는 선택된 대륙 또는 지역에 맞는 국가만 필터링
+      let filteredCountries = countryOptions
+      if (selectedType === 'area') {
+        // 1순위: 지역(region) 선택 시 해당 지역의 국가 필터링
+        if (editingData.region_code) {
+          const selectedRegionCode = String(editingData.region_code).trim().toUpperCase()
+          
+          // 방법 1: 지역 레코드에 직접 country_code가 있는 경우
+          const regionRecord = regionOptions.find(r => 
+            r.region_code && String(r.region_code).trim().toUpperCase() === selectedRegionCode
+          )
+          if (regionRecord?.country_code) {
+            filteredCountries = countryOptions.filter(country => 
+              country.country_code && String(country.country_code).trim().toUpperCase() === String(regionRecord.country_code).trim().toUpperCase()
+            )
+          } else {
+            // 방법 2: 도시 레코드를 통해 간접적으로 필터링
+            const citiesInRegion = cityOptions.filter(city => {
+              if (city.region_code) {
+                return String(city.region_code).trim().toUpperCase() === selectedRegionCode
+              }
+              return false
+            })
+            
+            const countryCodesInRegion = new Set(
+              citiesInRegion
+                .map(city => city.country_code)
+                .filter((code): code is string => code !== null && code !== undefined && code !== '')
+            )
+            
+            if (countryCodesInRegion.size > 0) {
+              filteredCountries = countryOptions.filter(country => 
+                country.country_code && countryCodesInRegion.has(country.country_code)
+              )
+            }
+          }
+        }
+        // 2순위: 대륙(continent) 선택 시 해당 대륙의 국가 필터링 (지역이 선택되지 않은 경우)
+        else if (editingData.continent_code) {
+          const selectedContinentCode = String(editingData.continent_code).trim().toUpperCase()
+          filteredCountries = countryOptions.filter(country => {
+            // 국가 레코드에 continent_code가 직접 있는 경우
+            if (country.continent_code) {
+              const countryContinentCode = String(country.continent_code).trim().toUpperCase()
+              return countryContinentCode === selectedContinentCode
+            }
+            // 국가 레코드에 continent_code가 없으면, continent_ko나 continent_en으로 매칭 시도
+            if (editingData.continent_ko && country.continent_ko) {
+              return String(country.continent_ko).trim() === String(editingData.continent_ko).trim()
+            }
+            if (editingData.continent_en && country.continent_en) {
+              return String(country.continent_en).trim().toLowerCase() === String(editingData.continent_en).trim().toLowerCase()
+            }
+            return false
+          })
+          
+          // 방법 2: 도시 레코드를 통해 간접적으로 필터링
+          if (filteredCountries.length === 0) {
+            const citiesInContinent = cityOptions.filter(city => {
+              if (city.continent_code) {
+                return String(city.continent_code).trim().toUpperCase() === selectedContinentCode
+              }
+              return false
+            })
+            
+            const countryCodesInContinent = new Set(
+              citiesInContinent
+                .map(city => city.country_code)
+                .filter((code): code is string => code !== null && code !== undefined && code !== '')
+            )
+            
+            if (countryCodesInContinent.size > 0) {
+              filteredCountries = countryOptions.filter(country => 
+                country.country_code && countryCodesInContinent.has(country.country_code)
+              )
+            }
+          }
+        }
+      }
+      
+      const currentCountry = filteredCountries.find(c => 
         c.country_ko === editingData.country_ko && c.country_en === editingData.country_en && c.country_code === editingData.country_code
       )
       return (
@@ -1982,10 +2238,11 @@ export function RegionsManager({ initialItems }: Props) {
               handleCountrySelect(e.target.value)
             }
           }}
-          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+          disabled={selectedType === 'area' && !editingData.continent_code && !editingData.region_code}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
         >
           <option value="">선택</option>
-          {countryOptions.map(country => (
+          {filteredCountries.map(country => (
             <option key={country.id} value={country.id}>
               {country.country_code || '(코드 없음)'}
             </option>
@@ -2227,17 +2484,156 @@ export function RegionsManager({ initialItems }: Props) {
       )
     }
 
+    // 도시 관련 필드 (area 타입일 때 콤보박스)
+    if (columnKey === 'city_ko' && selectedType === 'area') {
+      // 선택된 국가에 맞는 도시만 필터링
+      let filteredCities = cityOptions
+      if (editingData.country_code) {
+        filteredCities = cityOptions.filter(city => 
+          city.country_code === editingData.country_code
+        )
+      }
+      
+      // 중복 제거 (id 기준)
+      const uniqueCities = filteredCities.reduce((acc: SelectRegion[], current) => {
+        const exists = acc.some(city => city.id === current.id)
+        if (!exists) {
+          acc.push(current)
+        }
+        return acc
+      }, [])
+      
+      const currentCity = uniqueCities.find(c => 
+        c.city_ko === editingData.city_ko && c.city_en === editingData.city_en && c.city_code === editingData.city_code
+      )
+      return (
+        <select
+          value={currentCity ? String(currentCity.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, city_ko: null, city_en: null, city_code: null }))
+            } else {
+              handleCitySelect(e.target.value)
+            }
+          }}
+          disabled={!editingData.country_code}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
+        >
+          <option value="">선택</option>
+          {uniqueCities.map(city => (
+            <option key={`city-${city.id}-${city.city_code || ''}`} value={city.id}>
+              {city.city_ko || '(이름 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    if (columnKey === 'city_en' && selectedType === 'area') {
+      let filteredCities = cityOptions
+      if (editingData.country_code) {
+        filteredCities = cityOptions.filter(city => 
+          city.country_code === editingData.country_code
+        )
+      }
+      
+      // 중복 제거 (id 기준)
+      const uniqueCities = filteredCities.reduce((acc: SelectRegion[], current) => {
+        const exists = acc.some(city => city.id === current.id)
+        if (!exists) {
+          acc.push(current)
+        }
+        return acc
+      }, [])
+      
+      const currentCity = uniqueCities.find(c => 
+        c.city_ko === editingData.city_ko && c.city_en === editingData.city_en && c.city_code === editingData.city_code
+      )
+      return (
+        <select
+          value={currentCity ? String(currentCity.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, city_ko: null, city_en: null, city_code: null }))
+            } else {
+              handleCitySelect(e.target.value)
+            }
+          }}
+          disabled={!editingData.country_code}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
+        >
+          <option value="">선택</option>
+          {uniqueCities.map(city => (
+            <option key={`city-${city.id}-${city.city_code || ''}`} value={city.id}>
+              {city.city_en || '(이름 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
+    if (columnKey === 'city_code' && selectedType === 'area') {
+      let filteredCities = cityOptions
+      if (editingData.country_code) {
+        filteredCities = cityOptions.filter(city => 
+          city.country_code === editingData.country_code
+        )
+      }
+      
+      // 중복 제거 (id 기준)
+      const uniqueCities = filteredCities.reduce((acc: SelectRegion[], current) => {
+        const exists = acc.some(city => city.id === current.id)
+        if (!exists) {
+          acc.push(current)
+        }
+        return acc
+      }, [])
+      
+      const currentCity = uniqueCities.find(c => 
+        c.city_ko === editingData.city_ko && c.city_en === editingData.city_en && c.city_code === editingData.city_code
+      )
+      return (
+        <select
+          value={currentCity ? String(currentCity.id) : ''}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setEditingData(prev => ({ ...prev, city_ko: null, city_en: null, city_code: null }))
+            } else {
+              handleCitySelect(e.target.value)
+            }
+          }}
+          disabled={!editingData.country_code}
+          className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
+        >
+          <option value="">선택</option>
+          {uniqueCities.map(city => (
+            <option key={`city-${city.id}-${city.city_code || ''}`} value={city.id}>
+              {city.city_code || '(코드 없음)'}
+            </option>
+          ))}
+        </select>
+      )
+    }
+
     // 기타 일반 필드
-    const isParentField = isParent || columnKey.startsWith('country_') || columnKey.startsWith('continent_') || columnKey.startsWith('region_')
-    const bgClass = isParentField && selectedType === 'city' ? 'bg-blue-50' : ''
+    const isParentField = isParent || columnKey.startsWith('city_') || columnKey.startsWith('country_') || columnKey.startsWith('continent_') || columnKey.startsWith('region_')
+    const bgClass = isParentField && (selectedType === 'city' || selectedType === 'area') ? 'bg-blue-50' : ''
     
     return (
       <input
         type="text"
         value={String((editingData as any)[columnKey] ?? '')}
-        onChange={(e) => setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))}
-        className={`w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 ${bgClass}`}
+        onChange={(e) => {
+          // city_code는 대문자로 변환
+          if (columnKey === 'city_code') {
+            setEditingData(prev => ({ ...prev, [columnKey]: e.target.value.toUpperCase() }))
+          } else {
+            setEditingData(prev => ({ ...prev, [columnKey]: e.target.value }))
+          }
+        }}
+        className={`w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 ${bgClass} ${columnKey === 'city_code' ? 'uppercase' : ''}`}
         placeholder={isParentField ? '선택사항' : ''}
+        maxLength={columnKey === 'city_code' ? 3 : undefined}
       />
     )
   }

@@ -1614,7 +1614,7 @@ export async function bulkUpdateHotelRegionCodes(): Promise<ActionResult<{ updat
           (region.city_ko || region.city_en || 
            region.country_ko || region.country_en || 
            region.continent_ko || region.continent_en || 
-           region.region_name_ko || region.region_name_en ||
+           region.region_name_ko || region.region_name_en || 
            region.area_ko || region.area_en ||
            `id:${region.id}`) as string
         errors.push(`${displayName}: ${e instanceof Error ? e.message : '알 수 없는 오류'}`)

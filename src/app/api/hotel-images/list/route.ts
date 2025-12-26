@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const { data: hotel, error } = await supabase
       .from("select_hotels")
       .select(
-        "sabre_id, property_name_ko, property_name_en, slug, image_1, image_2, image_3, image_4, image_5",
+        "sabre_id, property_name_ko, property_name_en, slug",
       )
       .eq("sabre_id", sabreId)
       .single();
