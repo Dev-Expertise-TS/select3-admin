@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Save, X, Trash2, Link2, Edit, GripVertical, PlusCircle, List } from 'lucide-react'
+import { Save, X, Trash2, Link2, Edit, GripVertical, PlusCircle, List, ChevronUp, ChevronDown } from 'lucide-react'
 import { saveChain, createChain, saveBrand, createBrand, updateChainSortOrder, updateBrandSortOrder, deleteChain, deleteBrand } from '@/features/chain-brand/actions'
 import ConnectedHotelsModal from './ConnectedHotelsModal'
 import { slugify } from '@/lib/format'
@@ -450,6 +450,12 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     id: number
     name: string
   } | null>(null)
+  
+  // 정렬 상태
+  const [brandSortField, setBrandSortField] = useState<'chain' | 'status' | null>(null)
+  const [brandSortDirection, setBrandSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [chainSortField, setChainSortField] = useState<'status' | null>(null)
+  const [chainSortDirection, setChainSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // 드래그앤 드롭 센서
   const sensors = useSensors(
@@ -522,6 +528,88 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     setLoading(false)
     console.log('✅ 체인 순서가 저장되었습니다.')
   }
+
+  // 브랜드 정렬 핸들러
+  const handleBrandSort = (field: 'chain' | 'status') => {
+    if (brandSortField === field) {
+      setBrandSortDirection(brandSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setBrandSortField(field)
+      setBrandSortDirection('asc')
+    }
+  }
+
+  // 체인 정렬 핸들러
+  const handleChainSort = (field: 'status') => {
+    if (chainSortField === field) {
+      setChainSortDirection(chainSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setChainSortField(field)
+      setChainSortDirection('asc')
+    }
+  }
+
+  // 정렬된 브랜드 목록
+  const sortedBrands = React.useMemo(() => {
+    let sorted = [...brands]
+    
+    if (brandSortField === 'chain') {
+      sorted.sort((a, b) => {
+        const aChainName = chains.find(c => c.chain_id === a.chain_id)?.name_kr || chains.find(c => c.chain_id === a.chain_id)?.name_en || ''
+        const bChainName = chains.find(c => c.chain_id === b.chain_id)?.name_kr || chains.find(c => c.chain_id === b.chain_id)?.name_en || ''
+        
+        // null/빈 값 처리: null은 맨 뒤로
+        if (!aChainName && !bChainName) return 0
+        if (!aChainName) return 1
+        if (!bChainName) return -1
+        
+        const comparison = aChainName.localeCompare(bChainName, 'ko', { numeric: true })
+        return brandSortDirection === 'asc' ? comparison : -comparison
+      })
+      return sorted
+    } else if (brandSortField === 'status') {
+      sorted.sort((a, b) => {
+        const aStatus = a.status || ''
+        const bStatus = b.status || ''
+        
+        // null/빈 값 처리: null은 맨 뒤로
+        if (!aStatus && !bStatus) return 0
+        if (!aStatus) return 1
+        if (!bStatus) return -1
+        
+        const comparison = aStatus.localeCompare(bStatus, 'ko', { numeric: true })
+        return brandSortDirection === 'asc' ? comparison : -comparison
+      })
+      return sorted
+    }
+    
+    // 정렬 필드가 없을 때만 기본 정렬 적용
+    return sortBrands(sorted)
+  }, [brands, chains, brandSortField, brandSortDirection])
+
+  // 정렬된 체인 목록
+  const sortedChains = React.useMemo(() => {
+    let sorted = [...chains]
+    
+    if (chainSortField === 'status') {
+      sorted.sort((a, b) => {
+        const aStatus = a.status || ''
+        const bStatus = b.status || ''
+        
+        // null/빈 값 처리: null은 맨 뒤로
+        if (!aStatus && !bStatus) return 0
+        if (!aStatus) return 1
+        if (!bStatus) return -1
+        
+        const comparison = aStatus.localeCompare(bStatus, 'ko', { numeric: true })
+        return chainSortDirection === 'asc' ? comparison : -comparison
+      })
+      return sorted
+    }
+    
+    // 정렬 필드가 없을 때만 기본 정렬 적용
+    return sortChains(sorted)
+  }, [chains, chainSortField, chainSortDirection])
 
   // 브랜드 수정 시작
   const handleEditBrand = (brand: Brand) => {
@@ -1045,15 +1133,37 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                       <th className="border p-2 text-left" style={{ width: '150px' }}>브랜드(한글)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>브랜드(영문)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>Brand Slug</th>
-                      <th className="border p-2 text-left" style={{ width: '150px' }}>체인</th>
-                      <th className="border p-2 text-center" style={{ width: '90px' }}>상태</th>
+                      <th 
+                        className="border p-2 text-left cursor-pointer hover:bg-gray-200 select-none" 
+                        style={{ width: '150px' }}
+                        onClick={() => handleBrandSort('chain')}
+                      >
+                        <div className="flex items-center gap-1">
+                          체인
+                          {brandSortField === 'chain' && (
+                            brandSortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                          )}
+                        </div>
+                      </th>
+                      <th 
+                        className="border p-2 text-center cursor-pointer hover:bg-gray-200 select-none" 
+                        style={{ width: '90px' }}
+                        onClick={() => handleBrandSort('status')}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          상태
+                          {brandSortField === 'status' && (
+                            brandSortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                          )}
+                        </div>
+                      </th>
                       <th className="border p-2 text-left" style={{ width: '200px' }}>작업</th>
                     </tr>
                   </thead>
-                  <SortableContext items={brands.map(b => b.brand_id)} strategy={verticalListSortingStrategy}>
+                  <SortableContext items={sortedBrands.map(b => b.brand_id)} strategy={verticalListSortingStrategy}>
                     <tbody>
                       {renderNewBrandRow()}
-                      {brands.map((brand) => {
+                      {sortedBrands.map((brand) => {
                         const isEditing = editingBrandId === brand.brand_id
                         const isRecentlyUpdated = recentlyUpdatedBrandId === brand.brand_id
                         return (
@@ -1081,7 +1191,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
               </DndContext>
             </div>
             <div className="p-3 border-t bg-gray-50 text-sm text-gray-600">
-              총 {brands.length}개 브랜드
+              총 {sortedBrands.length}개 브랜드
             </div>
           </div>
         </div>
@@ -1110,14 +1220,25 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                       <th className="border p-2 text-left" style={{ width: '150px' }}>체인(한글)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>체인(영문)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>Chain Slug</th>
-                      <th className="border p-2 text-center" style={{ width: '90px' }}>상태</th>
+                      <th 
+                        className="border p-2 text-center cursor-pointer hover:bg-gray-200 select-none" 
+                        style={{ width: '90px' }}
+                        onClick={() => handleChainSort('status')}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          상태
+                          {chainSortField === 'status' && (
+                            chainSortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                          )}
+                        </div>
+                      </th>
                       <th className="border p-2 text-left" style={{ width: '200px' }}>작업</th>
                     </tr>
                   </thead>
-                  <SortableContext items={chains.map(c => c.chain_id)} strategy={verticalListSortingStrategy}>
+                  <SortableContext items={sortedChains.map(c => c.chain_id)} strategy={verticalListSortingStrategy}>
                     <tbody>
                       {renderNewChainRow()}
-                      {chains.map((chain) => {
+                      {sortedChains.map((chain) => {
                         const isEditing = editingChainId === chain.chain_id
                         const isRecentlyUpdated = recentlyUpdatedChainId === chain.chain_id
                         return (
@@ -1144,7 +1265,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
               </DndContext>
             </div>
             <div className="p-3 border-t bg-gray-50 text-sm text-gray-600">
-              총 {chains.length}개 체인
+              총 {sortedChains.length}개 체인
             </div>
           </div>
         </div>

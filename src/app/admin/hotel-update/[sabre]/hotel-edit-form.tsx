@@ -537,16 +537,16 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
             </div>
             
             {/* 호텔명(한글) */}
-            <div className="space-y-1 md:col-span-1">
+          <div className="space-y-1 md:col-span-1">
               <label className="block text-sm font-medium text-gray-700">호텔명(한글)</label>
               {isEditMode ? (
-                <input
-                  type="text"
-                  name="property_name_ko"
-                  defaultValue={formData.property_name_ko}
-                  onBlur={(e) => handleInputChange('property_name_ko', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="호텔명(한글)"
+                <input 
+                type="text"
+                  name="property_name_ko" 
+                defaultValue={formData.property_name_ko}
+                onBlur={(e) => handleInputChange('property_name_ko', e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="호텔명(한글)"
                 />
               ) : (
                 <div className={cn(
@@ -559,16 +559,16 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
             </div>
             
             {/* 호텔명(영문) */}
-            <div className="space-y-1 md:col-span-1">
+          <div className="space-y-1 md:col-span-1">
               <label className="block text-sm font-medium text-gray-700">호텔명(영문)</label>
               {isEditMode ? (
                 <input 
-                  type="text"
+                type="text"
                   name="property_name_en" 
-                  defaultValue={formData.property_name_en}
-                  onBlur={(e) => handleInputChange('property_name_en', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="호텔명(영문)"
+                defaultValue={formData.property_name_en}
+                onBlur={(e) => handleInputChange('property_name_en', e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="호텔명(영문)"
                 />
               ) : (
                 <div className={cn(
@@ -768,18 +768,18 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
                 <label className="block text-sm font-medium text-gray-700">호텔 주소</label>
                 {isEditMode ? (
                   <div className="flex gap-2">
-                    <input 
-                      type="text"
-                      name="property_address" 
-                      value={formData.property_address}
-                      onChange={(e) => handleInputChange('property_address', e.target.value)}
+                  <input 
+                type="text"
+                    name="property_address" 
+                    value={formData.property_address}
+                    onChange={(e) => handleInputChange('property_address', e.target.value)}
                       disabled={isSearchingAddress}
                       className={cn(
                         "flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
                         isSearchingAddress && "bg-gray-100 opacity-60 cursor-not-allowed"
                       )}
-                      placeholder="호텔 주소"
-                    />
+                placeholder="호텔 주소"
+                  />
                     <Button
                       type="button"
                       onClick={(e) => {

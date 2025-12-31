@@ -227,7 +227,7 @@ export function RegionsManager({ initialItems }: Props) {
   const [editingRowId, setEditingRowId] = useState<number | 'new' | null>(null)
   const [editingData, setEditingData] = useState<Partial<EditingRow>>({})
   const [isSavingOrder, setIsSavingOrder] = useState(false)
-
+  
   const toOrderNumber = (value: unknown): number => {
     if (typeof value === 'number' && Number.isFinite(value)) return value
     if (typeof value === 'string') {
@@ -1630,10 +1630,10 @@ export function RegionsManager({ initialItems }: Props) {
     if (continent) {
       setEditingData(prev => {
         const update: Partial<EditingRow> = {
-          ...prev,
-          continent_code: continent.continent_code,
-          continent_ko: continent.continent_ko,
-          continent_en: continent.continent_en,
+        ...prev,
+        continent_code: continent.continent_code,
+        continent_ko: continent.continent_ko,
+        continent_en: continent.continent_en,
         }
         
         // area 타입일 때만 국가와 도시 초기화 (country 타입일 때는 국가 데이터 보존)
