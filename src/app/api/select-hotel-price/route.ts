@@ -5,6 +5,40 @@ import { SABRE_CONFIG } from "@/config/sabre";
 // 실시간 데이터이므로 캐시 비활성화
 export const dynamic = "force-dynamic";
 
+// *.priviatravel.com 서브도메인만 허용하는 CORS 체크
+function isAllowedOrigin(origin: string | null): string {
+  if (!origin) return "";
+
+  // 패턴: https://*.priviatravel.com (포트 포함 가능)
+  // 예: https://local.priviatravel.com:8443, https://www.priviatravel.com
+  const pattern = /^https?:\/\/([a-zA-Z0-9-]+\.)?priviatravel\.com(:\d+)?$/;
+
+  return pattern.test(origin) ? origin : "";
+}
+
+// CORS 헤더 생성 함수
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = isAllowedOrigin(origin);
+
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    // origin이 동적이므로 Vary 헤더 추가 (캐시 관련)
+    ...(allowedOrigin && { Vary: "Origin" }),
+  };
+}
+
+// OPTIONS 메소드 처리 (CORS preflight)
+export async function OPTIONS(request: NextRequest) {
+  const origin = request.headers.get("origin");
+
+  return new Response(null, {
+    status: 200,
+    headers: getCorsHeaders(origin),
+  });
+}
+
 /**
  * ExactMatchOnly가 true인 Rate Plan Codes
  *
@@ -240,7 +274,12 @@ function convertSabreResponse(
 }
 
 export async function GET(request: NextRequest) {
-  const cacheHeaders = { "Cache-Control": "no-store" };
+  // Origin 헤더 추출 및 CORS + 캐시 헤더 병합
+  const origin = request.headers.get("origin");
+  const responseHeaders = {
+    ...getCorsHeaders(origin),
+    "Cache-Control": "no-store",
+  };
 
   try {
     // 1. Bearer 토큰 검증
@@ -250,7 +289,7 @@ export async function GET(request: NextRequest) {
     if (!token || token !== process.env.API_TOKEN) {
       return NextResponse.json(
         { success: false, error: "인증 토큰이 유효하지 않습니다" },
-        { status: 401, headers: cacheHeaders }
+        { status: 401, headers: responseHeaders }
       );
     }
 
@@ -276,7 +315,7 @@ export async function GET(request: NextRequest) {
             "number_of_people",
           ],
         },
-        { status: 400, headers: cacheHeaders }
+        { status: 400, headers: responseHeaders }
       );
     }
 
@@ -290,7 +329,7 @@ export async function GET(request: NextRequest) {
           example: "2024-03-15",
           provided_value: checkIn,
         },
-        { status: 400, headers: cacheHeaders }
+        { status: 400, headers: responseHeaders }
       );
     }
 
@@ -305,7 +344,7 @@ export async function GET(request: NextRequest) {
           today,
           provided_value: checkIn,
         },
-        { status: 400, headers: cacheHeaders }
+        { status: 400, headers: responseHeaders }
       );
     }
 
@@ -319,7 +358,7 @@ export async function GET(request: NextRequest) {
           message: "숙박 일수는 1-30일 사이로 입력해주세요.",
           provided_value: nightsStr,
         },
-        { status: 400, headers: cacheHeaders }
+        { status: 400, headers: responseHeaders }
       );
     }
 
@@ -333,7 +372,7 @@ export async function GET(request: NextRequest) {
           message: "투숙 인원은 1-20명 사이로 입력해주세요.",
           provided_value: numberOfPeopleStr,
         },
-        { status: 400, headers: cacheHeaders }
+        { status: 400, headers: responseHeaders }
       );
     }
 
@@ -353,7 +392,7 @@ export async function GET(request: NextRequest) {
             error: "해당 sabre_id의 호텔을 찾을 수 없습니다",
             sabre_id: sabreId,
           },
-          { status: 404, headers: cacheHeaders }
+          { status: 404, headers: responseHeaders }
         );
       }
 
@@ -367,7 +406,7 @@ export async function GET(request: NextRequest) {
           sabre_id: sabreId,
           retry_suggested: true,
         },
-        { status: 503, headers: cacheHeaders }
+        { status: 503, headers: responseHeaders }
       );
     }
 
@@ -389,7 +428,7 @@ export async function GET(request: NextRequest) {
           sabre_id: sabreId,
           suggestion: "다른 숙소를 선택해주세요.",
         },
-        { status: 422, headers: cacheHeaders }
+        { status: 422, headers: responseHeaders }
       );
     }
 
@@ -443,7 +482,7 @@ export async function GET(request: NextRequest) {
             message: "네트워크 상태가 불안정합니다. 잠시 후 다시 시도해주세요.",
             retry_suggested: true,
           },
-          { status: 504, headers: cacheHeaders }
+          { status: 504, headers: responseHeaders }
         );
       }
 
@@ -456,7 +495,7 @@ export async function GET(request: NextRequest) {
             "예상치 못한 문제가 발생했습니다. CX DM 팀으로 문의해주세요.",
           error_id: Math.random().toString(36).substring(2, 10),
         },
-        { status: 500, headers: cacheHeaders }
+        { status: 500, headers: responseHeaders }
       );
     }
 
@@ -479,7 +518,7 @@ export async function GET(request: NextRequest) {
             "예상치 못한 문제가 발생했습니다. CX DM 팀으로 문의해주세요.",
           error_id: Math.random().toString(36).substring(2, 10),
         },
-        { status: 500, headers: cacheHeaders }
+        { status: 500, headers: responseHeaders }
       );
     }
 
@@ -500,7 +539,7 @@ export async function GET(request: NextRequest) {
             guests: numberOfPeople,
           },
         },
-        { status: 404, headers: cacheHeaders }
+        { status: 404, headers: responseHeaders }
       );
     }
 
@@ -517,7 +556,7 @@ export async function GET(request: NextRequest) {
           nights,
         },
       },
-      { status: 200, headers: cacheHeaders }
+      { status: 200, headers: responseHeaders }
     );
   } catch (error) {
     console.error("select-hotel-price API 오류:", error);
@@ -528,7 +567,7 @@ export async function GET(request: NextRequest) {
         message: "예상치 못한 문제가 발생했습니다. CX DM 팀으로 문의해주세요.",
         error_id: Math.random().toString(36).substring(2, 10),
       },
-      { status: 500, headers: cacheHeaders }
+      { status: 500, headers: responseHeaders }
     );
   }
 }
