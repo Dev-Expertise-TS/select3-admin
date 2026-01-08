@@ -282,25 +282,14 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    // 1. Bearer 토큰 검증
-    const authHeader = request.headers.get("Authorization");
-    const token = authHeader?.replace("Bearer ", "");
-
-    if (!token || token !== process.env.API_TOKEN) {
-      return NextResponse.json(
-        { success: false, error: "인증 토큰이 유효하지 않습니다" },
-        { status: 401, headers: responseHeaders }
-      );
-    }
-
-    // 2. Query Parameters 추출
+    // 1. Query Parameters 추출
     const { searchParams } = new URL(request.url);
     const sabreId = searchParams.get("sabre_id");
     const checkIn = searchParams.get("check_in");
     const nightsStr = searchParams.get("nights");
     const numberOfPeopleStr = searchParams.get("number_of_people");
 
-    // 3. 필수 파라미터 검증
+    // 2. 필수 파라미터 검증
     if (!sabreId || !checkIn || !nightsStr || !numberOfPeopleStr) {
       return NextResponse.json(
         {
@@ -319,7 +308,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 4. 날짜 형식 검증
+    // 3. 날짜 형식 검증
     if (!isValidDateFormat(checkIn)) {
       return NextResponse.json(
         {
@@ -333,7 +322,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 5. 과거 날짜 검증
+    // 4. 과거 날짜 검증
     const today = getTodayString();
     if (checkIn < today) {
       return NextResponse.json(
@@ -348,7 +337,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 6. nights 범위 검증
+    // 5. nights 범위 검증
     const nights = parseInt(nightsStr, 10);
     if (isNaN(nights) || nights < 1 || nights > 30) {
       return NextResponse.json(
@@ -362,7 +351,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 7. number_of_people 범위 검증
+    // 6. number_of_people 범위 검증
     const numberOfPeople = parseInt(numberOfPeopleStr, 10);
     if (isNaN(numberOfPeople) || numberOfPeople < 1 || numberOfPeople > 20) {
       return NextResponse.json(
@@ -376,7 +365,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 8. Supabase에서 rate_plan_code 조회
+    // 7. Supabase에서 rate_plan_code 조회
     const supabase = createServiceRoleClient();
     const { data: hotelData, error: dbError } = await supabase
       .from("select_hotels")
@@ -410,7 +399,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 9. rate_plan_code 배열로 변환
+    // 8. rate_plan_code 배열로 변환
     const ratePlanCodes: string[] = hotelData.rate_plan_code
       ? hotelData.rate_plan_code
           .split(",")
@@ -418,7 +407,7 @@ export async function GET(request: NextRequest) {
           .filter(Boolean)
       : [];
 
-    // 10. rate_plan_code가 없으면 요금 조회 불가
+    // 9. rate_plan_code가 없으면 요금 조회 불가
     if (ratePlanCodes.length === 0) {
       return NextResponse.json(
         {
@@ -432,13 +421,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 11. 체크아웃 날짜 계산
+    // 10. 체크아웃 날짜 계산
     const checkOut = calculateCheckOutDate(checkIn, nights);
 
-    // 12. ExactMatchOnly 결정
+    // 11. ExactMatchOnly 결정
     const exactMatchOnly = determineExactMatchOnly(ratePlanCodes);
 
-    // 13. 외부 Sabre 프록시 API 호출
+    // 12. 외부 Sabre 프록시 API 호출
     const sabreRequestBody = {
       HotelCode: sabreId,
       CurrencyCode: "KRW",
@@ -501,7 +490,7 @@ export async function GET(request: NextRequest) {
 
     clearTimeout(timeoutId);
 
-    // 14. Sabre 응답 파싱
+    // 13. Sabre 응답 파싱
     const sabreResponseText = await sabreResponse.text();
     console.log("Sabre 프록시 API 응답 상태:", sabreResponse.status);
 
@@ -522,10 +511,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 15. 응답 변환
+    // 14. 응답 변환
     const convertedData = convertSabreResponse(sabreData, sabreId, checkIn);
 
-    // 16. 객실 정보가 없으면 404
+    // 15. 객실 정보가 없으면 404
     if (convertedData.roomDescriptions.length === 0) {
       return NextResponse.json(
         {
@@ -543,7 +532,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 17. 성공 응답
+    // 16. 성공 응답
     return NextResponse.json(
       {
         success: true,
