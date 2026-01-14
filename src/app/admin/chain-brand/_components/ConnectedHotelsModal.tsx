@@ -13,6 +13,7 @@ interface Hotel {
   city_ko: string | null
   country_ko: string | null
   brand_id?: number | null
+  brand_position?: 1 | 2 | 3 // 브랜드 위치 정보
 }
 
 interface ConnectedHotelsModalProps {
@@ -64,18 +65,37 @@ export default function ConnectedHotelsModal({
     }
   }
 
-  const handleDisconnect = async (hotel: Hotel) => {
-    if (!confirm(`"${hotel.property_name_ko || hotel.property_name_en || hotel.sabre_id}"의 연결을 해제하시겠습니까?`)) {
+  const handleDisconnect = async (hotel: Hotel, brandPosition?: 1 | 2 | 3) => {
+    const positionText = brandPosition ? `브랜드${brandPosition} ` : ''
+    if (!confirm(`"${hotel.property_name_ko || hotel.property_name_en || hotel.sabre_id}"의 ${positionText}연결을 해제하시겠습니까?`)) {
       return
     }
 
     setDisconnecting(hotel.sabre_id)
     try {
-      const result = await disconnectHotelFromBrand(hotel.sabre_id)
+      const result = await disconnectHotelFromBrand(hotel.sabre_id, brandPosition)
       
       if (result.success) {
-        // 목록에서 제거
-        setHotels(prev => prev.filter(h => h.sabre_id !== hotel.sabre_id))
+        // 브랜드 위치가 지정된 경우, 해당 위치의 브랜드만 제거
+        // 위치가 지정되지 않은 경우, 목록에서 제거
+        if (brandPosition) {
+          setHotels(prev => prev.map(h => {
+            if (h.sabre_id === hotel.sabre_id && h.brand_position === brandPosition) {
+              // 다른 브랜드 위치가 있는지 확인
+              const otherPositions = prev.filter(h2 => h2.sabre_id === hotel.sabre_id && h2.brand_position !== brandPosition)
+              if (otherPositions.length > 0) {
+                // 다른 브랜드 위치가 있으면 해당 호텔만 제거
+                return null
+              }
+              // 다른 브랜드 위치가 없으면 호텔 자체를 제거
+              return null
+            }
+            return h
+          }).filter(Boolean) as Hotel[])
+        } else {
+          // 목록에서 제거
+          setHotels(prev => prev.filter(h => h.sabre_id !== hotel.sabre_id))
+        }
         alert('연결이 해제되었습니다.')
         onHotelDisconnected?.()
       } else {
@@ -170,29 +190,57 @@ export default function ConnectedHotelsModal({
                     <p className="text-xs text-gray-400 mt-1 font-mono">
                       Sabre ID: {hotel.sabre_id}
                     </p>
+                    {hotel.brand_position && (
+                      <p className="text-xs text-blue-600 mt-1 font-medium">
+                        브랜드 위치: 브랜드{hotel.brand_position}
+                      </p>
+                    )}
                   </div>
                   
                   <div className="flex-shrink-0">
-                    <Button
-                      onClick={() => handleDisconnect(hotel)}
-                      size="sm"
-                      variant="outline"
-                      disabled={disconnecting === hotel.sabre_id}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                      title="연결 해제"
-                    >
-                      {disconnecting === hotel.sabre_id ? (
-                        <div className="flex items-center gap-2">
-                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
-                          <span className="text-xs">해제 중...</span>
-                        </div>
-                      ) : (
-                        <>
-                          <Trash2 className="h-3 w-3" />
-                          <span className="ml-1 text-xs">연결 해제</span>
-                        </>
-                      )}
-                    </Button>
+                    {hotel.brand_position ? (
+                      <Button
+                        onClick={() => handleDisconnect(hotel, hotel.brand_position)}
+                        size="sm"
+                        variant="outline"
+                        disabled={disconnecting === hotel.sabre_id}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        title={`브랜드${hotel.brand_position} 연결 해제`}
+                      >
+                        {disconnecting === hotel.sabre_id ? (
+                          <div className="flex items-center gap-2">
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                            <span className="text-xs">해제 중...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <Trash2 className="h-3 w-3" />
+                            <span className="ml-1 text-xs">브랜드{hotel.brand_position} 해제</span>
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handleDisconnect(hotel)}
+                        size="sm"
+                        variant="outline"
+                        disabled={disconnecting === hotel.sabre_id}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        title="연결 해제"
+                      >
+                        {disconnecting === hotel.sabre_id ? (
+                          <div className="flex items-center gap-2">
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                            <span className="text-xs">해제 중...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <Trash2 className="h-3 w-3" />
+                            <span className="ml-1 text-xs">연결 해제</span>
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

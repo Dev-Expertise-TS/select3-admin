@@ -333,7 +333,7 @@ export async function updateHotelRow(params: { sabreId: string | null; paragonId
       throw new Error('sabre_id 또는 paragon_id가 필요합니다.')
     }
     
-    const { data, error } = await query.select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_code, brand_id').single()
+    const { data, error } = await query.select('sabre_id, paragon_id, property_name_ko, property_name_en, rate_plan_code, brand_id, brand_id_2, brand_id_3, brand_name_kr, brand_name_en, brand_name_kr_2, brand_name_en_2, brand_name_kr_3, brand_name_en_3').single()
     
     if (error) {
       console.error('호텔 업데이트 오류:', error)

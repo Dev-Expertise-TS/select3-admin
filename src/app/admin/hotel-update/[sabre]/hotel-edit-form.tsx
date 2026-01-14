@@ -96,13 +96,134 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
   // 하이라이트된 필드 추적
   const [highlightedFields, setHighlightedFields] = React.useState<Set<string>>(new Set())
   
-  // 현재 brand_id 상태 (선택된 브랜드에 따라 업데이트)
-  const [currentBrandId, setCurrentBrandId] = React.useState<number | null>(() => {
-    return initialData.brand_id ? Number(initialData.brand_id) : null
+  // 브랜드1, 브랜드2, 브랜드3 상태 관리
+  const [selectedBrand1, setSelectedBrand1] = React.useState<Brand | null>(() => {
+    const brandId = initialData.brand_id ? Number(initialData.brand_id) : null
+    
+    if (!brandId) return null
+    
+    // select_hotels 테이블의 brand_name_kr, brand_name_en 필드 우선 사용
+    let brandNameKr = initialData.brand_name_kr ? String(initialData.brand_name_kr) : null
+    let brandNameEn = initialData.brand_name_en ? String(initialData.brand_name_en) : null
+    
+    // brand_name_kr, brand_name_en이 없으면 hotel_brands 객체에서 조회
+    if ((!brandNameKr || !brandNameEn) && initialData.hotel_brands) {
+      const brands = initialData.hotel_brands as Record<string, unknown> | null
+      if (brands) {
+        // hotel_brands 테이블의 컬럼명 확인 (brand_name_ko 또는 name_kr)
+        const nameKr = brands.brand_name_ko || brands.name_kr || brands.brand_name_kr
+        const nameEn = brands.brand_name_en || brands.name_en
+        
+        brandNameKr = brandNameKr || (nameKr ? String(nameKr) : null)
+        brandNameEn = brandNameEn || (nameEn ? String(nameEn) : null)
+      }
+    }
+    
+    // 브랜드 이름이 여전히 없으면 brand_id로 hotel_brands 테이블에서 조회 (비동기)
+    // 하지만 초기 상태에서는 동기적으로 처리해야 하므로, 일단 있는 데이터만 사용
+    // 브랜드 이름이 없으면 빈 문자열로 설정 (나중에 브랜드 선택 시 업데이트됨)
+    
+    return {
+      brand_id: brandId,
+      chain_id: initialData.hotel_brands ? Number((initialData.hotel_brands as Record<string, unknown>).chain_id ?? 0) || null : null,
+      name_kr: brandNameKr || '',
+      name_en: brandNameEn || ''
+    }
   })
+  
+  const [selectedBrand2, setSelectedBrand2] = React.useState<Brand | null>(() => {
+    const brandId = initialData.brand_id_2 ? Number(initialData.brand_id_2) : null
+    const brandNameKr = initialData.brand_name_kr_2 ? String(initialData.brand_name_kr_2) : null
+    const brandNameEn = initialData.brand_name_en_2 ? String(initialData.brand_name_en_2) : null
+    
+    return brandId ? {
+      brand_id: brandId,
+      chain_id: null,
+      name_kr: brandNameKr || '',
+      name_en: brandNameEn || ''
+    } : null
+  })
+  
+  const [selectedBrand3, setSelectedBrand3] = React.useState<Brand | null>(() => {
+    const brandId = initialData.brand_id_3 ? Number(initialData.brand_id_3) : null
+    const brandNameKr = initialData.brand_name_kr_3 ? String(initialData.brand_name_kr_3) : null
+    const brandNameEn = initialData.brand_name_en_3 ? String(initialData.brand_name_en_3) : null
+    
+    return brandId ? {
+      brand_id: brandId,
+      chain_id: null,
+      name_kr: brandNameKr || '',
+      name_en: brandNameEn || ''
+    } : null
+  })
+
+  // 브랜드 이름이 없을 때 brand_id로 조회하여 채우기
+  React.useEffect(() => {
+    const loadBrandNames = async () => {
+      const brandIdsToLoad: Array<{ position: 1 | 2 | 3; brandId: number }> = []
+      
+      // 브랜드1 이름이 없으면 조회 필요
+      if (selectedBrand1?.brand_id && (!selectedBrand1.name_kr || !selectedBrand1.name_en)) {
+        brandIdsToLoad.push({ position: 1, brandId: selectedBrand1.brand_id })
+      }
+      
+      // 브랜드2 이름이 없으면 조회 필요
+      if (selectedBrand2?.brand_id && (!selectedBrand2.name_kr || !selectedBrand2.name_en)) {
+        brandIdsToLoad.push({ position: 2, brandId: selectedBrand2.brand_id })
+      }
+      
+      // 브랜드3 이름이 없으면 조회 필요
+      if (selectedBrand3?.brand_id && (!selectedBrand3.name_kr || !selectedBrand3.name_en)) {
+        brandIdsToLoad.push({ position: 3, brandId: selectedBrand3.brand_id })
+      }
+      
+      if (brandIdsToLoad.length === 0) return
+      
+      try {
+        const brandIds = brandIdsToLoad.map(b => b.brandId)
+        const response = await fetch(`/api/chain-brand/list`)
+        const result = await response.json()
+        
+        if (result.success && result.data?.brands) {
+          const brands = result.data.brands as Brand[]
+          const brandMap = new Map(brands.map(b => [b.brand_id, b]))
+          
+          brandIdsToLoad.forEach(({ position, brandId }) => {
+            const brand = brandMap.get(brandId)
+            if (brand) {
+              if (position === 1) {
+                setSelectedBrand1(prev => prev ? {
+                  ...prev,
+                  name_kr: prev.name_kr || brand.name_kr || '',
+                  name_en: prev.name_en || brand.name_en || ''
+                } : null)
+              } else if (position === 2) {
+                setSelectedBrand2(prev => prev ? {
+                  ...prev,
+                  name_kr: prev.name_kr || brand.name_kr || '',
+                  name_en: prev.name_en || brand.name_en || ''
+                } : null)
+              } else if (position === 3) {
+                setSelectedBrand3(prev => prev ? {
+                  ...prev,
+                  name_kr: prev.name_kr || brand.name_kr || '',
+                  name_en: prev.name_en || brand.name_en || ''
+                } : null)
+              }
+            }
+          })
+        }
+      } catch (error) {
+        console.error('브랜드 이름 로드 실패:', error)
+      }
+    }
+    
+    loadBrandNames()
+  }, [selectedBrand1?.brand_id, selectedBrand2?.brand_id, selectedBrand3?.brand_id])
 
   // 체인/브랜드 선택 팝업 상태
   const [isChainBrandPickerOpen, setIsChainBrandPickerOpen] = React.useState(false)
+  const [currentBrandPosition, setCurrentBrandPosition] = React.useState<1 | 2 | 3>(1) // 현재 선택 중인 브랜드 위치
   const [selectedChain, setSelectedChain] = React.useState<Chain | null>(() => {
     if (initialData.hotel_chains) {
       const chains = initialData.hotel_chains as Record<string, unknown> | null
@@ -115,16 +236,6 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
       } : null
     }
     return null
-  })
-  const [selectedBrand, setSelectedBrand] = React.useState<Brand | null>(() => {
-    const brands = initialData.hotel_brands as Record<string, unknown> | null
-    
-    return brands ? {
-      brand_id: Number(brands.brand_id ?? 0),
-      chain_id: Number(brands.chain_id ?? 0) || null,
-      name_kr: String(brands.name_kr ?? ''),
-      name_en: String(brands.name_en ?? '')
-    } : null
   })
   
   const toggleEditMode = () => {
@@ -287,19 +398,24 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
   const [chainBrandSaving, setChainBrandSaving] = React.useState(false)
 
   const handleChainBrandSelect = useCallback((chain: Chain | null, brand: Brand | null) => {
-    setSelectedChain(chain)
-    setSelectedBrand(brand)
-    if (brand) {
-      setCurrentBrandId(brand.brand_id)
-          } else {
-      setCurrentBrandId(null)
+    // 체인 정보는 사용하지 않으므로 무시
+    // setSelectedChain(chain)
+    
+    // 현재 선택된 브랜드 위치에 따라 브랜드 설정
+    if (currentBrandPosition === 1) {
+      setSelectedBrand1(brand)
+    } else if (currentBrandPosition === 2) {
+      setSelectedBrand2(brand)
+    } else if (currentBrandPosition === 3) {
+      setSelectedBrand3(brand)
     }
+    
     setIsChainBrandPickerOpen(false)
     setChainBrandChanged(true)
     
-    // 체인/브랜드 변경 시 하이라이트
-    setHighlightedFields(prev => new Set([...prev, 'chain_field', 'brand_field']))
-  }, [])
+    // 브랜드 변경 시 하이라이트
+    setHighlightedFields(prev => new Set([...prev, `brand_field_${currentBrandPosition}`]))
+  }, [currentBrandPosition])
 
   const handleSaveChainBrand = async () => {
     if (!chainBrandChanged) {
@@ -309,19 +425,14 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
 
     setChainBrandSaving(true)
     try {
-      const formDataToSubmit = new FormData()
-      formDataToSubmit.append('sabre_id', formData.sabre_id)
-      
-      if (selectedBrand) {
-        formDataToSubmit.append('brand_id', String(selectedBrand.brand_id))
-      }
-
       const response = await fetch('/api/hotel/update-chain-brand', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sabre_id: formData.sabre_id,
-          brand_id: selectedBrand?.brand_id || null
+          brand_id: selectedBrand1?.brand_id || null,
+          brand_id_2: selectedBrand2?.brand_id || null,
+          brand_id_3: selectedBrand3?.brand_id || null
         })
       })
 
@@ -414,12 +525,10 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
         formDataToSubmit.append('region_code', formData.region_code)
         formDataToSubmit.append('rate_plan_codes', JSON.stringify(formData.rate_plan_codes))
         
-        if (selectedChain) {
-          formDataToSubmit.append('chain_id', String(selectedChain.chain_id))
-        }
-        if (selectedBrand) {
-          formDataToSubmit.append('brand_id', String(selectedBrand.brand_id))
-        }
+        // 브랜드1, 브랜드2, 브랜드3 항상 전송 (null인 경우도 명시적으로 전송)
+        formDataToSubmit.append('brand_id', selectedBrand1?.brand_id ? String(selectedBrand1.brand_id) : '')
+        formDataToSubmit.append('brand_id_2', selectedBrand2?.brand_id ? String(selectedBrand2.brand_id) : '')
+        formDataToSubmit.append('brand_id_3', selectedBrand3?.brand_id ? String(selectedBrand3.brand_id) : '')
 
         // 신규 호텔 생성 시 is_new 플래그 추가
         if (isNewHotel) {
@@ -602,84 +711,6 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
             )}
           </div>
 
-          {/* 체인 정보 */}
-          <div className="space-y-1 md:col-span-1">
-            <label className="block text-sm font-medium text-gray-700">체인 정보</label>
-            {isEditMode ? (
-              <div 
-                onClick={() => setIsChainBrandPickerOpen(true)}
-                className="cursor-pointer"
-              >
-                <div className="flex gap-2">
-                  <div className={cn(
-                    "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors bg-sky-50 hover:bg-sky-100"
-                  )}>
-                    {selectedChain?.name_kr || '-'}
-                  </div>
-                  <div className={cn(
-                    "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors bg-sky-50 hover:bg-sky-100"
-                  )}>
-                    {selectedChain?.name_en || '-'}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <div className={cn(
-                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
-                  highlightedFields.has('chain_field') ? "bg-yellow-100" : "bg-gray-50"
-                )}>
-                  {selectedChain?.name_kr || '-'}
-                </div>
-                <div className={cn(
-                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
-                  highlightedFields.has('chain_field') ? "bg-yellow-100" : "bg-gray-50"
-                )}>
-                  {selectedChain?.name_en || '-'}
-                </div>
-              </div>
-            )}
-            </div>
-            
-          {/* 브랜드 정보 */}
-          <div className="space-y-1 md:col-span-1">
-            <label className="block text-sm font-medium text-gray-700">브랜드 정보</label>
-            {isEditMode ? (
-              <div 
-                onClick={() => setIsChainBrandPickerOpen(true)}
-                className="cursor-pointer"
-              >
-                <div className="flex gap-2">
-                  <div className={cn(
-                    "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors bg-sky-50 hover:bg-sky-100"
-                  )}>
-                    {selectedBrand?.name_kr || '-'}
-                  </div>
-                  <div className={cn(
-                    "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors bg-sky-50 hover:bg-sky-100"
-                  )}>
-                    {selectedBrand?.name_en || '-'}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <div className={cn(
-                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
-                  highlightedFields.has('brand_field') ? "bg-yellow-100" : "bg-gray-50"
-                )}>
-                  {selectedBrand?.name_kr || '-'}
-                </div>
-                <div className={cn(
-                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
-                  highlightedFields.has('brand_field') ? "bg-yellow-100" : "bg-gray-50"
-                )}>
-                  {selectedBrand?.name_en || '-'}
-                </div>
-              </div>
-            )}
-            </div>
-            
             {/* Rate Plan Codes */}
           <div className="space-y-1 md:col-span-1">
             <label className="block text-sm font-medium text-gray-700">Rate Plan Codes</label>
@@ -736,30 +767,153 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
                     )}
                   />
                 </button>
-                <span className="ml-3 text-sm font-medium text-gray-700">
+                <span className="ml-3 text-sm text-gray-700">
                   {formData.publish ? '공개' : '비공개'}
                 </span>
               </div>
             ) : (
               <div className={cn(
-                "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300 flex items-center",
+                "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
                 highlightedFields.has('publish') ? "bg-yellow-100" : "bg-gray-50"
               )}>
-                <span className={cn(
-                  "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                  formData.publish 
-                    ? "bg-green-100 text-green-800" 
-                    : "bg-gray-100 text-gray-800"
-                )}>
-                  {formData.publish ? '공개' : '비공개'}
+                <span className="text-gray-700">
+                  {formData.publish 
+                    ? '공개' 
+                    : '비공개'}
                 </span>
               </div>
             )}
           </div>
-            </div>
+            
+          {/* 브랜드1 정보 */}
+          <div className="space-y-1 md:col-span-1">
+            <label className="block text-sm font-medium text-gray-700">브랜드1</label>
+            {isEditMode ? (
+              <div 
+                onClick={() => {
+                  setCurrentBrandPosition(1)
+                  setIsChainBrandPickerOpen(true)
+                }}
+                className="cursor-pointer"
+              >
+                <div className="flex gap-2">
+                  <div className={cn(
+                    "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors bg-sky-50 hover:bg-sky-100"
+                  )}>
+                    {selectedBrand1?.name_kr || '-'}
+                  </div>
+                  <div className={cn(
+                    "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors bg-sky-50 hover:bg-sky-100"
+                  )}>
+                    {selectedBrand1?.name_en || '-'}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
+                  highlightedFields.has('brand_field_1') ? "bg-yellow-100" : "bg-gray-50"
+                )}>
+                  {selectedBrand1?.name_kr || '-'}
+                </div>
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
+                  highlightedFields.has('brand_field_1') ? "bg-yellow-100" : "bg-gray-50"
+                )}>
+                  {selectedBrand1?.name_en || '-'}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* 주소 및 위치 정보 */}
+          {/* 브랜드2 정보 */}
+          <div className="space-y-1 md:col-span-1">
+            <label className="block text-sm font-medium text-gray-700">브랜드2</label>
+            {isEditMode ? (
+              <div 
+                onClick={() => {
+                  setCurrentBrandPosition(2)
+                  setIsChainBrandPickerOpen(true)
+                }}
+                className="cursor-pointer"
+              >
+                <div className="flex gap-2">
+                  <div className={cn(
+                    "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors bg-sky-50 hover:bg-sky-100"
+                  )}>
+                    {selectedBrand2?.name_kr || '-'}
+                  </div>
+                  <div className={cn(
+                    "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors bg-sky-50 hover:bg-sky-100"
+                  )}>
+                    {selectedBrand2?.name_en || '-'}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
+                  highlightedFields.has('brand_field_2') ? "bg-yellow-100" : "bg-gray-50"
+                )}>
+                  {selectedBrand2?.name_kr || '-'}
+                </div>
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
+                  highlightedFields.has('brand_field_2') ? "bg-yellow-100" : "bg-gray-50"
+                )}>
+                  {selectedBrand2?.name_en || '-'}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 브랜드3 정보 */}
+          <div className="space-y-1 md:col-span-1">
+            <label className="block text-sm font-medium text-gray-700">브랜드3</label>
+            {isEditMode ? (
+              <div 
+                onClick={() => {
+                  setCurrentBrandPosition(3)
+                  setIsChainBrandPickerOpen(true)
+                }}
+                className="cursor-pointer"
+              >
+                <div className="flex gap-2">
+                  <div className={cn(
+                    "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors bg-sky-50 hover:bg-sky-100"
+                  )}>
+                    {selectedBrand3?.name_kr || '-'}
+                  </div>
+                  <div className={cn(
+                    "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors bg-sky-50 hover:bg-sky-100"
+                  )}>
+                    {selectedBrand3?.name_en || '-'}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
+                  highlightedFields.has('brand_field_3') ? "bg-yellow-100" : "bg-gray-50"
+                )}>
+                  {selectedBrand3?.name_kr || '-'}
+                </div>
+                <div className={cn(
+                  "flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors",
+                  highlightedFields.has('brand_field_3') ? "bg-yellow-100" : "bg-gray-50"
+                )}>
+                  {selectedBrand3?.name_en || '-'}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 주소 및 위치 정보 */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">주소 및 위치 정보</h3>
         <div className="space-y-6">
@@ -1007,8 +1161,9 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
     formData,
     isEditMode,
     highlightedFields,
-    selectedChain,
-    selectedBrand,
+    selectedBrand1,
+    selectedBrand2,
+    selectedBrand3,
     handleInputChange,
     isNewHotel,
     handleCheckSabreId,
@@ -1049,19 +1204,30 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-md font-medium text-gray-900">현재 연결된 체인/브랜드</h4>
-              <p className="text-sm text-gray-600 mt-1">
-                {selectedChain?.name_kr && selectedBrand?.name_kr 
-                  ? `${selectedChain.name_kr} - ${selectedBrand.name_kr}`
-                  : '연결된 체인/브랜드가 없습니다.'
-                }
-              </p>
+              <h4 className="text-md font-medium text-gray-900">현재 연결된 브랜드</h4>
+              <div className="text-sm text-gray-600 mt-1 space-y-1">
+                {selectedBrand1?.name_kr && (
+                  <div>브랜드1: {selectedBrand1.name_kr} {selectedBrand1.name_en ? `(${selectedBrand1.name_en})` : ''}</div>
+                )}
+                {selectedBrand2?.name_kr && (
+                  <div>브랜드2: {selectedBrand2.name_kr} {selectedBrand2.name_en ? `(${selectedBrand2.name_en})` : ''}</div>
+                )}
+                {selectedBrand3?.name_kr && (
+                  <div>브랜드3: {selectedBrand3.name_kr} {selectedBrand3.name_en ? `(${selectedBrand3.name_en})` : ''}</div>
+                )}
+                {!selectedBrand1?.name_kr && !selectedBrand2?.name_kr && !selectedBrand3?.name_kr && (
+                  <div>연결된 브랜드가 없습니다.</div>
+                )}
+              </div>
             </div>
             <Button
-              onClick={() => setIsChainBrandPickerOpen(true)}
+              onClick={() => {
+                setCurrentBrandPosition(1)
+                setIsChainBrandPickerOpen(true)
+              }}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              {selectedChain && selectedBrand ? '변경' : '연결'}
+              브랜드 관리
             </Button>
           </div>
         </div>
@@ -1081,7 +1247,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
         </div>
       )}
     </div>
-  ), [selectedChain, selectedBrand, chainBrandChanged, chainBrandSaving, handleChainBrandSelect, handleSaveChainBrand])
+  ), [selectedBrand1, selectedBrand2, selectedBrand3, chainBrandChanged, chainBrandSaving, handleChainBrandSelect, handleSaveChainBrand, currentBrandPosition])
 
   // 이미지 관리 탭 콘텐츠
   const ImagesTab = React.useCallback(() => (
@@ -1209,13 +1375,17 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
         <Tabs items={tabItems} defaultActiveTab="basic" />
       </div>
 
-      {/* 체인/브랜드 선택 팝업 */}
+      {/* 브랜드 선택 팝업 */}
       <ChainBrandPicker
         isOpen={isChainBrandPickerOpen}
         onClose={() => setIsChainBrandPickerOpen(false)}
         onSelect={handleChainBrandSelect}
-        selectedChainId={selectedChain?.chain_id || null}
-        selectedBrandId={selectedBrand?.brand_id || null}
+        selectedChainId={null}
+        selectedBrandId={
+          currentBrandPosition === 1 ? (selectedBrand1?.brand_id || null) :
+          currentBrandPosition === 2 ? (selectedBrand2?.brand_id || null) :
+          currentBrandPosition === 3 ? (selectedBrand3?.brand_id || null) : null
+        }
       />
     </>
   )

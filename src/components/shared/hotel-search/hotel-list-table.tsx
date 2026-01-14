@@ -41,7 +41,7 @@ interface HotelListTableProps {
   connectingHotelId?: string | null
   connectChainId?: number | null
   connectBrandId?: number | null
-  connectHotelToChainBrand?: (sabreId: string) => void
+  connectHotelToChainBrand?: (sabreId: string, brandPosition?: 1 | 2 | 3) => void
   
   // Image Management
   imageManagementState?: any
@@ -473,27 +473,30 @@ export function HotelListTable({
                         </td>
                         <td className="px-6 py-4 text-sm">
                           {enableChainBrandConnect ? (
-                            <Button
-                              size="sm"
-                              variant="default"
-                              disabled={connectingHotelId === hotel.sabre_id || !connectChainId || !connectBrandId}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                if (hotel.sabre_id && connectHotelToChainBrand) {
-                                  connectHotelToChainBrand(hotel.sabre_id)
-                                }
-                              }}
-                              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                            >
-                              {connectingHotelId === hotel.sabre_id ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  연결 중...
-                                </>
-                              ) : (
-                                '체인브랜드연결'
-                              )}
-                            </Button>
+                            <div className="relative inline-block">
+                              <select
+                                disabled={connectingHotelId === hotel.sabre_id || !connectChainId || !connectBrandId}
+                                onChange={(e) => {
+                                  e.stopPropagation()
+                                  const position = parseInt(e.target.value) as 1 | 2 | 3
+                                  if (hotel.sabre_id && connectHotelToChainBrand) {
+                                    connectHotelToChainBrand(hotel.sabre_id, position)
+                                    // 선택 후 초기화
+                                    e.target.value = ''
+                                  }
+                                }}
+                                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                defaultValue=""
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <option value="" disabled>
+                                  {connectingHotelId === hotel.sabre_id ? '연결 중...' : '브랜드 연결'}
+                                </option>
+                                <option value="1">브랜드1로 연결</option>
+                                <option value="2">브랜드2로 연결</option>
+                                <option value="3">브랜드3로 연결</option>
+                              </select>
+                            </div>
                           ) : (
                             <Link
                               href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}

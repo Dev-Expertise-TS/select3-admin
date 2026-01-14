@@ -446,7 +446,7 @@ export async function updateBrandSortOrder(brandId: number, sortOrder: number): 
 }
 
 /**
- * 브랜드에 연결된 호텔 목록 조회
+ * 브랜드에 연결된 호텔 목록 조회 (브랜드1, 브랜드2, 브랜드3 모두 포함)
  */
 export async function getBrandHotels(brandId: number): Promise<ActionResult<{
   hotels: Array<{
@@ -456,26 +456,84 @@ export async function getBrandHotels(brandId: number): Promise<ActionResult<{
     property_address: string | null
     city_ko: string | null
     country_ko: string | null
+    brand_position?: 1 | 2 | 3 // 브랜드 위치 정보
   }>
 }>> {
   try {
     const supabase = createServiceRoleClient()
 
-    const { data, error } = await supabase
+    // 브랜드1, 브랜드2, 브랜드3 모두에서 해당 브랜드 ID를 가진 호텔 조회
+    const { data: hotels1, error: error1 } = await supabase
       .from('select_hotels')
       .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko')
       .eq('brand_id', brandId)
       .order('property_name_ko', { ascending: true, nullsFirst: false })
 
-    if (error) {
-      console.error('[chain-brand] getBrandHotels error:', error)
-      return { success: false, error: error.message }
+    const { data: hotels2, error: error2 } = await supabase
+      .from('select_hotels')
+      .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko')
+      .eq('brand_id_2', brandId)
+      .order('property_name_ko', { ascending: true, nullsFirst: false })
+
+    const { data: hotels3, error: error3 } = await supabase
+      .from('select_hotels')
+      .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko')
+      .eq('brand_id_3', brandId)
+      .order('property_name_ko', { ascending: true, nullsFirst: false })
+
+    if (error1 || error2 || error3) {
+      console.error('[chain-brand] getBrandHotels error:', error1 || error2 || error3)
+      return { success: false, error: (error1 || error2 || error3)?.message || '호텔 조회 중 오류가 발생했습니다.' }
     }
+
+    // 디버깅: 조회된 호텔 수 확인
+    console.log(`[getBrandHotels] 브랜드 ID ${brandId} 조회 결과:`, {
+      brand_id: hotels1?.length || 0,
+      brand_id_2: hotels2?.length || 0,
+      brand_id_3: hotels3?.length || 0,
+      total: (hotels1?.length || 0) + (hotels2?.length || 0) + (hotels3?.length || 0)
+    })
+
+    // 중복 제거 및 브랜드 위치 정보 추가
+    const hotelMap = new Map<string, { sabre_id: string; property_name_ko: string | null; property_name_en: string | null; property_address: string | null; city_ko: string | null; country_ko: string | null; brand_position?: 1 | 2 | 3 }>()
+    
+    // 브랜드1 호텔 추가
+    hotels1?.forEach(hotel => {
+      hotelMap.set(hotel.sabre_id, { ...hotel, brand_position: 1 })
+    })
+    
+    // 브랜드2 호텔 추가 (중복이 아닌 경우만)
+    hotels2?.forEach(hotel => {
+      const existing = hotelMap.get(hotel.sabre_id)
+      if (!existing) {
+        // 중복이 아닌 경우에만 추가
+        hotelMap.set(hotel.sabre_id, { ...hotel, brand_position: 2 })
+      }
+    })
+    
+    // 브랜드3 호텔 추가 (중복이 아닌 경우만)
+    hotels3?.forEach(hotel => {
+      const existing = hotelMap.get(hotel.sabre_id)
+      if (!existing) {
+        // 중복이 아닌 경우에만 추가
+        hotelMap.set(hotel.sabre_id, { ...hotel, brand_position: 3 })
+      }
+    })
+
+    const hotels = Array.from(hotelMap.values())
+    
+    // 디버깅: 최종 결과 확인
+    console.log(`[getBrandHotels] 브랜드 ID ${brandId} 최종 결과:`, {
+      total: hotels.length,
+      brand_position_1: hotels.filter(h => h.brand_position === 1).length,
+      brand_position_2: hotels.filter(h => h.brand_position === 2).length,
+      brand_position_3: hotels.filter(h => h.brand_position === 3).length
+    })
 
     return { 
       success: true, 
       data: { 
-        hotels: data || [] 
+        hotels
       } 
     }
   } catch (e) {
@@ -485,15 +543,39 @@ export async function getBrandHotels(brandId: number): Promise<ActionResult<{
 }
 
 /**
- * 호텔의 브랜드 연결 해제
+ * 호텔의 브랜드 연결 해제 (브랜드1, 브랜드2, 브랜드3 중 선택 가능)
  */
-export async function disconnectHotelFromBrand(sabreId: string): Promise<ActionResult> {
+export async function disconnectHotelFromBrand(sabreId: string, brandPosition?: 1 | 2 | 3): Promise<ActionResult> {
   try {
     const supabase = createServiceRoleClient()
 
+    // brandPosition이 지정되지 않은 경우, 모든 브랜드 위치에서 해당 브랜드 ID를 찾아서 해제
+    // brandPosition이 지정된 경우, 해당 위치의 브랜드만 해제
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString()
+    }
+
+    if (brandPosition === 1 || brandPosition === undefined) {
+      updateData.brand_id = null
+      updateData.brand_name_kr = null
+      updateData.brand_name_en = null
+    }
+    
+    if (brandPosition === 2 || brandPosition === undefined) {
+      updateData.brand_id_2 = null
+      updateData.brand_name_kr_2 = null
+      updateData.brand_name_en_2 = null
+    }
+    
+    if (brandPosition === 3 || brandPosition === undefined) {
+      updateData.brand_id_3 = null
+      updateData.brand_name_kr_3 = null
+      updateData.brand_name_en_3 = null
+    }
+
     const { error } = await supabase
       .from('select_hotels')
-      .update({ brand_id: null, updated_at: new Date().toISOString() })
+      .update(updateData)
       .eq('sabre_id', sabreId)
 
     if (error) {
@@ -510,7 +592,7 @@ export async function disconnectHotelFromBrand(sabreId: string): Promise<ActionR
 }
 
 /**
- * 체인에 연결된 호텔 목록 조회
+ * 체인에 연결된 호텔 목록 조회 (브랜드1, 브랜드2, 브랜드3 모두 포함)
  */
 export async function getChainHotels(chainId: number): Promise<ActionResult<{
   hotels: Array<{
@@ -521,6 +603,7 @@ export async function getChainHotels(chainId: number): Promise<ActionResult<{
     city_ko: string | null
     country_ko: string | null
     brand_id: number | null
+    brand_position?: 1 | 2 | 3 // 브랜드 위치 정보
   }>
 }>> {
   try {
@@ -543,22 +626,63 @@ export async function getChainHotels(chainId: number): Promise<ActionResult<{
       return { success: true, data: { hotels: [] } }
     }
 
-    // 해당 브랜드들에 연결된 호텔들을 가져옴
-    const { data, error } = await supabase
+    // 브랜드1, 브랜드2, 브랜드3 모두에서 해당 브랜드 ID를 가진 호텔 조회
+    const { data: hotels1, error: error1 } = await supabase
       .from('select_hotels')
       .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko, brand_id')
       .in('brand_id', brandIds)
       .order('property_name_ko', { ascending: true, nullsFirst: false })
 
-    if (error) {
-      console.error('[chain-brand] getChainHotels error:', error)
-      return { success: false, error: error.message }
+    const { data: hotels2, error: error2 } = await supabase
+      .from('select_hotels')
+      .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko, brand_id_2 as brand_id')
+      .in('brand_id_2', brandIds)
+      .order('property_name_ko', { ascending: true, nullsFirst: false })
+
+    const { data: hotels3, error: error3 } = await supabase
+      .from('select_hotels')
+      .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko, brand_id_3 as brand_id')
+      .in('brand_id_3', brandIds)
+      .order('property_name_ko', { ascending: true, nullsFirst: false })
+
+    if (error1 || error2 || error3) {
+      console.error('[chain-brand] getChainHotels error:', error1 || error2 || error3)
+      return { success: false, error: (error1 || error2 || error3)?.message || '호텔 조회 중 오류가 발생했습니다.' }
     }
+
+    // 중복 제거 및 브랜드 위치 정보 추가
+    const hotelMap = new Map<string, { sabre_id: string; property_name_ko: string | null; property_name_en: string | null; property_address: string | null; city_ko: string | null; country_ko: string | null; brand_id: number | null; brand_position?: 1 | 2 | 3 }>()
+    
+    hotels1?.forEach(hotel => {
+      hotelMap.set(hotel.sabre_id, { ...hotel, brand_position: 1 })
+    })
+    
+    hotels2?.forEach(hotel => {
+      const existing = hotelMap.get(hotel.sabre_id)
+      if (existing) {
+        // 이미 존재하는 경우, 여러 브랜드 위치에 속할 수 있음 (첫 번째 위치 유지)
+        hotelMap.set(hotel.sabre_id, existing)
+      } else {
+        hotelMap.set(hotel.sabre_id, { ...hotel, brand_position: 2 })
+      }
+    })
+    
+    hotels3?.forEach(hotel => {
+      const existing = hotelMap.get(hotel.sabre_id)
+      if (existing) {
+        // 이미 존재하는 경우, 여러 브랜드 위치에 속할 수 있음 (첫 번째 위치 유지)
+        hotelMap.set(hotel.sabre_id, existing)
+      } else {
+        hotelMap.set(hotel.sabre_id, { ...hotel, brand_position: 3 })
+      }
+    })
+
+    const hotels = Array.from(hotelMap.values())
 
     return { 
       success: true, 
       data: { 
-        hotels: data || [] 
+        hotels
       } 
     }
   } catch (e) {

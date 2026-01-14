@@ -140,11 +140,67 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     if (regionEn !== undefined) updateData.region_en = regionEn || null
     if (regionCode !== undefined) updateData.region_code = regionCode || null
 
-    // 브랜드 정보만 업데이트 (chain_id는 select_hotels 테이블에 없음)
+    // 브랜드1, 브랜드2, 브랜드3 정보 처리
     const brandId = formData.get('brand_id') as string
+    const brandId2 = formData.get('brand_id_2') as string
+    const brandId3 = formData.get('brand_id_3') as string
     
-    if (brandId) {
-      updateData.brand_id = brandId === '' ? null : Number(brandId)
+    // 브랜드 ID 파싱
+    const brand_id = brandId && brandId.trim() !== '' ? Number(brandId) || null : null
+    const brand_id_2 = brandId2 && brandId2.trim() !== '' ? Number(brandId2) || null : null
+    const brand_id_3 = brandId3 && brandId3.trim() !== '' ? Number(brandId3) || null : null
+    
+    // 브랜드 이름 조회를 위해 브랜드 ID 수집
+    const brandIds = [brand_id, brand_id_2, brand_id_3].filter(Boolean) as number[]
+    let brandMap = new Map<number, { brand_name_ko: string | null; brand_name_en: string | null }>()
+    
+    if (brandIds.length > 0) {
+      const { data: brands } = await supabase
+        .from('hotel_brands')
+        .select('brand_id, brand_name_ko, brand_name_en')
+        .in('brand_id', brandIds)
+      
+      if (brands) {
+        brands.forEach(brand => {
+          brandMap.set(brand.brand_id, {
+            brand_name_ko: brand.brand_name_ko,
+            brand_name_en: brand.brand_name_en
+          })
+        })
+      }
+    }
+    
+    // 브랜드1 업데이트
+    updateData.brand_id = brand_id
+    if (brand_id && brandMap.has(brand_id)) {
+      const brand = brandMap.get(brand_id)!
+      updateData.brand_name_kr = brand.brand_name_ko
+      updateData.brand_name_en = brand.brand_name_en
+    } else if (!brand_id) {
+      updateData.brand_name_kr = null
+      updateData.brand_name_en = null
+    }
+    
+    // 브랜드2 업데이트
+    updateData.brand_id_2 = brand_id_2
+    if (brand_id_2 && brandMap.has(brand_id_2)) {
+      const brand = brandMap.get(brand_id_2)!
+      updateData.brand_name_kr_2 = brand.brand_name_ko
+      updateData.brand_name_en_2 = brand.brand_name_en
+    } else if (!brand_id_2) {
+      updateData.brand_name_kr_2 = null
+      updateData.brand_name_en_2 = null
+    }
+    
+    // 브랜드3 업데이트
+    updateData.brand_id_3 = brand_id_3
+    if (brand_id_3 && brandMap.has(brand_id_3)) {
+      const brand = brandMap.get(brand_id_3)!
+      updateData.brand_name_kr_3 = brand.brand_name_ko
+      updateData.brand_name_en_3 = brand.brand_name_en
+    } else if (!brand_id_3) {
+      updateData.brand_name_kr_3 = null
+      updateData.brand_name_en_3 = null
     }
 
     // Rate Plan Codes (rate_plan_code 컬럼에 저장)

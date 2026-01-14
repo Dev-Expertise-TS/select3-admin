@@ -734,8 +734,8 @@ export default function HotelSearchWidget({
     }
   }
 
-  // 호텔을 체인 브랜드에 연결하는 함수
-  const connectHotelToChainBrand = async (sabreId: string) => {
+  // 호텔을 체인 브랜드에 연결하는 함수 (브랜드 위치 선택 가능)
+  const connectHotelToChainBrand = async (sabreId: string, brandPosition: 1 | 2 | 3 = 1) => {
     if (!connectChainId || !connectBrandId) {
       setConnectError('체인과 브랜드 정보가 필요합니다.')
       return
@@ -755,13 +755,14 @@ export default function HotelSearchWidget({
           sabre_id: sabreId,
           chain_id: connectChainId,
           brand_id: connectBrandId,
+          brand_position: brandPosition,
         }),
       })
 
       const data = await response.json()
 
       if (data.success) {
-        setConnectSuccess(`호텔이 성공적으로 연결되었습니다.`)
+        setConnectSuccess(`호텔이 브랜드${brandPosition}로 성공적으로 연결되었습니다.`)
         onConnectSuccess?.(sabreId)
 
         // 연결 성공 후 데이터 새로고침

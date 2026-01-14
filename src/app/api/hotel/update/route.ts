@@ -20,9 +20,41 @@ export async function POST(request: NextRequest) {
     const ratePlanCodesParsed = ratePlanCodesRaw ? ratePlanCodesRaw.split(',').map((s) => s.trim()).filter(Boolean) : []
     const rate_code = ratePlanCodesParsed.length > 0 ? ratePlanCodesParsed.join(', ') : null
     
-    // 브랜드 정보만 사용 (chain_id는 select_hotels 테이블에 없음)
+    // 브랜드1, 브랜드2, 브랜드3 정보 처리
     const brand_id_raw = formData.get('brand_id') as string | null
-    const brand_id = (brand_id_raw && brand_id_raw.trim() !== '') ? Number(brand_id_raw) || null : null
+    const brand_id = brand_id_raw && brand_id_raw.trim() !== '' ? (Number(brand_id_raw) || null) : null
+    
+    const brand_id_2_raw = formData.get('brand_id_2') as string | null
+    const brand_id_2 = brand_id_2_raw && brand_id_2_raw.trim() !== '' ? (Number(brand_id_2_raw) || null) : null
+    
+    const brand_id_3_raw = formData.get('brand_id_3') as string | null
+    const brand_id_3 = brand_id_3_raw && brand_id_3_raw.trim() !== '' ? (Number(brand_id_3_raw) || null) : null
+    
+    console.log('[hotel/update] 브랜드 ID 파싱:', { brand_id, brand_id_2, brand_id_3, brand_id_raw, brand_id_2_raw, brand_id_3_raw })
+
+    // 브랜드 이름 조회를 위해 Supabase 클라이언트 생성
+    const { createServiceRoleClient } = await import('@/lib/supabase/server')
+    const supabase = createServiceRoleClient()
+    
+    // 브랜드 정보 조회 (brand_name도 함께 업데이트하기 위해)
+    const brandIds = [brand_id, brand_id_2, brand_id_3].filter(Boolean) as number[]
+    let brandMap = new Map<number, { brand_name_ko: string | null; brand_name_en: string | null }>()
+
+    if (brandIds.length > 0) {
+      const { data: brands } = await supabase
+        .from('hotel_brands')
+        .select('brand_id, brand_name_ko, brand_name_en')
+        .in('brand_id', brandIds)
+
+      if (brands) {
+        brands.forEach(brand => {
+          brandMap.set(brand.brand_id, {
+            brand_name_ko: brand.brand_name_ko,
+            brand_name_en: brand.brand_name_en
+          })
+        })
+      }
+    }
 
     // 호텔 기본 정보 업데이트 데이터 준비
     const hotelUpdateData: Record<string, unknown> = { 
@@ -39,9 +71,35 @@ export async function POST(request: NextRequest) {
       sabre_id: sabreIdEditable
     }
     
-    // brand_id가 있는 경우에만 추가
-    if (brand_id !== null) {
-      hotelUpdateData.brand_id = brand_id
+    // 브랜드1, 브랜드2, 브랜드3 추가 (ID와 이름 모두)
+    hotelUpdateData.brand_id = brand_id
+    if (brand_id && brandMap.has(brand_id)) {
+      const brand = brandMap.get(brand_id)!
+      hotelUpdateData.brand_name_kr = brand.brand_name_ko
+      hotelUpdateData.brand_name_en = brand.brand_name_en
+    } else if (!brand_id) {
+      hotelUpdateData.brand_name_kr = null
+      hotelUpdateData.brand_name_en = null
+    }
+    
+    hotelUpdateData.brand_id_2 = brand_id_2
+    if (brand_id_2 && brandMap.has(brand_id_2)) {
+      const brand = brandMap.get(brand_id_2)!
+      hotelUpdateData.brand_name_kr_2 = brand.brand_name_ko
+      hotelUpdateData.brand_name_en_2 = brand.brand_name_en
+    } else if (!brand_id_2) {
+      hotelUpdateData.brand_name_kr_2 = null
+      hotelUpdateData.brand_name_en_2 = null
+    }
+    
+    hotelUpdateData.brand_id_3 = brand_id_3
+    if (brand_id_3 && brandMap.has(brand_id_3)) {
+      const brand = brandMap.get(brand_id_3)!
+      hotelUpdateData.brand_name_kr_3 = brand.brand_name_ko
+      hotelUpdateData.brand_name_en_3 = brand.brand_name_en
+    } else if (!brand_id_3) {
+      hotelUpdateData.brand_name_kr_3 = null
+      hotelUpdateData.brand_name_en_3 = null
     }
 
     // 호텔 정보 업데이트
@@ -73,12 +131,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 성공 응답 (brand_id만 포함, chain_id는 제거)
+    // 성공 응답 (brand_id, brand_id_2, brand_id_3 포함)
     return NextResponse.json({
       success: true,
       data: {
         sabre_id: sabreIdEditable || sabreId,
-        brand_id
+        brand_id,
+        brand_id_2,
+        brand_id_3
       },
       message: '호텔 정보가 성공적으로 저장되었습니다.'
     })
