@@ -1,21 +1,14 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
 import reactHooks from "eslint-plugin-react-hooks";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypeScript from "eslint-config-next/typescript";
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  // Next.js 16.1+ 에서 eslint-config-next가 Flat Config(Array)로 제공됩니다.
+  // (FlatCompat로 legacy extends를 변환할 필요 없음)
+  ...nextCoreWebVitals,
+  ...nextTypeScript,
   {
-    plugins: {
-      "react-hooks": reactHooks,
-    },
     rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
