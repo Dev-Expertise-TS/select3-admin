@@ -330,7 +330,7 @@ export default function BrandFeaturedManager() {
     if (selectingForForm) {
       // 폼에서 선택한 경우
       setFormData({ ...formData, chain_slug: chain.slug || null })
-    } else if (selectingSlotId) {
+    } else if (selectingSlotId !== null) {
       // 테이블에서 선택한 경우
       setSlots(prev => prev.map(slot => 
         slot.id === selectingSlotId 

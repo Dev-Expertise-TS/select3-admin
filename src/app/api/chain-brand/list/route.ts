@@ -119,10 +119,11 @@ export async function GET() {
         key.toLowerCase().includes('name') && key.toLowerCase().includes('en')
       ) || 'name_en'
       
-      // slug 컬럼 찾기
-      const slugKey = chainsColumns.find(key => 
-        key.toLowerCase() === 'slug'
-      ) || 'slug'
+      // slug 컬럼 찾기 (slug, chain_slug 등 다양한 케이스 대응)
+      const slugKey = chainsColumns.find(key => {
+        const k = key.toLowerCase()
+        return k === 'slug' || k === 'chain_slug' || k.includes('slug')
+      }) || 'slug'
       
       // chain_sort_order 컬럼 찾기
       const sortOrderKey = chainsColumns.find(key => 
