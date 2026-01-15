@@ -38,7 +38,9 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
     property_name_ko: String(initialData.property_name_ko ?? ''),
     property_name_en: String(initialData.property_name_en ?? ''),
     slug: String(initialData.slug ?? ''),
-    publish: initialData.publish === true || initialData.publish === 'true',
+    publish: initialData.publish === null || initialData.publish === undefined 
+      ? true 
+      : (initialData.publish === true || initialData.publish === 'true'),
     vcc: initialData.vcc === true || initialData.vcc === 'true',
     property_address: String(initialData.property_address ?? ''),
     area_code: String(initialData.area_code ?? ''),
@@ -251,7 +253,9 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           property_name_ko: String(initialData.property_name_ko ?? ''),
           property_name_en: String(initialData.property_name_en ?? ''),
           slug: String(initialData.slug ?? ''),
-          publish: initialData.publish === true || initialData.publish === 'true',
+          publish: initialData.publish === null || initialData.publish === undefined 
+            ? true 
+            : (initialData.publish === true || initialData.publish === 'true'),
           vcc: initialData.vcc === true || initialData.vcc === 'true',
           property_address: String(initialData.property_address ?? ''),
           area_code: String(initialData.area_code ?? ''),

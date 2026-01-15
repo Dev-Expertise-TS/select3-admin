@@ -119,8 +119,10 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
       }
     }
     
-    // Publish 상태 처리
-    if (publish !== undefined && publish !== null) {
+    // Publish 상태 처리 (null이면 기본값 true로 설정)
+    if (publish === null || publish === undefined || publish === '') {
+      updateData.publish = true
+    } else {
       updateData.publish = publish === 'true' || publish === true
     }
     
