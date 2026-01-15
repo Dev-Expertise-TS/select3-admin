@@ -73,6 +73,7 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     const propertyNameEn = formData.get('property_name_en') as string
     const slug = formData.get('slug') as string
     const publish = formData.get('publish') as string
+    const vcc = formData.get('vcc') as string
     const propertyAddress = formData.get('property_address') as string
     const areaCode = formData.get('area_code') as string
     const areaKo = formData.get('area_ko') as string
@@ -121,6 +122,11 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
     // Publish 상태 처리
     if (publish !== undefined && publish !== null) {
       updateData.publish = publish === 'true' || publish === true
+    }
+    
+    // VCC 상태 처리
+    if (vcc !== undefined && vcc !== null) {
+      updateData.vcc = vcc === 'true' || vcc === true
     }
     
     if (propertyAddress) updateData.property_address = propertyAddress

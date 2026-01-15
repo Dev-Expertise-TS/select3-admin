@@ -39,6 +39,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
     property_name_en: String(initialData.property_name_en ?? ''),
     slug: String(initialData.slug ?? ''),
     publish: initialData.publish === true || initialData.publish === 'true',
+    vcc: initialData.vcc === true || initialData.vcc === 'true',
     property_address: String(initialData.property_address ?? ''),
     area_code: String(initialData.area_code ?? ''),
     area_ko: String(initialData.area_ko ?? ''),
@@ -251,6 +252,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
           property_name_en: String(initialData.property_name_en ?? ''),
           slug: String(initialData.slug ?? ''),
           publish: initialData.publish === true || initialData.publish === 'true',
+          vcc: initialData.vcc === true || initialData.vcc === 'true',
           property_address: String(initialData.property_address ?? ''),
           area_code: String(initialData.area_code ?? ''),
           area_ko: String(initialData.area_ko ?? ''),
@@ -467,7 +469,8 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
       property_name_ko: nameKoInput?.value || formData.property_name_ko,
       property_name_en: nameEnInput?.value || formData.property_name_en,
       slug: slugInput?.value || formData.slug,
-      publish: formData.publish  // 체크박스는 이미 상태로 관리됨
+      publish: formData.publish, // 체크박스는 이미 상태로 관리됨
+      vcc: formData.vcc
     }
 
     // 신규 호텔 생성 시 필수 필드 검증
@@ -507,6 +510,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
         formDataToSubmit.append('property_name_en', currentValues.property_name_en)
         formDataToSubmit.append('slug', currentValues.slug)
         formDataToSubmit.append('publish', String(currentValues.publish))
+        formDataToSubmit.append('vcc', String(currentValues.vcc))
         formDataToSubmit.append('property_address', formData.property_address)
         formDataToSubmit.append('area_code', formData.area_code)
         formDataToSubmit.append('area_ko', formData.area_ko)
@@ -562,7 +566,8 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
                 property_name_ko: currentValues.property_name_ko,
                 property_name_en: currentValues.property_name_en,
                 slug: currentValues.slug,
-                publish: currentValues.publish
+                publish: currentValues.publish,
+                vcc: currentValues.vcc
               }))
               
               alert('저장되었습니다.')
@@ -742,49 +747,47 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
             )}
           </div>
 
-          {/* Publish 상태 (스위치 형태) */}
+          {/* VCC 상태 (스위치 형태) */}
           <div className="space-y-1 md:col-span-1">
-            <label className="block text-sm font-medium text-gray-700">게시 상태</label>
+            <label className="block text-sm font-medium text-gray-700">VCC</label>
             {isEditMode ? (
               <div className="flex items-center h-[42px]">
                 <button
                   type="button"
                   role="switch"
-                  aria-checked={formData.publish}
+                  aria-checked={formData.vcc}
                   onClick={() => {
-                    setFormData(prev => ({ ...prev, publish: !prev.publish }))
-                    setHighlightedFields(prev => new Set([...prev, 'publish']))
+                    setFormData(prev => ({ ...prev, vcc: !prev.vcc }))
+                    setHighlightedFields(prev => new Set([...prev, 'vcc']))
                   }}
                   className={cn(
                     "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                    formData.publish ? "bg-green-600" : "bg-gray-300"
+                    formData.vcc ? "bg-green-600" : "bg-gray-300"
                   )}
                 >
                   <span
                     className={cn(
                       "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                      formData.publish ? "translate-x-6" : "translate-x-1"
+                      formData.vcc ? "translate-x-6" : "translate-x-1"
                     )}
                   />
                 </button>
                 <span className="ml-3 text-sm text-gray-700">
-                  {formData.publish ? '공개' : '비공개'}
+                  {formData.vcc ? '사용' : '미사용'}
                 </span>
               </div>
             ) : (
               <div className={cn(
                 "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
-                highlightedFields.has('publish') ? "bg-yellow-100" : "bg-gray-50"
+                highlightedFields.has('vcc') ? "bg-yellow-100" : "bg-gray-50"
               )}>
                 <span className="text-gray-700">
-                  {formData.publish 
-                    ? '공개' 
-                    : '비공개'}
+                  {formData.vcc ? '사용' : '미사용'}
                 </span>
               </div>
             )}
           </div>
-            
+
           {/* 브랜드1 정보 */}
           <div className="space-y-1 md:col-span-1">
             <label className="block text-sm font-medium text-gray-700">브랜드1</label>
@@ -907,6 +910,49 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
                 )}>
                   {selectedBrand3?.name_en || '-'}
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Publish 상태 (스위치 형태) */}
+          <div className="space-y-1 md:col-span-1">
+            <label className="block text-sm font-medium text-gray-700">게시 상태</label>
+            {isEditMode ? (
+              <div className="flex items-center h-[42px]">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={formData.publish}
+                  onClick={() => {
+                    setFormData(prev => ({ ...prev, publish: !prev.publish }))
+                    setHighlightedFields(prev => new Set([...prev, 'publish']))
+                  }}
+                  className={cn(
+                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                    formData.publish ? "bg-green-600" : "bg-gray-300"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                      formData.publish ? "translate-x-6" : "translate-x-1"
+                    )}
+                  />
+                </button>
+                <span className="ml-3 text-sm text-gray-700">
+                  {formData.publish ? '공개' : '비공개'}
+                </span>
+              </div>
+            ) : (
+              <div className={cn(
+                "w-full px-3 py-2 text-sm rounded-md border border-gray-200 transition-colors duration-300",
+                highlightedFields.has('publish') ? "bg-yellow-100" : "bg-gray-50"
+              )}>
+                <span className="text-gray-700">
+                  {formData.publish 
+                    ? '공개' 
+                    : '비공개'}
+                </span>
               </div>
             )}
           </div>

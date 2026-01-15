@@ -494,9 +494,14 @@ export function SatisfactionSurveyTable() {
         </button>
       </div>
       
-      <div className="overflow-y-visible min-h-[400px]">
-        <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="overflow-y-visible min-h-[400px]">
+          <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
           <tr>
             {columns.map((column) => (
               <th
@@ -511,12 +516,7 @@ export function SatisfactionSurveyTable() {
               작업
             </th>
           </tr>
-        </thead>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
+          </thead>
           <SortableContext
             items={localRows.map((r) => String(r.id))}
             strategy={verticalListSortingStrategy}
@@ -675,9 +675,9 @@ export function SatisfactionSurveyTable() {
           )}
             </tbody>
           </SortableContext>
-        </DndContext>
-        </table>
-      </div>
+          </table>
+        </div>
+      </DndContext>
     </div>
   )
 }
