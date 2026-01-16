@@ -396,6 +396,83 @@ export async function deleteBrand(brandId: number): Promise<ActionResult> {
 }
 
 /**
+ * 체인/브랜드 목록 조회
+ */
+export async function getChainBrandList(company?: string): Promise<ActionResult<{
+  chains: Array<{
+    chain_id: number
+    name_kr: string | null
+    name_en: string | null
+    slug: string | null
+    chain_sort_order: number | null
+  }>
+  brands: Array<{
+    brand_id: number
+    chain_id: number | null
+    name_kr: string | null
+    name_en: string | null
+  }>
+}>> {
+  try {
+    const supabase = createServiceRoleClient()
+    const filterByVcc = company === 'sk'
+
+    // 체인 데이터 조회
+    let chainsQuery = supabase.from('hotel_chains').select('*')
+    
+    if (filterByVcc) {
+      // VCC 컬럼 존재 여부 확인 로직은 단순화하여 시도
+      chainsQuery = chainsQuery.eq('vcc', true)
+    }
+
+    const { data: chainsData, error: chainsError } = await chainsQuery
+      .order('chain_sort_order', { ascending: true, nullsFirst: false })
+      .order('chain_id', { ascending: true })
+
+    if (chainsError) {
+      console.error('[chain-brand] getChainBrandList chains error:', chainsError)
+      return { success: false, error: chainsError.message }
+    }
+
+    // 브랜드 데이터 조회
+    const { data: brandsData, error: brandsError } = await supabase
+      .from('hotel_brands')
+      .select('*')
+      .order('brand_id', { ascending: true })
+
+    if (brandsError) {
+      console.error('[chain-brand] getChainBrandList brands error:', brandsError)
+      return { success: false, error: brandsError.message }
+    }
+
+    // 컬럼 매핑 ( hotel_chains -> 클라이언트 형식 )
+    const chains = (chainsData || []).map(r => ({
+      chain_id: Number(r.chain_id),
+      name_kr: (r.chain_name_ko as string) || (r.name_kr as string) || null,
+      name_en: (r.chain_name_en as string) || (r.name_en as string) || null,
+      slug: (r.chain_slug as string) || (r.slug as string) || null,
+      chain_sort_order: r.chain_sort_order ? Number(r.chain_sort_order) : null,
+    }))
+
+    // 컬럼 매핑 ( hotel_brands -> 클라이언트 형식 )
+    const brands = (brandsData || []).map(r => ({
+      brand_id: Number(r.brand_id),
+      chain_id: r.chain_id ? Number(r.chain_id) : null,
+      name_kr: (r.brand_name_ko as string) || (r.name_kr as string) || null,
+      name_en: (r.brand_name_en as string) || (r.name_en as string) || null,
+    }))
+
+    return { 
+      success: true, 
+      data: { chains, brands } 
+    }
+  } catch (e) {
+    console.error('[chain-brand] getChainBrandList exception:', e)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
+}
+
+/**
  * 체인 순서 업데이트
  */
 export async function updateChainSortOrder(chainId: number, sortOrder: number): Promise<ActionResult> {
@@ -635,13 +712,13 @@ export async function getChainHotels(chainId: number): Promise<ActionResult<{
 
     const { data: hotels2, error: error2 } = await supabase
       .from('select_hotels')
-      .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko, brand_id_2 as brand_id')
+      .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko, brand_id_2')
       .in('brand_id_2', brandIds)
       .order('property_name_ko', { ascending: true, nullsFirst: false })
 
     const { data: hotels3, error: error3 } = await supabase
       .from('select_hotels')
-      .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko, brand_id_3 as brand_id')
+      .select('sabre_id, property_name_ko, property_name_en, property_address, city_ko, country_ko, brand_id_3')
       .in('brand_id_3', brandIds)
       .order('property_name_ko', { ascending: true, nullsFirst: false })
 
@@ -654,7 +731,16 @@ export async function getChainHotels(chainId: number): Promise<ActionResult<{
     const hotelMap = new Map<string, { sabre_id: string; property_name_ko: string | null; property_name_en: string | null; property_address: string | null; city_ko: string | null; country_ko: string | null; brand_id: number | null; brand_position?: 1 | 2 | 3 }>()
     
     hotels1?.forEach(hotel => {
-      hotelMap.set(hotel.sabre_id, { ...hotel, brand_position: 1 })
+      hotelMap.set(hotel.sabre_id, { 
+        sabre_id: hotel.sabre_id,
+        property_name_ko: hotel.property_name_ko,
+        property_name_en: hotel.property_name_en,
+        property_address: hotel.property_address,
+        city_ko: hotel.city_ko,
+        country_ko: hotel.country_ko,
+        brand_id: hotel.brand_id,
+        brand_position: 1 
+      })
     })
     
     hotels2?.forEach(hotel => {
@@ -663,7 +749,17 @@ export async function getChainHotels(chainId: number): Promise<ActionResult<{
         // 이미 존재하는 경우, 여러 브랜드 위치에 속할 수 있음 (첫 번째 위치 유지)
         hotelMap.set(hotel.sabre_id, existing)
       } else {
-        hotelMap.set(hotel.sabre_id, { ...hotel, brand_position: 2 })
+        // brand_id_2를 brand_id로 매핑
+        hotelMap.set(hotel.sabre_id, { 
+          sabre_id: hotel.sabre_id,
+          property_name_ko: hotel.property_name_ko,
+          property_name_en: hotel.property_name_en,
+          property_address: hotel.property_address,
+          city_ko: hotel.city_ko,
+          country_ko: hotel.country_ko,
+          brand_id: (hotel as any).brand_id_2 || null,
+          brand_position: 2 
+        })
       }
     })
     
@@ -673,7 +769,17 @@ export async function getChainHotels(chainId: number): Promise<ActionResult<{
         // 이미 존재하는 경우, 여러 브랜드 위치에 속할 수 있음 (첫 번째 위치 유지)
         hotelMap.set(hotel.sabre_id, existing)
       } else {
-        hotelMap.set(hotel.sabre_id, { ...hotel, brand_position: 3 })
+        // brand_id_3를 brand_id로 매핑
+        hotelMap.set(hotel.sabre_id, { 
+          sabre_id: hotel.sabre_id,
+          property_name_ko: hotel.property_name_ko,
+          property_name_en: hotel.property_name_en,
+          property_address: hotel.property_address,
+          city_ko: hotel.city_ko,
+          country_ko: hotel.country_ko,
+          brand_id: (hotel as any).brand_id_3 || null,
+          brand_position: 3 
+        })
       }
     })
 

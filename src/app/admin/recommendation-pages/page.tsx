@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { TopicPageWithHotels } from '@/types/topic-page'
 import { getTopicPagesList, deleteTopicPage } from '@/features/recommendation-pages/actions'
+import { generateTopicPagesFromTags, generateCustomTopicPage } from '@/features/recommendation-pages/ai-actions'
 import { Button } from '@/components/ui/button'
 
 type StatusFilter = 'all' | 'draft' | 'published' | 'archived'
@@ -127,14 +128,9 @@ export default function TopicPagesPage() {
               
               setIsGenerating(true)
               try {
-                const response = await fetch('/api/recommendation-pages/generate-from-tags', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                })
+                const result = await generateTopicPagesFromTags()
                 
-                const result = await response.json()
-                
-                if (result.success) {
+                if (result.success && result.data) {
                   alert(`✅ 추천 페이지 생성 완료!\n- 생성된 페이지: ${result.data.created}개\n- 건너뛴 페이지: ${result.data.skipped}개`)
                   loadTopicPages()
                 } else {
@@ -460,21 +456,15 @@ function CustomTopicPageModal({ onClose, onSuccess }: CustomTopicPageModalProps)
       const selectedTagObjects = allTags.filter((tag) => selectedTags.has(tag.id))
       const tagNames = selectedTagObjects.map((tag) => tag.name_ko)
 
-      const response = await fetch('/api/recommendation-pages/generate-custom', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slug: formData.slug,
-          title_ko: formData.title_ko,
-          intro_ko: formData.intro_ko,
-          tag_ids: Array.from(selectedTags),
-          tag_names: tagNames,
-        }),
+      const result = await generateCustomTopicPage({
+        slug: formData.slug,
+        title_ko: formData.title_ko,
+        intro_ko: formData.intro_ko,
+        tag_ids: Array.from(selectedTags),
+        tag_names: tagNames,
       })
 
-      const result = await response.json()
-
-      if (result.success) {
+      if (result.success && result.data) {
         alert(`✅ 추천 페이지 생성 완료!\n- 연결된 호텔: ${result.data.connectedHotels}개`)
         onSuccess()
       } else {

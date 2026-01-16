@@ -104,6 +104,12 @@ const navSections: NavSection[] = [
       { label: 'Sabre API 공식 문서', href: 'https://developer.sabre.com/product-catalog?f%5B0%5D=product_type%3Aapi_reference&category=Hotel', icon: ExternalLink, isExternal: true },
     ],
   },
+  {
+    title: '계정',
+    items: [
+      { label: '내 프로필', href: '/admin/profile', icon: User, requiredRole: 'user' },
+    ],
+  },
 ]
 
 export function Sidebar() {

@@ -1,5 +1,210 @@
-import { NextRequest, NextResponse } from 'next/server'
+'use server'
+
+import { AI_MODELS } from '@/config/ai-prompts'
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
+
+type ActionResult<T = unknown> = {
+  success: boolean
+  data?: T
+  error?: string
+}
+
+// ========================================
+// AI 기반 추천 페이지 생성 및 데이터 보강 Actions
+// ========================================
+
+/**
+ * AI를 이용한 추천 페이지 소개글 생성
+ */
+export async function generateTopicPageIntro(params: {
+  title_ko: string
+  where_cities?: string[]
+  companions?: string[]
+  styles?: string[]
+}): Promise<ActionResult<{ intro_rich_ko: string }>> {
+  try {
+    const { title_ko, where_cities, companions, styles } = params
+
+    if (!title_ko || !title_ko.trim()) {
+      return { success: false, error: '제목은 필수입니다.' }
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+      return { success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' }
+    }
+
+    const systemPrompt = `당신은 호텔 예약 사이트의 전문 콘텐츠 작가입니다. 
+주어진 토픽 페이지 정보를 바탕으로 매력적이고 SEO에 최적화된 소개글을 작성해주세요.
+
+**중요 지침:**
+1. 고객에게 직접 말하는 듯한 친근한 어투 사용 (존댓말)
+2. 구체적인 여행 상황과 니즈를 언급하여 공감대 형성
+3. 해당 토픽의 매력과 특징을 자연스럽게 설명
+4. 200-300자 분량의 간결하면서도 감성적인 소개글
+5. 마크다운 형식 사용 가능 (볼드, 이탤릭 등)
+
+**작성 스타일:**
+- 첫 문장: 독자의 상황이나 니즈 공감
+- 중간: 토픽의 특징과 매력 소개
+- 마지막: 행동을 유도하는 부드러운 제안`
+
+    const userPrompt = `토픽 페이지 정보:
+- 제목: ${title_ko}
+${where_cities && where_cities.length > 0 ? `- 도시: ${where_cities.join(', ')}` : ''}
+${companions && companions.length > 0 ? `- 동행인: ${companions.join(', ')}` : ''}
+${styles && styles.length > 0 ? `- 스타일: ${styles.join(', ')}` : ''}
+
+위 정보를 바탕으로 토픽 페이지 소개글을 작성해주세요.`
+
+    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: AI_MODELS.GPT_4O,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.8,
+        max_tokens: 500,
+      }),
+    })
+
+    if (!openaiResponse.ok) {
+      const errorData = await openaiResponse.json()
+      return { success: false, error: `OpenAI API 호출 실패: ${errorData.error?.message || '알 수 없는 오류'}` }
+    }
+
+    const aiResult = await openaiResponse.json()
+    const generatedIntro = aiResult.choices?.[0]?.message?.content?.trim()
+
+    if (!generatedIntro) {
+      return { success: false, error: 'AI가 소개글을 생성하지 못했습니다.' }
+    }
+
+    return {
+      success: true,
+      data: { intro_rich_ko: generatedIntro },
+    }
+  } catch (error) {
+    console.error('❌ 소개글 생성 중 예외 발생:', error)
+    return { success: false, error: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.' }
+  }
+}
+
+/**
+ * AI를 이용한 SEO 메타데이터 생성
+ */
+export async function generateTopicPageSeo(params: {
+  title_ko: string
+  slug: string
+  where_countries?: string[]
+  where_cities?: string[]
+  companions?: string[]
+  styles?: string[]
+  intro_rich_ko?: string
+}): Promise<ActionResult<any>> {
+  try {
+    const { title_ko, slug } = params
+
+    if (!title_ko || !slug) {
+      return { success: false, error: '제목과 slug는 필수입니다.' }
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+      return { success: false, error: 'OpenAI API 키가 설정되지 않았습니다.' }
+    }
+
+    const systemPrompt = `당신은 호텔 토픽 페이지의 SEO 최적화 전문가입니다.
+주어진 토픽 페이지 정보를 바탕으로 검색 엔진과 소셜 미디어에 최적화된 메타데이터를 생성하세요.
+
+다음 정보를 JSON 형식으로 반환하세요:
+- seo_title_ko: 검색 결과에 최적화된 제목 (50-60자, 핵심 키워드 포함)
+- seo_description_ko: 검색 결과 설명 (150-160자, 클릭을 유도하는 내용)
+- og_title: SNS 공유용 제목 (간결하고 매력적인 제목)
+- og_description: SNS 공유용 설명 (2-3문장, 감성적이고 매력적인 내용)
+- twitter_title: 트위터용 제목 (og_title과 유사하지만 더 짧고 간결하게)
+- twitter_description: 트위터용 설명 (og_description과 유사하지만 더 짧게)
+- seo_schema_json: Schema.org의 CollectionPage 또는 TravelAction 형식의 JSON-LD
+
+SEO 모범 사례:
+1. 제목에는 핵심 키워드를 앞쪽에 배치
+2. 설명에는 사용자 의도에 맞는 행동 유도 문구 포함
+3. 자연스러운 한국어 사용, 키워드 나열 지양
+4. 고유하고 매력적인 내용으로 작성
+
+반드시 유효한 JSON만 반환하세요. 마크다운 코드 블록이나 추가 설명 없이.`
+
+    const userPrompt = `
+토픽 페이지 정보:
+- 제목: ${title_ko}
+- Slug: ${slug}
+${params.where_countries?.length ? `- 국가: ${params.where_countries.join(', ')}` : ''}
+${params.where_cities?.length ? `- 도시: ${params.where_cities.join(', ')}` : ''}
+${params.companions?.length ? `- 동행인: ${params.companions.join(', ')}` : ''}
+${params.styles?.length ? `- 스타일: ${params.styles.join(', ')}` : ''}
+${params.intro_rich_ko ? `- 소개글: ${params.intro_rich_ko.substring(0, 200)}...` : ''}
+
+이 정보를 바탕으로 SEO에 최적화된 메타데이터를 생성해주세요.`.trim()
+
+    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 1000,
+      }),
+    })
+
+    if (!openaiResponse.ok) {
+      return { success: false, error: 'AI 생성 중 오류가 발생했습니다.' }
+    }
+
+    const aiResult = await openaiResponse.json()
+    let content = aiResult.choices[0]?.message?.content
+    
+    if (!content) {
+      return { success: false, error: 'AI 응답을 받을 수 없습니다.' }
+    }
+
+    // JSON 파싱 (마크다운 코드 블록 제거)
+    if (content.startsWith('```')) {
+      content = content.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim()
+    }
+
+    const result = JSON.parse(content)
+
+    return {
+      success: true,
+      data: {
+        seo_title_ko: result.seo_title_ko || '',
+        seo_description_ko: result.seo_description_ko || '',
+        og_title: result.og_title || result.seo_title_ko || '',
+        og_description: result.og_description || result.seo_description_ko || '',
+        twitter_title: result.twitter_title || result.og_title || result.seo_title_ko || '',
+        twitter_description: result.twitter_description || result.og_description || result.seo_description_ko || '',
+        seo_schema_json: result.seo_schema_json || null,
+      },
+    }
+  } catch (error) {
+    console.error('❌ SEO 생성 중 예외 발생:', error)
+    return { success: false, error: error instanceof Error ? error.message : '서버 오류가 발생했습니다.' }
+  }
+}
 
 /**
  * 태그 기반 토픽 페이지 템플릿
@@ -196,12 +401,11 @@ const TOPIC_PAGE_TEMPLATES: TopicPageTemplate[] = [
 ]
 
 /**
- * POST /api/topic-pages/generate-from-tags
- * 태그와 카테고리 기반으로 토픽 페이지 자동 생성
+ * 태그 기반 토픽 페이지 자동 생성 (Batch)
  */
-export async function POST(_request: NextRequest) {
+export async function generateTopicPagesFromTags(): Promise<ActionResult<{ created: number; skipped: number; total: number }>> {
   try {
-    const supabase = createServiceRoleClient()
+    const supabase = await createServiceRoleClient()
     
     let createdCount = 0
     let skippedCount = 0
@@ -215,7 +419,6 @@ export async function POST(_request: NextRequest) {
         .maybeSingle()
       
       if (existing) {
-        console.log(`⏭️ 건너뜀 (이미 존재): ${template.slug}`)
         skippedCount++
         continue
       }
@@ -228,7 +431,6 @@ export async function POST(_request: NextRequest) {
         .maybeSingle()
       
       if (!category) {
-        console.log(`⚠️ 카테고리 없음: ${template.categorySlug}`)
         skippedCount++
         continue
       }
@@ -243,7 +445,6 @@ export async function POST(_request: NextRequest) {
         .limit(10)
       
       if (!tags || tags.length === 0) {
-        console.log(`⚠️ 태그 없음: ${template.categorySlug}`)
         skippedCount++
         continue
       }
@@ -262,7 +463,6 @@ export async function POST(_request: NextRequest) {
       
       // 해시태그가 없으면 건너뛰기
       if (hashtags.length === 0) {
-        console.log(`⚠️ 매칭되는 태그 없음: ${template.slug}`)
         skippedCount++
         continue
       }
@@ -302,12 +502,9 @@ export async function POST(_request: NextRequest) {
         .single()
       
       if (insertError || !newPage) {
-        console.error(`❌ 생성 실패 (${template.slug}):`, insertError)
         skippedCount++
         continue
       }
-      
-      console.log(`✅ 생성 완료: ${template.slug} (태그 ${hashtags.length}개)`)
       
       // 7. 해당 태그를 가진 호텔 조회 및 연결
       const matchingTagIds = matchingTags.map((tag) => tag.id).filter(Boolean)
@@ -343,42 +540,157 @@ export async function POST(_request: NextRequest) {
             }
           })
           
-          const { error: connectError } = await supabase
+          await supabase
             .from('select_recommendation_page_hotels')
             .insert(hotelsToConnect)
-          
-          if (connectError) {
-            console.error(`⚠️ 호텔 연결 실패 (${template.slug}):`, connectError)
-          } else {
-            const pinnedCount = hotelsToConnect.filter((h) => h.pin_to_top).length
-            console.log(`   ✅ 호텔 ${hotelsToConnect.length}개 연결됨 (상단 고정: ${pinnedCount}개)`)
-          }
         }
       }
       
       createdCount++
     }
     
-    console.log(`\n✅ 토픽 페이지 생성 완료: ${createdCount}개 생성, ${skippedCount}개 건너뜀`)
+    revalidatePath('/admin/recommendation-pages')
     
-    return NextResponse.json({
+    return {
       success: true,
-      message: '토픽 페이지가 생성되었습니다.',
       data: {
         created: createdCount,
         skipped: skippedCount,
         total: TOPIC_PAGE_TEMPLATES.length,
       },
-    })
+    }
   } catch (error) {
-    console.error('토픽 페이지 생성 API 오류:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : '토픽 페이지 생성 중 오류가 발생했습니다.',
-      },
-      { status: 500 }
-    )
+    console.error('❌ 태그 기반 페이지 생성 오류:', error)
+    return { success: false, error: error instanceof Error ? error.message : '서버 오류가 발생했습니다.' }
   }
 }
 
+/**
+ * 커스텀 토픽 페이지 생성
+ */
+export async function generateCustomTopicPage(params: {
+  slug: string
+  title_ko: string
+  intro_ko?: string
+  tag_ids: string[]
+  tag_names: string[]
+}): Promise<ActionResult<{ pageId: string; connectedHotels: number }>> {
+  try {
+    const { slug, title_ko, intro_ko, tag_ids, tag_names } = params
+
+    if (!slug || !title_ko) {
+      return { success: false, error: 'slug와 title_ko는 필수입니다.' }
+    }
+
+    if (!tag_ids || tag_ids.length === 0) {
+      return { success: false, error: '최소 1개 이상의 태그를 선택해주세요.' }
+    }
+
+    const supabase = await createServiceRoleClient()
+
+    // 1. Slug 중복 체크
+    const { data: existing } = await supabase
+      .from('select_recommendation_pages')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle()
+
+    if (existing) {
+      return { success: false, error: '이미 존재하는 slug입니다.' }
+    }
+
+    // 2. 토픽 페이지 생성
+    const { data: newPage, error: insertError } = await supabase
+      .from('select_recommendation_pages')
+      .insert({
+        slug,
+        title_ko,
+        hashtags: tag_names || [],
+        where_countries: null,
+        where_cities: null,
+        companions: null,
+        styles: null,
+        hero_image_url: null,
+        intro_rich_ko: intro_ko ? `<p>${intro_ko}</p>` : `<p>${title_ko}</p>`,
+        status: 'draft',
+        publish: false,
+        publish_at: null,
+        seo_title_ko: `${title_ko} | 셀렉트3`,
+        seo_description_ko: `${title_ko} 추천. 엄선된 호텔 컬렉션을 만나보세요.`,
+        seo_canonical_url: null,
+        meta_robots: 'index, follow',
+        og_title: title_ko,
+        og_description: `${title_ko} 추천`,
+        og_image_url: null,
+        twitter_title: null,
+        twitter_description: null,
+        twitter_image_url: null,
+        seo_hreflang: null,
+        seo_schema_json: null,
+        sitemap_priority: 0.7,
+        sitemap_changefreq: 'weekly',
+      })
+      .select('id')
+      .single()
+
+    if (insertError || !newPage) {
+      return { success: false, error: '토픽 페이지 생성에 실패했습니다.' }
+    }
+
+    // 3. 선택된 태그를 가진 호텔 조회 및 연결
+    const { data: hotelMappings } = await supabase
+      .from('select_hotel_tags_map')
+      .select('sabre_id, tag_id')
+      .in('tag_id', tag_ids)
+
+    let connectedHotelsCount = 0
+
+    if (hotelMappings && hotelMappings.length > 0) {
+      // sabre_id별로 매칭된 태그 개수 계산
+      const hotelTagCounts = new Map<number, number>()
+      hotelMappings.forEach((mapping) => {
+        const count = hotelTagCounts.get(mapping.sabre_id) || 0
+        hotelTagCounts.set(mapping.sabre_id, count + 1)
+      })
+
+      // 매칭 태그 개수가 많은 순으로 정렬
+      const sortedSabreIds = Array.from(hotelTagCounts.entries())
+        .sort((a, b) => b[1] - a[1]) // 태그 개수 내림차순
+        .map((entry) => entry[0])
+
+      // 토픽 페이지에 호텔 연결 (최대 50개)
+      const hotelsToConnect = sortedSabreIds.slice(0, 50).map((sabre_id, index) => {
+        const matchCount = hotelTagCounts.get(sabre_id) || 0
+        return {
+          page_id: newPage.id,
+          sabre_id,
+          pin_to_top: matchCount >= tag_ids.length / 2, // 절반 이상 매칭되면 상단 고정
+          rank_manual: index + 1,
+        }
+      })
+
+      if (hotelsToConnect.length > 0) {
+        const { error: connectError } = await supabase
+          .from('select_recommendation_page_hotels')
+          .insert(hotelsToConnect)
+
+        if (!connectError) {
+          connectedHotelsCount = hotelsToConnect.length
+        }
+      }
+    }
+
+    revalidatePath('/admin/recommendation-pages')
+    
+    return {
+      success: true,
+      data: {
+        pageId: newPage.id,
+        connectedHotels: connectedHotelsCount,
+      },
+    }
+  } catch (error) {
+    console.error('❌ 커스텀 토픽 페이지 생성 오류:', error)
+    return { success: false, error: error instanceof Error ? error.message : '서버 오류가 발생했습니다.' }
+  }
+}

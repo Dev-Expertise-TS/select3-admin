@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import HotelQuickSearch from '@/components/shared/hotel-quick-search'
 import { saveFeatureSlot, deleteFeatureSlot } from '@/features/advertisements/actions'
+import { getChainBrandList } from '@/features/chain-brand/actions'
 
 interface FeatureSlot {
   id: number
@@ -143,24 +144,13 @@ export default function BrandFeaturedManager() {
   const loadChains = async () => {
     setChainLoading(true)
     try {
-      const response = await fetch('/api/chain-brand/list')
-      const data = await response.json()
+      const result = await getChainBrandList()
 
-      console.log('[BrandFeaturedManager] API Response:', data)
-      console.log('[BrandFeaturedManager] Chains data:', data.data)
-      console.log('[BrandFeaturedManager] Chains array:', data.data?.chains)
-      console.log('[BrandFeaturedManager] Debug info:', data.debug)
-
-      // 디버그 정보 저장
-      if (data.debug) {
-        setDebugInfo(data.debug)
-      }
-
-      if (data.success) {
-        let chainsList = data.data?.chains || []
+      if (result.success && result.data) {
+        let chainsList = result.data.chains || []
         
         // chain_sort_order로 정렬 (작은 값이 위로, null은 아래로)
-        chainsList = chainsList.sort((a: Chain, b: Chain) => {
+        chainsList = chainsList.sort((a: any, b: any) => {
           // 둘 다 sort_order가 있는 경우
           if (a.chain_sort_order != null && b.chain_sort_order != null) {
             return a.chain_sort_order - b.chain_sort_order
@@ -178,13 +168,12 @@ export default function BrandFeaturedManager() {
         })
         
         console.log('[BrandFeaturedManager] Setting chains:', chainsList)
-        setChains(chainsList)
+        setChains(chainsList as any)
       } else {
-        console.error('[BrandFeaturedManager] API Error:', data.error)
-        setError(data.error || '체인 목록을 불러올 수 없습니다.')
+        setError(result.error || '체인 목록을 불러올 수 없습니다.')
       }
     } catch (err) {
-      console.error('[BrandFeaturedManager] Fetch Error:', err)
+      console.error('[BrandFeaturedManager] Load Error:', err)
       setError(err instanceof Error ? err.message : '체인 목록 로드 중 오류가 발생했습니다.')
     } finally {
       setChainLoading(false)

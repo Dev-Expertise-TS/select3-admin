@@ -4,6 +4,12 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react'
 import { TopicPageHotelWithInfo } from '@/types/topic-page'
+import { 
+  getTopicPageHotels, 
+  addHotelToTopicPage, 
+  updateTopicPageHotel, 
+  removeHotelFromTopicPage 
+} from '@/features/recommendation-pages/actions'
 
 interface TopicPageHotelsManagerProps {
   pageId: string
@@ -21,9 +27,9 @@ export function TopicPageHotelsManager({ pageId, hotels: initialHotels }: TopicP
   const { data: response } = useQuery({
     queryKey: ['topic-page-hotels', pageId],
     queryFn: async () => {
-      const res = await fetch(`/api/recommendation-page-hotels?page_id=${pageId}`)
-      if (!res.ok) throw new Error('호텔 목록 조회 실패')
-      return res.json()
+      const result = await getTopicPageHotels(pageId)
+      if (!result.success) throw new Error(result.error || '호텔 목록 조회 실패')
+      return result
     },
     initialData: { success: true, data: initialHotels },
   })
@@ -43,16 +49,11 @@ export function TopicPageHotelsManager({ pageId, hotels: initialHotels }: TopicP
   // 호텔 추가
   const addMutation = useMutation({
     mutationFn: async (sabreId: number) => {
-      const res = await fetch('/api/recommendation-page-hotels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page_id: pageId, sabre_id: sabreId }),
-      })
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || '호텔 추가 실패')
+      const result = await addHotelToTopicPage({ page_id: pageId, sabre_id: sabreId })
+      if (!result.success) {
+        throw new Error(result.error || '호텔 추가 실패')
       }
-      return res.json()
+      return result
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['topic-page-hotels', pageId] })
@@ -69,16 +70,13 @@ export function TopicPageHotelsManager({ pageId, hotels: initialHotels }: TopicP
   // 호텔 수정
   const updateMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: Partial<TopicPageHotelWithInfo> }) => {
-      const res = await fetch('/api/recommendation-page-hotels', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...updates }),
-      })
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || '호텔 정보 수정 실패')
+      // id와 updates에서 불필요한 필드 제거 (hotel 등)
+      const { hotel, created_at, updated_at, ...cleanUpdates } = updates as any
+      const result = await updateTopicPageHotel({ id, ...cleanUpdates })
+      if (!result.success) {
+        throw new Error(result.error || '호텔 정보 수정 실패')
       }
-      return res.json()
+      return result
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['topic-page-hotels', pageId] })
@@ -95,14 +93,11 @@ export function TopicPageHotelsManager({ pageId, hotels: initialHotels }: TopicP
   // 호텔 삭제
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/recommendation-page-hotels?id=${id}`, {
-        method: 'DELETE',
-      })
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || '호텔 제거 실패')
+      const result = await removeHotelFromTopicPage(String(id))
+      if (!result.success) {
+        throw new Error(result.error || '호텔 제거 실패')
       }
-      return res.json()
+      return result
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['topic-page-hotels', pageId] })

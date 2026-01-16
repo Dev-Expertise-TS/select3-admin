@@ -6,10 +6,12 @@ import Image from 'next/image'
 import { useAuth } from '@/features/auth/contexts/AuthContext'
 import { LoginForm } from '@/features/auth/components/LoginForm'
 import { SignupForm } from '@/features/auth/components/SignupForm'
+import { ForgotPasswordForm } from '@/features/auth/components/ForgotPasswordForm'
 import { Shield } from 'lucide-react'
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
   const { user, loading, isInitialized } = useAuth()
   const router = useRouter()
 
@@ -64,6 +66,19 @@ export default function LoginPage() {
       }
     }
     load()
+  }, [])
+
+  // 비밀번호 찾기 이벤트 리스너
+  useEffect(() => {
+    const handleShowForgotPassword = () => {
+      setShowForgotPassword(true)
+      setIsLogin(true) // 로그인 탭으로 전환
+    }
+
+    window.addEventListener('showForgotPassword', handleShowForgotPassword)
+    return () => {
+      window.removeEventListener('showForgotPassword', handleShowForgotPassword)
+    }
   }, [])
 
   // 이미 로그인된 사용자는 홈으로 리다이렉트
@@ -203,10 +218,17 @@ export default function LoginPage() {
 
             {/* 폼 렌더링 */}
             {isLogin ? (
-              <LoginForm 
-                onSwitchToSignup={() => setIsLogin(false)}
-                className="w-full"
-              />
+              showForgotPassword ? (
+                <ForgotPasswordForm 
+                  onBack={() => setShowForgotPassword(false)}
+                  className="w-full"
+                />
+              ) : (
+                <LoginForm 
+                  onSwitchToSignup={() => setIsLogin(false)}
+                  className="w-full"
+                />
+              )
             ) : (
               <SignupForm 
                 onSwitchToLogin={() => setIsLogin(true)}

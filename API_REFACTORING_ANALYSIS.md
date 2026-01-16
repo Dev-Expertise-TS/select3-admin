@@ -8,19 +8,13 @@
 
 ### ✅ 완료
 - **해시태그 관리** (8개 파일 → 1개 actions.ts)
+- **추천 페이지(토픽 페이지) 관리** (7개 파일 → actions.ts, ai-actions.ts)
+- **체인/브랜드 관리** (5개 파일 → actions.ts)
 
 ### 🟢 높은 우선순위 (Server Actions 권장)
 관리자 전용, 외부 노출 불필요, CRUD 위주
 
-#### 1. 토픽 페이지 관리
-- `api/topic-pages/route.ts` (GET, POST, PATCH)
-- `api/topic-pages/list/route.ts`
-- `api/topic-page-hotels/route.ts`
-- **사용처**: `admin/topic-pages/**`
-- **이유**: 내부 CRUD만, 타입 안정성 필요
-- **절감**: ~6개 파일 → 1개 actions.ts
-
-#### 2. 사용자 관리
+#### 1. 사용자 관리
 - `api/users/list/route.ts`
 - `api/users/update/route.ts`
 - `api/users/delete/route.ts`

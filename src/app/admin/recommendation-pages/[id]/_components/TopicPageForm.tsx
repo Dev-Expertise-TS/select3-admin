@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { Save, Sparkles, Wand2 } from 'lucide-react'
 import { TopicPage } from '@/types/topic-page'
 import { MultiSelectField } from '@/components/shared/multi-select-field'
+import { createTopicPage, updateTopicPage } from '@/features/recommendation-pages/actions'
+import { generateTopicPageIntro, generateTopicPageSeo } from '@/features/recommendation-pages/ai-actions'
 
 interface TopicPageFormProps {
   topicPage?: TopicPage
@@ -157,23 +159,12 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
     setIsGeneratingIntro(true)
 
     try {
-      const res = await fetch('/api/recommendation-pages/generate-intro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title_ko: formData.title_ko.trim(),
-          where_cities: formData.where_cities,
-          companions: formData.companions,
-          styles: formData.styles,
-        }),
+      const result = await generateTopicPageIntro({
+        title_ko: formData.title_ko.trim(),
+        where_cities: formData.where_cities,
+        companions: formData.companions,
+        styles: formData.styles,
       })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || '소개글 생성 실패')
-      }
-
-      const result = await res.json()
 
       if (result.success && result.data?.intro_rich_ko) {
         setFormData({
@@ -182,7 +173,7 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
         })
         alert('AI로 소개글이 생성되었습니다.')
       } else {
-        throw new Error('소개글 생성 결과가 없습니다.')
+        throw new Error(result.error || '소개글 생성 결과가 없습니다.')
       }
     } catch (error) {
       console.error('소개글 생성 오류:', error)
@@ -206,26 +197,15 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
     setIsGeneratingSeo(true)
 
     try {
-      const res = await fetch('/api/recommendation-pages/generate-seo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title_ko: formData.title_ko.trim(),
-          slug: formData.slug.trim(),
-          where_countries: formData.where_countries ? formData.where_countries.split(',').map(s => s.trim()).filter(Boolean) : [],
-          where_cities: formData.where_cities ? formData.where_cities.split(',').map(s => s.trim()).filter(Boolean) : [],
-          companions: formData.companions ? formData.companions.split(',').map(s => s.trim()).filter(Boolean) : [],
-          styles: formData.styles ? formData.styles.split(',').map(s => s.trim()).filter(Boolean) : [],
-          intro_rich_ko: formData.intro_rich_ko.trim() || undefined,
-        }),
+      const result = await generateTopicPageSeo({
+        title_ko: formData.title_ko.trim(),
+        slug: formData.slug.trim(),
+        where_countries: formData.where_countries ? formData.where_countries.split(',').map(s => s.trim()).filter(Boolean) : [],
+        where_cities: formData.where_cities || [],
+        companions: formData.companions || [],
+        styles: formData.styles || [],
+        intro_rich_ko: formData.intro_rich_ko.trim() || undefined,
       })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'SEO 생성 실패')
-      }
-
-      const result = await res.json()
 
       if (result.success && result.data) {
         setFormData({
@@ -240,7 +220,7 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
         })
         alert('AI로 SEO 설정이 생성되었습니다.')
       } else {
-        throw new Error('SEO 생성 결과가 없습니다.')
+        throw new Error(result.error || 'SEO 생성 결과가 없습니다.')
       }
     } catch (error) {
       console.error('SEO 생성 오류:', error)
@@ -274,7 +254,6 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
       }
 
       const payload = {
-        ...(isNew ? {} : { id: topicPage?.id }),
         slug: formData.slug.trim(),
         title_ko: formData.title_ko.trim(),
         where_countries: formData.where_countries ? formData.where_countries.split(',').map(s => s.trim()).filter(Boolean) : [],
@@ -304,28 +283,22 @@ export function TopicPageForm({ topicPage, isNew }: TopicPageFormProps) {
         sitemap_changefreq: formData.sitemap_changefreq.trim() || 'weekly',
       }
 
-      const url = isNew ? '/api/recommendation-pages' : '/api/recommendation-pages'
-      const method = isNew ? 'POST' : 'PATCH'
+      const result = isNew 
+        ? await createTopicPage(payload)
+        : await updateTopicPage({ ...payload, id: topicPage!.id })
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || '저장 실패')
+      if (!result.success) {
+        throw new Error(result.error || '저장 실패')
       }
 
-      return res.json()
+      return result
     },
-    onSuccess: (data) => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['topic-pages-list'] })
       queryClient.invalidateQueries({ queryKey: ['topic-page', topicPage?.id] })
       alert(isNew ? '추천 페이지가 생성되었습니다.' : '추천 페이지가 수정되었습니다.')
-      if (isNew && data.data?.id) {
-        router.push(`/admin/recommendation-pages/${data.data.id}`)
+      if (isNew && result.data?.id) {
+        router.push(`/admin/recommendation-pages/${result.data.id}`)
       }
     },
     onError: (error: Error) => {

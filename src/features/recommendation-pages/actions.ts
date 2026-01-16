@@ -2,7 +2,14 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import type { TopicPage, TopicPageHotel } from '@/types/topic-page'
+import type { 
+  TopicPage, 
+  TopicPageHotel, 
+  CreateTopicPageRequest, 
+  UpdateTopicPageRequest,
+  CreateTopicPageHotelRequest,
+  UpdateTopicPageHotelRequest
+} from '@/types/topic-page'
 
 type ActionResult<T = unknown> = {
   success: boolean
@@ -158,10 +165,9 @@ export async function getTopicPage(id?: string, slug?: string): Promise<ActionRe
 /**
  * 추천 페이지 생성
  */
-export async function createTopicPage(formData: FormData): Promise<ActionResult<TopicPage>> {
+export async function createTopicPage(data: CreateTopicPageRequest): Promise<ActionResult<TopicPage>> {
   try {
-    const slug = formData.get('slug') as string
-    const title_ko = formData.get('title_ko') as string
+    const { slug, title_ko, ...rest } = data
 
     if (!slug || !title_ko) {
       return { success: false, error: 'slug와 title_ko는 필수입니다.' }
@@ -174,33 +180,20 @@ export async function createTopicPage(formData: FormData): Promise<ActionResult<
       .from('select_recommendation_pages')
       .select('id')
       .eq('slug', slug)
-      .single()
+      .maybeSingle()
 
     if (existing) {
       return { success: false, error: '이미 존재하는 slug입니다.' }
     }
 
-    // 배열 필드 파싱
-    const parseArray = (value: string | null) => {
-      if (!value || !value.trim()) return null
-      return value.split(',').map(s => s.trim()).filter(Boolean)
-    }
-
-    const { data, error } = await supabase
+    const { data: insertedData, error } = await supabase
       .from('select_recommendation_pages')
       .insert({
         slug,
         title_ko,
-        where_countries: parseArray(formData.get('where_countries') as string),
-        where_cities: parseArray(formData.get('where_cities') as string),
-        companions: parseArray(formData.get('companions') as string),
-        styles: parseArray(formData.get('styles') as string),
-        hero_image_url: (formData.get('hero_image_url') as string) || null,
-        intro_rich_ko: (formData.get('intro_rich_ko') as string) || null,
-        hashtags: parseArray(formData.get('hashtags') as string),
-        status: (formData.get('status') as string) || 'draft',
-        publish: formData.get('publish') === 'true',
-        publish_at: (formData.get('publish_at') as string) || null,
+        ...rest,
+        status: rest.status || 'draft',
+        publish: rest.publish ?? false,
       })
       .select()
       .single()
@@ -211,7 +204,7 @@ export async function createTopicPage(formData: FormData): Promise<ActionResult<
     }
 
     revalidatePath('/admin/recommendation-pages')
-    return { success: true, data: data as TopicPage }
+    return { success: true, data: insertedData as TopicPage }
   } catch (err) {
     console.error('❌ 추천 페이지 생성 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
@@ -221,8 +214,10 @@ export async function createTopicPage(formData: FormData): Promise<ActionResult<
 /**
  * 추천 페이지 수정
  */
-export async function updateTopicPage(id: string, updates: Record<string, unknown>): Promise<ActionResult<TopicPage>> {
+export async function updateTopicPage(data: UpdateTopicPageRequest): Promise<ActionResult<TopicPage>> {
   try {
+    const { id, ...updates } = data
+
     if (!id) {
       return { success: false, error: 'id가 필요합니다.' }
     }
@@ -236,14 +231,14 @@ export async function updateTopicPage(id: string, updates: Record<string, unknow
         .select('id')
         .eq('slug', updates.slug)
         .neq('id', id)
-        .single()
+        .maybeSingle()
 
       if (existing) {
         return { success: false, error: '이미 존재하는 slug입니다.' }
       }
     }
 
-    const { data, error } = await supabase
+    const { data: updatedData, error } = await supabase
       .from('select_recommendation_pages')
       .update({
         ...updates,
@@ -259,7 +254,8 @@ export async function updateTopicPage(id: string, updates: Record<string, unknow
     }
 
     revalidatePath('/admin/recommendation-pages')
-    return { success: true, data: data as TopicPage }
+    revalidatePath(`/admin/recommendation-pages/${id}`)
+    return { success: true, data: updatedData as TopicPage }
   } catch (err) {
     console.error('❌ 추천 페이지 수정 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
@@ -357,10 +353,9 @@ export async function getTopicPageHotels(pageId: string): Promise<ActionResult<T
 /**
  * 추천 페이지에 호텔 추가
  */
-export async function addHotelToTopicPage(formData: FormData): Promise<ActionResult<TopicPageHotel>> {
+export async function addHotelToTopicPage(data: CreateTopicPageHotelRequest): Promise<ActionResult<TopicPageHotel>> {
   try {
-    const page_id = formData.get('page_id') as string
-    const sabre_id = formData.get('sabre_id') as string
+    const { page_id, sabre_id, ...rest } = data
 
     if (!page_id || !sabre_id) {
       return { success: false, error: 'page_id와 sabre_id는 필수입니다.' }
@@ -374,33 +369,18 @@ export async function addHotelToTopicPage(formData: FormData): Promise<ActionRes
       .select('id')
       .eq('page_id', page_id)
       .eq('sabre_id', sabre_id)
-      .single()
+      .maybeSingle()
 
     if (existing) {
       return { success: false, error: '이미 추가된 호텔입니다.' }
     }
 
-    // 배열 필드 파싱
-    const parseArray = (value: string | null) => {
-      if (!value || !value.trim()) return null
-      return value.split(',').map(s => s.trim()).filter(Boolean)
-    }
-
-    const { data, error } = await supabase
+    const { data: insertedData, error } = await supabase
       .from('select_recommendation_page_hotels')
       .insert({
         page_id,
         sabre_id,
-        pin_to_top: formData.get('pin_to_top') === 'true',
-        rank_manual: parseInt(formData.get('rank_manual') as string) || null,
-        badge_text_ko: (formData.get('badge_text_ko') as string) || null,
-        card_title_ko: (formData.get('card_title_ko') as string) || null,
-        card_blurb_ko: (formData.get('card_blurb_ko') as string) || null,
-        card_image_url: (formData.get('card_image_url') as string) || null,
-        gallery_image_urls: parseArray(formData.get('gallery_image_urls') as string),
-        match_where_note_ko: (formData.get('match_where_note_ko') as string) || null,
-        match_companion_note_ko: (formData.get('match_companion_note_ko') as string) || null,
-        match_style_note_ko: (formData.get('match_style_note_ko') as string) || null,
+        ...rest,
       })
       .select()
       .single()
@@ -410,8 +390,8 @@ export async function addHotelToTopicPage(formData: FormData): Promise<ActionRes
       return { success: false, error: '호텔 추가에 실패했습니다.' }
     }
 
-    revalidatePath('/admin/recommendation-pages')
-    return { success: true, data: data as TopicPageHotel }
+    revalidatePath(`/admin/recommendation-pages/${page_id}`)
+    return { success: true, data: insertedData as TopicPageHotel }
   } catch (err) {
     console.error('❌ 추천 페이지 호텔 추가 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }
@@ -421,15 +401,16 @@ export async function addHotelToTopicPage(formData: FormData): Promise<ActionRes
 /**
  * 추천 페이지 호텔 정보 수정
  */
-export async function updateTopicPageHotel(id: string, updates: Record<string, unknown>): Promise<ActionResult<TopicPageHotel>> {
+export async function updateTopicPageHotel(data: UpdateTopicPageHotelRequest): Promise<ActionResult<TopicPageHotel>> {
   try {
+    const { id, ...updates } = data
     if (!id) {
       return { success: false, error: 'id가 필요합니다.' }
     }
 
     const supabase = await createClient()
 
-    const { data, error } = await supabase
+    const { data: updatedData, error } = await supabase
       .from('select_recommendation_page_hotels')
       .update({
         ...updates,
@@ -444,8 +425,11 @@ export async function updateTopicPageHotel(id: string, updates: Record<string, u
       return { success: false, error: '호텔 정보 수정에 실패했습니다.' }
     }
 
-    revalidatePath('/admin/recommendation-pages')
-    return { success: true, data: data as TopicPageHotel }
+    // page_id를 가져와서 revalidate하기 위해
+    const pageId = updatedData.page_id
+    revalidatePath(`/admin/recommendation-pages/${pageId}`)
+    
+    return { success: true, data: updatedData as TopicPageHotel }
   } catch (err) {
     console.error('❌ 추천 페이지 호텔 수정 중 오류:', err)
     return { success: false, error: '서버 오류가 발생했습니다.' }

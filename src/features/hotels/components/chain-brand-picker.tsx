@@ -1,9 +1,11 @@
 'use client'
 
 import React from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Chain, Brand } from '@/types/chain-brand'
+import { getChainBrandList } from '@/features/chain-brand/actions'
 
 export type { Chain, Brand }
 
@@ -16,6 +18,7 @@ interface Props {
 }
 
 export function ChainBrandPicker({ isOpen, onClose, onSelect, selectedChainId, selectedBrandId }: Props) {
+  const searchParams = useSearchParams()
   const [chains, setChains] = React.useState<Chain[]>([])
   const [brands, setBrands] = React.useState<Brand[]>([])
   const [loading, setLoading] = React.useState(false)
@@ -40,24 +43,13 @@ export function ChainBrandPicker({ isOpen, onClose, onSelect, selectedChainId, s
     setError(null)
     
     try {
-      const response = await fetch('/api/chain-brand/list')
+      // URL의 company 파라미터 확인
+      const company = searchParams?.get('company') || undefined
+      const result = await getChainBrandList(company)
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        setError(`데이터를 불러올 수 없습니다. (${response.status}): ${errorText}`)
-        return
-      }
-
-      const result = await response.json().catch(() => {
-        setError('서버 응답을 파싱할 수 없습니다.')
-        return null
-      })
-
-      if (!result) return
-      
-      if (result.success) {
-        setChains(result.data.chains || [])
-        setBrands(result.data.brands || [])
+      if (result.success && result.data) {
+        setChains(result.data.chains as any || [])
+        setBrands(result.data.brands as any || [])
       } else {
         setError(result.error || '데이터 로드에 실패했습니다.')
       }
