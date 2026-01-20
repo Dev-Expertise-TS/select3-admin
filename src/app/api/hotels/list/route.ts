@@ -59,8 +59,10 @@ export async function GET(request: NextRequest) {
         property_name_en,
         ${ratePlanColumn},
         brand_id,
+        brand_id_2,
         city_ko,
-        country_ko
+        country_ko,
+        vcc
       `)
       .order('sabre_id', { ascending: true })
 
@@ -97,6 +99,37 @@ export async function GET(request: NextRequest) {
       return normalizedHotel
     })
 
+    // brand_id와 brand_id_2로 브랜드 정보 조회
+    const brandIds = new Set<number>()
+    filteredData.forEach((hotel: any) => {
+      if (hotel.brand_id !== null && hotel.brand_id !== undefined) {
+        brandIds.add(Number(hotel.brand_id))
+      }
+      if (hotel.brand_id_2 !== null && hotel.brand_id_2 !== undefined) {
+        brandIds.add(Number(hotel.brand_id_2))
+      }
+    })
+
+    // hotel_brands 테이블에서 브랜드 정보 조회
+    let brandMap = new Map<number, { brand_id: number; brand_name_ko: string | null }>()
+    if (brandIds.size > 0) {
+      const { data: brandsData, error: brandsError } = await supabase
+        .from('hotel_brands')
+        .select('brand_id, brand_name_ko')
+        .in('brand_id', Array.from(brandIds))
+
+      if (brandsError) {
+        console.error('❌ 브랜드 정보 조회 실패:', brandsError)
+      } else {
+        (brandsData || []).forEach((brand: any) => {
+          brandMap.set(Number(brand.brand_id), {
+            brand_id: Number(brand.brand_id),
+            brand_name_ko: brand.brand_name_ko || null,
+          })
+        })
+      }
+    }
+
     // Rate Plan Code 유효성 검사 헬퍼 함수
     const hasRatePlanCodes = (codes: unknown): boolean => {
       if (codes === null || codes === undefined) return false
@@ -126,13 +159,24 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // rate_plan_code가 빈 배열인 경우 null로 정규화
-    const normalizedData = filteredData.map((hotel) => ({
-      ...hotel,
-      rate_plan_code: Array.isArray(hotel.rate_plan_code) && hotel.rate_plan_code.length === 0 
-        ? null 
-        : hotel.rate_plan_code,
-    }))
+    // rate_plan_code가 빈 배열인 경우 null로 정규화 및 브랜드 정보 매핑
+    const normalizedData = filteredData.map((hotel: any) => {
+      const brand1 = hotel.brand_id !== null && hotel.brand_id !== undefined 
+        ? brandMap.get(Number(hotel.brand_id)) 
+        : null
+      const brand2 = hotel.brand_id_2 !== null && hotel.brand_id_2 !== undefined 
+        ? brandMap.get(Number(hotel.brand_id_2)) 
+        : null
+
+      return {
+        ...hotel,
+        rate_plan_code: Array.isArray(hotel.rate_plan_code) && hotel.rate_plan_code.length === 0 
+          ? null 
+          : hotel.rate_plan_code,
+        brand_name_ko: brand1?.brand_name_ko || null,
+        brand_id_2_name_ko: brand2?.brand_name_ko || null,
+      }
+    })
 
     return NextResponse.json({
       success: true,

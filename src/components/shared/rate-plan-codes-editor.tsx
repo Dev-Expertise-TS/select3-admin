@@ -16,6 +16,38 @@ export function RatePlanCodesEditor({ value, onChange, disabled }: RatePlanCodes
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+
+  // value prop 변경 시 selectedCodes 동기화
+  useEffect(() => {
+    setSelectedCodes(value)
+  }, [value])
+
+  // 팝업이 열릴 때마다 현재 value로 selectedCodes 초기화 및 스크롤 조정
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedCodes(value)
+      
+      // 팝업이 열릴 때 스크롤 조정하여 팝업이 화면 중앙에 보이도록
+      setTimeout(() => {
+        if (popupRef.current && wrapperRef.current) {
+          const popupRect = popupRef.current.getBoundingClientRect()
+          const viewportHeight = window.innerHeight
+          const popupHeight = popupRect.height
+          const popupTop = popupRect.top
+          
+          // 팝업이 화면 중앙에 오도록 스크롤 조정
+          const targetScrollY = window.scrollY + popupTop - (viewportHeight / 2) + (popupHeight / 2)
+          
+          // 부드러운 스크롤
+          window.scrollTo({
+            top: Math.max(0, targetScrollY),
+            behavior: 'smooth'
+          })
+        }
+      }, 10)
+    }
+  }, [isOpen, value])
 
   // Rate Plan Codes 로드
   useEffect(() => {
@@ -91,8 +123,18 @@ export function RatePlanCodesEditor({ value, onChange, disabled }: RatePlanCodes
           {/* 배경 오버레이 */}
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
           
-          {/* 팝업 */}
-          <div className="absolute z-20 w-96 mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
+          {/* 팝업 - 화면 중앙에 고정 */}
+          <div 
+            ref={popupRef}
+            className="fixed z-20 w-96 bg-white border border-gray-200 rounded-md shadow-lg"
+            style={{
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              maxHeight: '80vh',
+              overflowY: 'auto'
+            }}
+          >
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">Rate Plan Codes 선택</h3>
