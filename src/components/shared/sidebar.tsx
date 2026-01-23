@@ -79,6 +79,7 @@ const navSections: NavSection[] = [
       { label: '호텔 소개 SEO 관리', href: '/admin/hotel-seo-intro', icon: Search, requiredRole: 'admin' },
       { label: '호텔 아티클 관리', href: '/admin/hotel-articles', icon: Newspaper, requiredRole: 'admin' },
       { label: '객실 타입 관리', href: '/admin/room-type', icon: LinkIcon, requiredRole: 'admin' },
+      { label: '객실 상품 리스트 조회', href: '/admin/product-code', icon: LinkIcon, requiredRole: 'admin' },
       { label: '해시태그 관리', href: '/admin/hashtags', icon: Hash, requiredRole: 'admin' },
       { label: '호텔 추천 페이지 관리', href: '/admin/recommendation-pages', icon: FileText, requiredRole: 'admin' },
       { label: 'UTM 생성기', href: '/admin/utm-generator', icon: LinkIcon, requiredRole: 'admin' },

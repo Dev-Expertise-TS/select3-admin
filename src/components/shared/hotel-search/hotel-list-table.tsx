@@ -79,6 +79,13 @@ interface HotelListTableProps {
   
   // Bulk SEO Generation
   onBulkSeoGenerate?: (sabreIds: string[]) => Promise<void>;
+  
+  // Rate Plan Button Text
+  ratePlanButtonText?: string;
+  // Room List Title
+  roomListTitle?: string;
+  // Use ProductCode Table Format
+  useProductCodeTableFormat?: boolean;
 }
 
 // 지정 경로 순회해서 RatePlan 행 추출 (AmountAfterTax 정렬은 호출부에서)
@@ -224,6 +231,10 @@ export function HotelListTable({
   onPageChange,
   
   onBulkSeoGenerate,
+  
+  ratePlanButtonText,
+  roomListTitle,
+  useProductCodeTableFormat,
 }: HotelListTableProps) {
   
   if (results.length === 0) return null
@@ -662,6 +673,9 @@ export function HotelListTable({
                                 }}
                                 initialSelectedCodes={expandedRowState.selectedRatePlanCodes}
                                 dbCodes={expandedRowState.originalRatePlanCodes}
+                                ratePlanButtonText={ratePlanButtonText}
+                                roomListTitle={roomListTitle}
+                                useProductCodeTableFormat={useProductCodeTableFormat}
                               />
                             )}
 

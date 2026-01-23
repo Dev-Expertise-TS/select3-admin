@@ -71,6 +71,12 @@ interface HotelSearchWidgetProps {
   }>;
   /** 일괄 SEO 생성 핸들러 */
   onBulkSeoGenerate?: (sabreIds: string[]) => Promise<void>;
+  /** Rate Plan 조회 버튼 텍스트 */
+  ratePlanButtonText?: string;
+  /** 객실 리스트 제목 */
+  roomListTitle?: string;
+  /** ProductCode 테이블 형식 사용 여부 */
+  useProductCodeTableFormat?: boolean;
 }
 
 export default function HotelSearchWidget({ 
@@ -92,6 +98,9 @@ export default function HotelSearchWidget({
   onSeoGenerate,
   onSeoFetch,
   onBulkSeoGenerate,
+  ratePlanButtonText,
+  roomListTitle,
+  useProductCodeTableFormat,
 }: HotelSearchWidgetProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1489,6 +1498,10 @@ export default function HotelSearchWidget({
           onPageChange={handlePageChange}
           
           onBulkSeoGenerate={onBulkSeoGenerate}
+          
+          ratePlanButtonText={ratePlanButtonText}
+          roomListTitle={roomListTitle}
+          useProductCodeTableFormat={useProductCodeTableFormat}
         />
 
         {/* 빈 결과 메시지 */}
