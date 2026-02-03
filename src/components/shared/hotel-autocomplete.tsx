@@ -36,7 +36,7 @@ export function HotelAutocomplete({
     setSearchTerm(String(value || ''))
   }, [value])
 
-  // 검색어 변경 시 호텔 검색
+  // 검색어 변경 시 호텔 검색 (입력 기반)
   useEffect(() => {
     const searchHotels = async () => {
       if (!searchTerm || typeof searchTerm !== 'string' || searchTerm.trim().length < 2) {
@@ -142,6 +142,41 @@ export function HotelAutocomplete({
     }
   }
 
+  // 포커스 시 최근 등록 호텔 목록 로드 (검색어가 비어 있을 때만)
+  const handleFocus = async () => {
+    const trimmed = typeof searchTerm === 'string' ? searchTerm.trim() : ''
+
+    // 입력값이 이미 있는 경우, 기존 검색 결과가 있다면 드롭다운만 열기
+    if (trimmed.length >= 2) {
+      if (hotels.length > 0) {
+        setIsOpen(true)
+      }
+      return
+    }
+
+    // 검색어가 비어 있을 때: 최근 등록 호텔 목록 조회
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/hotel/search?q=&limit=10`)
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        setHotels(result.data || [])
+        setIsOpen((result.data?.length || 0) > 0)
+        setSelectedIndex(-1)
+      } else {
+        setHotels([])
+        setIsOpen(false)
+      }
+    } catch (error) {
+      console.error('최근 호텔 목록 조회 오류:', error)
+      setHotels([])
+      setIsOpen(false)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="relative">
       <Input
@@ -150,11 +185,7 @@ export function HotelAutocomplete({
         value={searchTerm}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
-        onFocus={() => {
-          if (hotels.length > 0) {
-            setIsOpen(true)
-          }
-        }}
+        onFocus={handleFocus}
         placeholder={placeholder}
         className={className}
       />

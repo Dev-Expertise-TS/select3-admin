@@ -40,6 +40,7 @@ export function BlogSectionEditor({
 }: BlogSectionEditorProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [isGeneratingArticle, setIsGeneratingArticle] = useState(false)
   const [hotelInfo, setHotelInfo] = useState<{ property_name_ko: string; property_name_en: string } | null>(null)
   const [loadingHotelInfo, setLoadingHotelInfo] = useState(false)
   const [editorContent, setEditorContent] = useState(content)
@@ -119,6 +120,33 @@ export function BlogSectionEditor({
       }, 500)
     }
   }, [contentKey, onContentChange])
+
+  // 아티클 생성 후 해당 섹션 에디터에 반영 (블로그 전용 프롬프트 사용)
+  const handleGenerateArticle = async () => {
+    if (!sabreId) return
+    setIsGeneratingArticle(true)
+    setSaveSuccess(false)
+    try {
+      const response = await fetch('/api/hotel-articles/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sabre_id: sabreId }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || '아티클 생성에 실패했습니다.')
+      if (!data.success) throw new Error(data.error || '아티클 생성에 실패했습니다.')
+      const contentHtml = (data.data?.content ?? '').trim()
+      if (contentHtml) {
+        setEditorContent(contentHtml)
+        onContentChange(contentKey, contentHtml)
+      }
+    } catch (err) {
+      console.error('아티클 생성 오류:', err)
+      alert(err instanceof Error ? err.message : '아티클 생성에 실패했습니다.')
+    } finally {
+      setIsGeneratingArticle(false)
+    }
+  }
 
   // 섹션별 저장
   const handleSectionSave = async () => {
@@ -211,6 +239,25 @@ export function BlogSectionEditor({
               placeholder="호텔 검색..."
             />
           </div>
+          {sabreId && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleGenerateArticle}
+              disabled={isGeneratingArticle}
+              className="shrink-0"
+            >
+              {isGeneratingArticle ? (
+                <>
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  생성 중...
+                </>
+              ) : (
+                '아티클 생성'
+              )}
+            </Button>
+          )}
           {blogSlug && (
                 <Button
                   type="button"

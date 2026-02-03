@@ -250,6 +250,9 @@ export function HotelListTable({
   const [selectedHotels, setSelectedHotels] = React.useState<Set<string>>(new Set());
   const [isBulkGenerating, setIsBulkGenerating] = React.useState(false);
   const [bulkMessage, setBulkMessage] = React.useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  // 일괄 호텔 기본 소개 AI 작성
+  const [isBulkContentGenerating, setIsBulkContentGenerating] = React.useState(false);
+  const [bulkContentMessage, setBulkContentMessage] = React.useState<{ type: 'success' | 'error'; text: string } | null>(null);
   
   // 전체 선택/해제
   const handleSelectAll = (checked: boolean) => {
@@ -293,7 +296,81 @@ export function HotelListTable({
       setIsBulkGenerating(false);
     }
   };
-  
+
+  // 일괄 호텔 기본 소개 AI 작성: 선택 호텔 순차 생성 후 자동 저장
+  const handleBulkContentGenerate = async () => {
+    if (selectedHotels.size === 0) return;
+    const ordered = results.filter((h) => selectedHotels.has(String(h.sabre_id)));
+    let successCount = 0;
+    let skipCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+    setIsBulkContentGenerating(true);
+    setBulkContentMessage(null);
+    try {
+      for (let i = 0; i < ordered.length; i++) {
+        const hotel = ordered[i];
+        const sabreId = String(hotel.sabre_id);
+        if (!hotel.property_name_en?.trim()) {
+          skipCount++;
+          continue;
+        }
+        try {
+          const genRes = await fetch('/api/hotel/content/generate-article', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sabre_id: sabreId }),
+          });
+          const genData = await genRes.json();
+          if (!genRes.ok || !genData.success) {
+            errorCount++;
+            errors.push(`${sabreId}: ${genData.error ?? '생성 실패'}`);
+            continue;
+          }
+          const content = genData.data?.content ?? '';
+          const locationContent = genData.data?.locationContent ?? '';
+          const patchRes = await fetch('/api/hotel/content', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sabre_id: sabreId,
+              property_details: content,
+              property_location: locationContent,
+            }),
+          });
+          const patchData = await patchRes.json();
+          if (!patchRes.ok || !patchData.success) {
+            errorCount++;
+            errors.push(`${sabreId}: ${patchData.error ?? '저장 실패'}`);
+            continue;
+          }
+          successCount++;
+        } catch (err) {
+          errorCount++;
+          errors.push(`${sabreId}: ${err instanceof Error ? err.message : '오류'}`);
+        }
+      }
+      const parts: string[] = [];
+      if (successCount > 0) parts.push(`${successCount}개 성공`);
+      if (skipCount > 0) parts.push(`${skipCount}개 건너뜀(영문명 없음)`);
+      if (errorCount > 0) parts.push(`${errorCount}개 실패`);
+      setBulkContentMessage({
+        type: errorCount > 0 ? 'error' : 'success',
+        text: `일괄 호텔 기본 소개 AI 작성 완료: ${parts.join(', ')}${errors.length > 0 ? `. 실패: ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '…' : ''}` : ''}`,
+      });
+      if (successCount + skipCount + errorCount === ordered.length) {
+        setSelectedHotels(new Set());
+      }
+    } catch (err) {
+      setBulkContentMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : '일괄 호텔 기본 소개 AI 작성 중 오류가 발생했습니다.',
+      });
+    } finally {
+      setIsBulkContentGenerating(false);
+    }
+  };
+
   const totalPages = Math.ceil(count / limit);
   const isAllSelected = results.length > 0 && results.every(h => selectedHotels.has(String(h.sabre_id)));
   const hasSelection = selectedHotels.size > 0;
@@ -330,6 +407,22 @@ export function HotelListTable({
               )}
             </Button>
           )}
+          {enableContentEditing && hasSelection && (
+            <Button
+              onClick={handleBulkContentGenerate}
+              disabled={isBulkContentGenerating}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isBulkContentGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  일괄 호텔 기본 소개 AI 작성 중...
+                </>
+              ) : (
+                `일괄 호텔 기본 소개 AI 작성 (${selectedHotels.size}개)`
+              )}
+            </Button>
+          )}
         </div>
         {bulkMessage && (
           <div
@@ -342,6 +435,17 @@ export function HotelListTable({
             {bulkMessage.text}
           </div>
         )}
+        {bulkContentMessage && (
+          <div
+            className={cn(
+              'mt-3 rounded-md px-3 py-2 text-sm',
+              bulkContentMessage.type === 'success' && 'bg-green-50 text-green-700',
+              bulkContentMessage.type === 'error' && 'bg-red-50 text-red-700',
+            )}
+          >
+            {bulkContentMessage.text}
+          </div>
+        )}
       </div>
 
       {/* 반응형 테이블 */}
@@ -349,13 +453,14 @@ export function HotelListTable({
         <table className="w-full divide-y divide-gray-200" role="table">
           <thead className="bg-gray-50">
             <tr>
-              {enableSeoManagement && (
+              {(enableSeoManagement || enableContentEditing) && (
                 <th scope="col" className="px-6 py-3 text-left">
                   <input
                     type="checkbox"
                     checked={isAllSelected}
                     onChange={(e) => handleSelectAll(e.target.checked)}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    aria-label="전체 선택"
                   />
                 </th>
               )}
@@ -379,11 +484,11 @@ export function HotelListTable({
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     호텔 페이지 경로
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '110px', maxWidth: '110px' }}>
                     Rate Plan Code
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    호텔 연결
+                    작업
                   </th>
                 </>
               ) : (
@@ -400,7 +505,7 @@ export function HotelListTable({
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     호텔 페이지 경로
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '110px', maxWidth: '110px' }}>
                     Rate Plan Code
                   </th>
                 </>
@@ -432,13 +537,14 @@ export function HotelListTable({
                       isSelected && "bg-blue-50"
                     )}
                   >
-                    {enableSeoManagement && (
+                    {(enableSeoManagement || enableContentEditing) && (
                       <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={(e) => handleSelectHotel(hotelSabreId, e.target.checked)}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          aria-label={`호텔 ${hotelSabreId} 선택`}
                         />
                       </td>
                     )}
@@ -479,7 +585,7 @@ export function HotelListTable({
                             <span className="text-gray-400 italic">N/A</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
+                        <td className="px-6 py-4 text-sm text-gray-500" style={{ width: '110px', maxWidth: '110px' }}>
                           {hotel.rate_plan_code ? (
                             <span className="font-mono text-xs">{hotel.rate_plan_code}</span>
                           ) : (
@@ -517,7 +623,7 @@ export function HotelListTable({
                               href={`/admin/hotel-update/${hotel.sabre_id ?? 'null'}`}
                               className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                             >
-                              연결
+                              상세수정
                             </Link>
                           )}
                         </td>
@@ -593,7 +699,7 @@ export function HotelListTable({
                             <span className="text-gray-400 italic">N/A</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
+                        <td className="px-6 py-4 text-sm text-gray-900" style={{ width: '110px', maxWidth: '110px' }}>
                           <div className="flex items-center gap-2">
                             {(() => {
                               const ratePlanCodes = parseRatePlanCode(hotel.rate_plan_code);
@@ -649,7 +755,7 @@ export function HotelListTable({
                   {/* 확장 패널 */}
                   {isExpanded && expandedRowState && (
                     <tr>
-                      <td colSpan={showInitialHotels ? (enableSeoManagement ? 9 : 8) : (enableSeoManagement ? 7 : 6)} className="p-0">
+                      <td colSpan={showInitialHotels ? ((enableSeoManagement || enableContentEditing) ? 9 : 8) : ((enableSeoManagement || enableContentEditing) ? 7 : 6)} className="p-0">
                         <div className="bg-gray-50 border-t border-gray-200">
                           <div className="px-6 py-6">
                             {/* 이미지 관리 모드 */}
