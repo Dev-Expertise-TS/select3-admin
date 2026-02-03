@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Loader2, CheckCircle, AlertCircle, Building2, MapPin, Globe } from 'lucide-react'
+import { Search, Loader2, CheckCircle, AlertCircle, Building2, MapPin, Globe, Sparkles, Layers, Plus } from 'lucide-react'
+import type { AiHotelLookupResult } from '@/app/api/sabre-id/ai-hotel-lookup/route'
 
 interface HotelInfo {
   HotelCode?: string
@@ -70,6 +71,103 @@ export default function SabreIdManager() {
   const [dbSearchLoading, setDbSearchLoading] = useState(false)
   const [dbSearchResults, setDbSearchResults] = useState<unknown[]>([])
   const [dbSearchError, setDbSearchError] = useState<string | null>(null)
+
+  // Sabre 시설 일괄 생성 - AI 호텔 정보 조회
+  const [bulkHotelName, setBulkHotelName] = useState('')
+  const [aiLookupLoading, setAiLookupLoading] = useState(false)
+  const [aiLookupResult, setAiLookupResult] = useState<AiHotelLookupResult | null>(null)
+  const [aiLookupError, setAiLookupError] = useState<string | null>(null)
+
+  // 호텔 기본 데이터 생성
+  const [createLoading, setCreateLoading] = useState(false)
+  const [createResult, setCreateResult] = useState<{ sabre_id: string; property_name_ko: string; property_name_en: string; property_address: string } | null>(null)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  const handleAiHotelLookup = async () => {
+    if (!bulkHotelName.trim()) {
+      setAiLookupError('호텔명을 입력해주세요.')
+      return
+    }
+    setAiLookupLoading(true)
+    setAiLookupError(null)
+    setAiLookupResult(null)
+    setCreateResult(null)
+    setCreateError(null)
+    try {
+      const res = await fetch('/api/sabre-id/ai-hotel-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hotelName: bulkHotelName.trim() }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error || '조회에 실패했습니다.')
+      }
+      if (json.success && json.data) {
+        setAiLookupResult(json.data)
+      } else {
+        throw new Error(json.error || '결과를 찾을 수 없습니다.')
+      }
+    } catch (err) {
+      setAiLookupError(err instanceof Error ? err.message : 'AI 호텔 정보 조회 중 오류가 발생했습니다.')
+    } finally {
+      setAiLookupLoading(false)
+    }
+  }
+
+  const handleCreateHotel = async () => {
+    if (!aiLookupResult) return
+    if (!aiLookupResult.sabreId?.trim()) {
+      setCreateError(
+        '호텔 기본 데이터 생성이 불가능합니다. 저장할 Sabre ID 값이 없습니다. ' +
+        'AI 웹 검색에서 Sabre ID를 찾지 못한 경우, 하단 "Sabre API 기준 Sabre ID 검색"에서 직접 Sabre ID를 확인하거나 ' +
+        '다른 호텔명으로 다시 조회해 주세요.'
+      )
+      return
+    }
+    setCreateLoading(true)
+    setCreateError(null)
+    setCreateResult(null)
+    try {
+      const res = await fetch('/api/hotel/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sabre_id: aiLookupResult.sabreId.trim(),
+          hotel_data: {
+            property_name_ko: aiLookupResult.propertyNameKo?.trim() || null,
+            property_name_en: aiLookupResult.propertyNameEn?.trim() || null,
+            property_address: aiLookupResult.addressEn?.trim() || null,
+          },
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        if (res.status === 409) {
+          throw new Error(
+            '호텔 기본 데이터 생성이 불가능합니다. 해당 Sabre ID는 이미 select_hotels 테이블에 존재합니다. ' +
+            '호텔 정보 수정이 필요하면 "호텔 정보 업데이트" 메뉴에서 해당 Sabre ID로 검색하여 수정해 주세요.'
+          )
+        }
+        throw new Error(json.error || '호텔 기본 데이터 생성에 실패했습니다.')
+      }
+      if (json.success && json.data) {
+        const d = json.data
+        setCreateResult({
+          sabre_id: String(d.sabre_id ?? aiLookupResult.sabreId),
+          property_name_ko: String(d.property_name_ko ?? aiLookupResult.propertyNameKo ?? ''),
+          property_name_en: String(d.property_name_en ?? aiLookupResult.propertyNameEn ?? ''),
+          property_address: String(d.property_address ?? aiLookupResult.addressEn ?? ''),
+        })
+      } else {
+        throw new Error(json.error || '생성 결과를 확인할 수 없습니다.')
+      }
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : '호텔 기본 데이터 생성 중 오류가 발생했습니다.')
+    } finally {
+      setCreateLoading(false)
+    }
+  }
 
   // DB 검색 함수
   const handleDbSearch = async () => {
@@ -184,6 +282,167 @@ export default function SabreIdManager() {
 
   return (
     <div className="space-y-8">
+      {/* Sabre 시설 일괄 생성 - 위로 이동 */}
+      <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div className="space-y-6 p-6">
+          <div className="flex items-center gap-2">
+            <Layers className="h-5 w-5 text-purple-600" />
+            <h2 className="text-lg font-semibold">Sabre 시설 일괄 생성</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-3">
+              <Input
+                type="text"
+                placeholder="호텔명을 입력하세요 (예: Grand Hyatt Seoul)"
+                value={bulkHotelName}
+                onChange={(e) => {
+                  setBulkHotelName(e.target.value)
+                  setAiLookupError(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !aiLookupLoading) handleAiHotelLookup()
+                }}
+                disabled={aiLookupLoading}
+                className="h-10 flex-1 min-w-0"
+                aria-label="호텔명 입력"
+              />
+              <div className="flex gap-2 flex-shrink-0">
+                <Button
+                  onClick={handleAiHotelLookup}
+                  disabled={aiLookupLoading || !bulkHotelName.trim()}
+                  className="h-10 px-6 bg-purple-600 hover:bg-purple-700"
+                  aria-label="Sabre id 및 호텔명 확인"
+                >
+                  {aiLookupLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      조회 중
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Sabre id 및 호텔명 확인
+                    </>
+                  )}
+                </Button>
+                {aiLookupResult && (
+                  <Button
+                    onClick={handleCreateHotel}
+                    disabled={createLoading || !aiLookupResult.sabreId?.trim()}
+                    className="h-10 px-6 bg-green-600 hover:bg-green-700"
+                    aria-label="호텔 기본 데이터 생성"
+                  >
+                    {createLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        생성 중
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 h-4 w-4" />
+                        호텔 기본 데이터 생성
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {(aiLookupError || createError) && (
+              <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                <div>{createError ?? aiLookupError}</div>
+              </div>
+            )}
+
+            {aiLookupResult && (
+              <div className="rounded-lg border bg-purple-50/50 p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-purple-600" />
+                  <h3 className="text-lg font-semibold text-purple-900">AI 웹 검색 결과</h3>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">Sabre id</span>
+                    <p className="text-base font-mono font-semibold text-purple-700">
+                      {aiLookupResult.sabreId || '-'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">한글 호텔명</span>
+                    <p className="text-base font-medium text-gray-900">
+                      {aiLookupResult.propertyNameKo || '-'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">영문 호텔명</span>
+                    <p className="text-base font-medium text-gray-900">
+                      {aiLookupResult.propertyNameEn || '-'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">호텔 위치 도시</span>
+                    <p className="text-base text-gray-900">{aiLookupResult.city || '-'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">국가</span>
+                    <p className="text-base text-gray-900">{aiLookupResult.country || '-'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">영문주소</span>
+                    <p className="text-sm text-gray-900 break-words">
+                      {aiLookupResult.addressEn || '-'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">브랜드명</span>
+                    <p className="text-base text-gray-900">{aiLookupResult.brandName || '-'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">소속체인</span>
+                    <p className="text-base text-gray-900">{aiLookupResult.chainName || '-'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {createResult && (
+              <div className="rounded-lg border bg-green-50 p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <h3 className="text-lg font-semibold text-green-900">호텔 기본 데이터 생성 완료</h3>
+                </div>
+                <p className="text-sm text-green-800">select_hotels 테이블에 저장되었습니다.</p>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">sabre_id</span>
+                    <p className="text-base font-mono font-semibold text-green-800">
+                      {createResult.sabre_id}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">property_name_ko</span>
+                    <p className="text-base text-gray-900">{createResult.property_name_ko || '-'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-500">property_name_en</span>
+                    <p className="text-base text-gray-900">{createResult.property_name_en || '-'}</p>
+                  </div>
+                  <div className="space-y-1 sm:col-span-2 lg:col-span-1">
+                    <span className="text-xs font-medium text-gray-500">property_address</span>
+                    <p className="text-sm text-gray-900 break-words">
+                      {createResult.property_address || '-'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Sabre API 기준 Sabre ID 검색 - 아래로 이동 */}
       <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
         <div className="space-y-6 p-6">
           <div className="flex items-center gap-2">

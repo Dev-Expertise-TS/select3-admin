@@ -19,6 +19,7 @@ import { HotelSearchResult, ExpandedRowState } from '@/types/hotel'
 import { ImageManagementPanel } from './image-management-panel'
 import { UrlGeneratorPanel } from '../url-generator-panel'
 import { SeoManagementPanel } from './seo-management-panel'
+import { ContentEditorPanel } from './content-editor-panel'
 import DateInput from '@/components/shared/date-input'
 import { RatePlanCodeSelector } from '@/components/shared/rate-plan-code-selector'
 import { BaseButton } from '@/components/shared/form-actions'
@@ -86,6 +87,8 @@ interface HotelListTableProps {
   roomListTitle?: string;
   // Use ProductCode Table Format
   useProductCodeTableFormat?: boolean;
+  // Content Editing (호텔 기본 소개 편집 슬라이딩 패널)
+  enableContentEditing?: boolean;
 }
 
 // 지정 경로 순회해서 RatePlan 행 추출 (AmountAfterTax 정렬은 호출부에서)
@@ -235,6 +238,7 @@ export function HotelListTable({
   ratePlanButtonText,
   roomListTitle,
   useProductCodeTableFormat,
+  enableContentEditing = false,
 }: HotelListTableProps) {
   
   if (results.length === 0) return null
@@ -689,9 +693,21 @@ export function HotelListTable({
                                 onGenerate={onSeoGenerate}
                               />
                             )}
+
+                            {/* 호텔 기본 소개 편집 모드 */}
+                            {expandedRowState.type === 'content-editing' && expandedRowState.hotel && (
+                              <ContentEditorPanel
+                                hotel={expandedRowState.hotel}
+                                hotelId={hotelId}
+                                onClose={() => {
+                                  setExpandedRowId(null);
+                                  setExpandedRowState(null);
+                                }}
+                              />
+                            )}
                             
                             {/* 기존 패널 (호텔 상세 정보 테스트) */}
-                            {expandedRowState.type !== 'image-management' && expandedRowState.type !== 'url-generation' && expandedRowState.type !== 'seo-management' && updateExpandedRowState && handleTestHotelDetails && (
+                            {expandedRowState.type !== 'image-management' && expandedRowState.type !== 'url-generation' && expandedRowState.type !== 'seo-management' && expandedRowState.type !== 'content-editing' && updateExpandedRowState && handleTestHotelDetails && (
                               <>
                                 <div className="flex items-center justify-between mb-6">
                                   <h4 className="text-lg font-medium text-gray-900">

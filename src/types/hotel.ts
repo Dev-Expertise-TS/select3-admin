@@ -75,7 +75,7 @@ export interface HotelDetailsRequest {
 
 // 확장 패널 상태 타입
 export interface ExpandedRowState {
-  type: 'hotel-details' | 'image-management' | 'url-generation' | 'seo-management'
+  type: 'hotel-details' | 'image-management' | 'url-generation' | 'seo-management' | 'content-editing'
   hotelId: string
   hotel?: HotelSearchResult
   currencyCode?: string

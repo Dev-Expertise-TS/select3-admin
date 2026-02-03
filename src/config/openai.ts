@@ -568,10 +568,13 @@ function extractResponsesOutputText(response: any): string | null {
   const outputItems = Array.isArray(response.output) ? response.output : [];
 
   outputItems.forEach((item: any) => {
+    // web_search_call 등 type이 message가 아닌 항목은 content가 없을 수 있음
+    if (item?.type !== 'message' && !item?.content) return;
     const contents = Array.isArray(item?.content) ? item.content : [];
     contents.forEach((content: any) => {
-      if (typeof content?.text === 'string') {
-        textChunks.push(content.text);
+      // output_text 타입 또는 text 필드가 있는 content 추출
+      if (typeof content?.text === 'string' && content.text.trim().length > 0) {
+        textChunks.push(content.text.trim());
       }
     });
   });

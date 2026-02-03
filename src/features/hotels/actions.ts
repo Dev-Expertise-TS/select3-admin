@@ -2,6 +2,7 @@
 
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { normalizeSlug } from '@/lib/media-naming'
+import { generateHotelSlug, slugWithSuffix } from '@/lib/hotel-slug'
 import { revalidatePath } from 'next/cache'
 
 export type ActionResult<T = unknown> = {
@@ -103,12 +104,11 @@ export async function updateHotel(formData: FormData): Promise<ActionResult> {
       updateData.property_name_ko = propertyNameKo
       updateData.property_name_en = propertyNameEn
       
-      // Slug 처리 (비어있으면 자동 생성)
+      // Slug 처리 (비어있으면 자동 생성, hotel-update/new와 동일 로직)
       if (slug && slug.trim()) {
         updateData.slug = normalizeSlug(slug.trim())
       } else {
-        // 영문 호텔명으로 slug 자동 생성
-        updateData.slug = normalizeSlug(propertyNameEn)
+        updateData.slug = generateHotelSlug(propertyNameEn, propertyNameKo, targetSabreId)
       }
     } else {
       // 기존 호텔 업데이트 시
@@ -449,11 +449,7 @@ export async function createHotel(formData: FormData): Promise<ActionResult> {
       }
     }
 
-    // slug 자동 생성: 영문명이 있으면 영문명 → slug, 없으면 한글명 → slug 시도
-    let slugCandidate = ''
-    if (propertyNameEn) slugCandidate = normalizeSlug(propertyNameEn)
-    if (!slugCandidate && propertyNameKo) slugCandidate = normalizeSlug(propertyNameKo)
-    if (!slugCandidate) slugCandidate = `hotel-${sabreId}`
+    const slugCandidate = generateHotelSlug(propertyNameEn, propertyNameKo, sabreId)
 
     const hotelData: Record<string, unknown> = {
       sabre_id: sabreId,
@@ -495,7 +491,7 @@ export async function createHotel(formData: FormData): Promise<ActionResult> {
       const message = (error as { message?: string }).message || ''
       const isSlugConflict = isUniqueViolation && message.toLowerCase().includes('slug')
       if (isSlugConflict) {
-        const retryData = { ...hotelData, slug: `${String(hotelData.slug)}-${sabreId}` }
+        const retryData = { ...hotelData, slug: slugWithSuffix(String(hotelData.slug), sabreId) }
         const retry = await supabase
           .from('select_hotels')
           .insert(retryData)

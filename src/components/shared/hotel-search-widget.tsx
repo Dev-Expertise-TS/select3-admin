@@ -77,6 +77,8 @@ interface HotelSearchWidgetProps {
   roomListTitle?: string;
   /** ProductCode 테이블 형식 사용 여부 */
   useProductCodeTableFormat?: boolean;
+  /** 호텔 기본 소개 편집 모드 (행 클릭 시 슬라이딩 패널로 편집) */
+  enableContentEditing?: boolean;
 }
 
 export default function HotelSearchWidget({ 
@@ -101,6 +103,7 @@ export default function HotelSearchWidget({
   ratePlanButtonText,
   roomListTitle,
   useProductCodeTableFormat,
+  enableContentEditing = false,
 }: HotelSearchWidgetProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1122,6 +1125,25 @@ export default function HotelSearchWidget({
       }
       return;
     }
+
+    if (enableContentEditing) {
+      if (hotel.sabre_id !== null && hotel.sabre_id !== undefined) {
+        const hotelId = String(hotel.sabre_id);
+        if (expandedRowId === hotelId) {
+          setExpandedRowId(null);
+          setExpandedRowState(null);
+        } else {
+          setExpandedRowId(hotelId);
+          setExpandedRowState({
+            type: 'content-editing',
+            hotelId,
+            hotel: hotel,
+          });
+        }
+        return;
+      }
+      return;
+    }
     
     if (onHotelSelect) {
       if (hotel.sabre_id !== null && hotel.sabre_id !== undefined) {
@@ -1502,6 +1524,7 @@ export default function HotelSearchWidget({
           ratePlanButtonText={ratePlanButtonText}
           roomListTitle={roomListTitle}
           useProductCodeTableFormat={useProductCodeTableFormat}
+          enableContentEditing={enableContentEditing}
         />
 
         {/* 빈 결과 메시지 */}

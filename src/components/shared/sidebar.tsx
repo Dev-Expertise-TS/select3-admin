@@ -67,7 +67,7 @@ const navSections: NavSection[] = [
     items: [
       { label: '전체 호텔 보기', href: '/admin/hotels', icon: Database, requiredRole: 'admin' },
       { label: 'Sabre API 요금 코드 관리', href: '/admin/hotel-search', icon: DollarSign, requiredRole: 'admin' },
-      { label: 'Sabre Hotel Code 확인', href: '/admin/sabre-id', icon: Building, requiredRole: 'admin' },
+      { label: 'Sabre id 확인 및 생성', href: '/admin/sabre-id', icon: Building, requiredRole: 'admin' },
       { label: '호텔 정보 업데이트', href: '/admin/hotel-update', icon: Pencil, requiredRole: 'admin' },
       { label: '기본 혜택 관리', href: '/admin/benefits/manage', icon: ListChecks, requiredRole: 'admin' },
       { label: '프로모션 관리', href: '/admin/promotions', icon: DollarSign, requiredRole: 'admin' },
@@ -75,7 +75,7 @@ const navSections: NavSection[] = [
       { label: '체인 브랜드 관리', href: '/admin/chain-brand', icon: Network, requiredRole: 'admin' },
       { label: '지역 코드 맵핑 관리', href: '/admin/region-mapping', icon: Globe, requiredRole: 'admin' },
       { label: '호텔 이미지 관리', href: '/admin/hotel-images', icon: Image, requiredRole: 'admin' },
-      { label: '호텔 콘텐츠 관리', href: '/admin/hotel-content', icon: FileText, requiredRole: 'admin' },
+      { label: '호텔 기본 소개 관리', href: '/admin/hotel-content', icon: FileText, requiredRole: 'admin' },
       { label: '호텔 소개 SEO 관리', href: '/admin/hotel-seo-intro', icon: Search, requiredRole: 'admin' },
       { label: '호텔 아티클 관리', href: '/admin/hotel-articles', icon: Newspaper, requiredRole: 'admin' },
       { label: '객실 타입 관리', href: '/admin/room-type', icon: LinkIcon, requiredRole: 'admin' },

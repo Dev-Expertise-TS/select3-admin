@@ -8,6 +8,7 @@ import { HotelSearchResult } from "./hotel-search-widget";
 import DateInput from "@/components/shared/date-input";
 import { Modal } from "@/components/shared/modal";
 import * as XLSX from 'xlsx';
+import { IhgBulkDailyRatesPanel } from "@/app/admin/product-code/_components/IhgBulkDailyRatesPanel";
 
 // 기존 RoomUrlManager의 헬퍼 함수들을 가져옴
 function getDefaultDate(daysToAdd: number) {
@@ -226,6 +227,7 @@ export function UrlGeneratorPanel({
   const [copiedJson, setCopiedJson] = useState(false);
   const [isTablePopupOpen, setIsTablePopupOpen] = useState(false);
   const [copiedLinkIndex, setCopiedLinkIndex] = useState<number | null>(null);
+  const [isIhgModalOpen, setIsIhgModalOpen] = useState(false);
 
   // 부모에서 전달받은 props가 변경되면 상태 업데이트 (예: 다른 호텔 선택 시)
   useEffect(() => {
@@ -290,6 +292,7 @@ export function UrlGeneratorPanel({
                 <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700" style={isInPopup ? { width: '30px' } : undefined}>Rate Key</th>
                 <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">Room Type</th>
                 <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">Bed Type Description</th>
+                <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">Room Description Name</th>
                 <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">Room Description</th>
                 <th className="border border-gray-200 p-2 text-left text-xs font-medium text-gray-700">Amount After Tax</th>
               </tr>
@@ -347,6 +350,7 @@ export function UrlGeneratorPanel({
                     {row.roomType || '-'}
                   </td>
                   <td className="border border-gray-200 p-2 text-gray-900">{row.bedTypeDescription || '-'}</td>
+                  <td className={`border border-gray-200 p-2 text-gray-900 ${isInPopup ? 'text-sm' : 'text-xs'}`}>{row.roomName || '-'}</td>
                   <td className={`border border-gray-200 p-2 text-gray-900 ${isInPopup ? 'text-sm' : 'text-xs'}`} style={!isInPopup ? { maxWidth: '300px' } : undefined}>{row.roomText || '-'}</td>
                   <td className={`border border-gray-200 p-2 text-gray-900 font-medium ${isInPopup ? 'text-sm' : 'text-xs'}`}>
                     {row.amountAfterTax ? formatCurrency(row.amountAfterTax, row.currencyCode) : '-'}
@@ -934,29 +938,45 @@ export function UrlGeneratorPanel({
           )}
         </button>
         {useProductCodeTableFormat && (
-          <button
-            onClick={handleFetchRatePlansByDate}
-            disabled={rateLoading}
-            className={cn(
-              "inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium",
-              "bg-blue-600 text-white hover:bg-blue-700",
-              "focus:outline-none focus:ring-2 focus:ring-blue-500",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              "transition-colors duration-200"
-            )}
-          >
-            {rateLoading && isDailyMode ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                일자별 조회 중...
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 mr-2" />
-                일자별 객실 상품 코드 및 요금 조회
-              </>
-            )}
-          </button>
+          <>
+            <button
+              onClick={handleFetchRatePlansByDate}
+              disabled={rateLoading}
+              className={cn(
+                "inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium",
+                "bg-blue-600 text-white hover:bg-blue-700",
+                "focus:outline-none focus:ring-2 focus:ring-blue-500",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+                "transition-colors duration-200"
+              )}
+            >
+              {rateLoading && isDailyMode ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  일자별 조회 중...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 mr-2" />
+                  일자별 객실 상품 코드 및 요금 조회
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setIsIhgModalOpen(true)}
+              disabled={rateLoading}
+              className={cn(
+                "inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium",
+                "bg-purple-600 text-white hover:bg-purple-700",
+                "focus:outline-none focus:ring-2 focus:ring-purple-500",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+                "transition-colors duration-200"
+              )}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              IHG 호텔 일자별 객실 데이터 조회
+            </button>
+          </>
         )}
       </div>
 
@@ -1300,6 +1320,19 @@ export function UrlGeneratorPanel({
       >
         <div className="overflow-auto max-h-[calc(90vh-120px)]">
           {renderRoomTable(true)}
+        </div>
+      </Modal>
+
+      {/* IHG 호텔 일자별 객실 데이터 조회 모달 */}
+      <Modal
+        isOpen={isIhgModalOpen}
+        onClose={() => setIsIhgModalOpen(false)}
+        title="IHG 호텔 일자별 객실 데이터 조회"
+        size="xl"
+        className="max-w-[95vw] max-h-[90vh]"
+      >
+        <div className="overflow-auto max-h-[calc(90vh-120px)]">
+          <IhgBulkDailyRatesPanel />
         </div>
       </Modal>
     </div>

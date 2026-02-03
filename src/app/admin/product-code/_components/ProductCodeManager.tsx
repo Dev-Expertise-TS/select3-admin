@@ -1,6 +1,7 @@
 "use client"
 
 import HotelSearchWidget from "@/components/shared/hotel-search-widget"
+import { IhgBulkDailyRatesPanel } from "./IhgBulkDailyRatesPanel"
 
 export function ProductCodeManager() {
   return (
@@ -24,6 +25,8 @@ export function ProductCodeManager() {
         roomListTitle="객실 상품 정보"
         useProductCodeTableFormat={true}
       />
+
+      <IhgBulkDailyRatesPanel />
     </div>
   )
 }
