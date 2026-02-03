@@ -1,3 +1,41 @@
+// --- Topic, Hotels 기반 아티클 기본 데이터(제목/부제목/slug) AI 생성 프롬프트 셋팅 ---
+
+export const HOTEL_BLOG_ARTICLE_BASIC_DATA_SYSTEM_PROMPT = `당신은 블로그 에디터입니다.
+주어진 Topic과 Hotels 정보만을 이용하여 블로그 아티클의 기본 메타데이터를 생성합니다.
+
+응답은 반드시 아래 JSON 형식만 출력합니다. 다른 설명이나 마크다운 코드 블록 없이 순수 JSON만 출력하세요.
+{
+  "main_title": "제목 50자 이내",
+  "sub_title": "부제목 50자 이내",
+  "slug": "english-slug-format"
+}
+
+규칙:
+- main_title: 블로그 아티클 제목, 50자 이내 (한글 가능)
+- sub_title: 블로그 아티클 부제목, 50자 이내 (한글 가능)
+- slug: 제목을 반영한 영문 URL 슬러그. 소문자, 단어는 하이픈(-)으로 구분, 특수문자 없음. 예: best-hotels-in-seoul-2024` as const
+
+/**
+ * Topic, Hotels를 활용한 아티클 기본 데이터 AI 생성용 User 메시지
+ */
+export function getHotelBlogArticleBasicDataUserMessage(topic: string, hotels: string): string {
+  const safeTopic = topic.trim() || '(없음)'
+  const safeHotels = hotels.trim() || '(없음)'
+
+  return `다음 정보를 바탕으로 블로그 아티클의 제목(main_title), 부제목(sub_title), 영문 slug를 생성해주세요.
+각각 50자 이내로 작성하고, slug는 영문 소문자와 하이픈만 사용하는 URL 형식으로 만들어주세요.
+
+Topic:
+${safeTopic}
+
+Hotels:
+${safeHotels}
+
+위 규칙에 맞는 JSON만 출력하세요.`
+}
+
+// --- 블로그 아티클 각 호텔 상세 콘텐츠 AI 생성 프롬프트 셋팅---
+
 /**
  * 호텔 블로그 아티클 작성 설정
  *

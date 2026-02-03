@@ -14,6 +14,7 @@ import {
 import { AuthGuard } from '@/components/shared/auth-guard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { BlogSectionEditor } from './_components/BlogSectionEditor'
 
@@ -570,6 +571,8 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
   }
 
   const [formData, setFormData] = useState({
+    topic: (blog as HotelBlog & { topic?: string })?.topic ?? '',
+    hotels: (blog as HotelBlog & { hotels?: string })?.hotels ?? '',
     slug: blog?.slug || '',
     publish: blog?.publish || false,
     main_title: blog?.main_title || '',
@@ -616,6 +619,50 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
     return blog.brand_id_connect.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
   })
   const [loadingBrands, setLoadingBrands] = useState(false)
+  const [generatingBasicData, setGeneratingBasicData] = useState(false)
+
+  // 아티클 기본 데이터 AI 생성 (제목, 부제목, slug, 업데이트 날짜)
+  const handleGenerateBasicData = async () => {
+    if (generatingBasicData) return
+    if (!formData.topic?.trim() && !formData.hotels?.trim()) {
+      alert('Topic 또는 Hotels를 입력해주세요.')
+      return
+    }
+    setGeneratingBasicData(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/hotel-articles/generate-basic-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: formData.topic?.trim() ?? '',
+          hotels: formData.hotels?.trim() ?? '',
+        }),
+      })
+      const result = await response.json()
+      if (!result.success) {
+        setError(result.error ?? '생성에 실패했습니다.')
+        alert(result.error ?? '아티클 기본 데이터 생성에 실패했습니다.')
+        return
+      }
+      const { main_title: title, sub_title: sub, slug: newSlug } = result.data ?? {}
+      const now = new Date()
+      const formattedDate = formatDateTimeLocal(now.toISOString())
+      setFormData((prev) => ({
+        ...prev,
+        main_title: typeof title === 'string' ? title.slice(0, 50) : prev.main_title,
+        sub_title: typeof sub === 'string' ? sub.slice(0, 50) : prev.sub_title,
+        slug: typeof newSlug === 'string' && newSlug ? newSlug : prev.slug,
+        updated_at: formattedDate,
+      }))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '생성 중 오류가 발생했습니다.'
+      setError(message)
+      alert(message)
+    } finally {
+      setGeneratingBasicData(false)
+    }
+  }
 
   // 브랜드 목록 불러오기
   useEffect(() => {
@@ -892,6 +939,52 @@ function BlogModal({ isOpen, onClose, blog, onSave }: BlogModalProps) {
                 activeTab === 'basic_info' ? 'flex-1' : 'hidden'
               )}>
                 <div className="space-y-4">
+            {/* Topic, Hotels, AI 생성 버튼 영역 (Slug/업데이트 날짜/브랜드 연결 위) — 한 행 높낮이 정렬 */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+              <div className="md:col-span-3 flex flex-col gap-2">
+                <label className="block text-sm font-medium text-gray-700 shrink-0">
+                  Topic
+                </label>
+                <Input
+                  type="text"
+                  value={formData.topic}
+                  onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+                  placeholder="토픽 입력"
+                  className="h-9"
+                />
+              </div>
+              <div className="md:col-span-5 flex flex-col gap-2">
+                <label className="block text-sm font-medium text-gray-700 shrink-0">
+                  Hotels
+                </label>
+                <Textarea
+                  value={formData.hotels}
+                  onChange={(e) => setFormData({ ...formData, hotels: e.target.value })}
+                  placeholder="호텔 정보 (리치 텍스트)"
+                  rows={3}
+                  className="min-h-[72px] resize-y"
+                />
+              </div>
+              <div className="md:col-span-4 flex justify-end pb-0.5">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="cursor-pointer h-9"
+                  disabled={generatingBasicData}
+                  onClick={handleGenerateBasicData}
+                >
+                  {generatingBasicData ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      생성 중…
+                    </>
+                  ) : (
+                    '아티클 기본 데이터 AI 생성'
+                  )}
+                </Button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

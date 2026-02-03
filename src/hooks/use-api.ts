@@ -57,10 +57,20 @@ export function useFetch<T = any>(url: string, options?: RequestInit & UseApiOpt
   const fetch = useCallback(
     async (customOptions?: RequestInit) => {
       return api.execute(async () => {
-        const response = await window.fetch(url, {
-          ...options,
-          ...customOptions,
-        })
+        let response: Response
+        try {
+          response = await window.fetch(url, {
+            ...options,
+            ...customOptions,
+          })
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          if (msg === 'Failed to fetch') {
+            console.error('[useFetch] Failed to fetch:', url, customOptions?.method ?? 'GET')
+            throw new Error(`네트워크 오류: 요청 실패 (${url}). 서버 실행 여부·CORS·방화벽을 확인하세요.`)
+          }
+          throw err
+        }
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
