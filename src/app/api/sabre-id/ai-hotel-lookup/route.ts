@@ -40,13 +40,13 @@ Reply with ONLY valid JSON, no other text:
 
 /**
  * 주소·브랜드 등은 공개 웹에서 찾을 수 있으므로 웹 검색 활용.
+ * propertyNameKo는 별도 호출로 영문명에 매칭되는 한글명 추출.
  */
 const WEB_DETAILS_SYSTEM_PROMPT = `당신은 호텔 정보 전문가입니다.
 웹 검색을 통해 사용자가 입력한 호텔명에 해당하는 정보를 조사하여 JSON 형식으로 응답하세요.
 
 필수 응답 필드 (모두 문자열, 없으면 빈 문자열 ""):
-- propertyNameKo: 한글 호텔명 (없으면 영문명 또는 번역)
-- propertyNameEn: 영문 호텔명
+- propertyNameEn: 영문 호텔명 (공식 영문명)
 - city: 호텔 위치 도시
 - country: 국가
 - addressEn: 영문 주소 (전체 주소)
@@ -55,7 +55,6 @@ const WEB_DETAILS_SYSTEM_PROMPT = `당신은 호텔 정보 전문가입니다.
 
 반드시 아래 JSON 형식으로만 응답하세요. 다른 설명 없이 JSON만 출력하세요.
 {
-  "propertyNameKo": "",
   "propertyNameEn": "",
   "city": "",
   "country": "",
@@ -63,6 +62,21 @@ const WEB_DETAILS_SYSTEM_PROMPT = `당신은 호텔 정보 전문가입니다.
   "brandName": "",
   "chainName": ""
 }`
+
+/**
+ * 웹 검색으로 영문 호텔명에 매칭되는 공식 한글 호텔명 추출
+ */
+const KOREAN_NAME_SYSTEM_PROMPT = `당신은 호텔 정보 전문가입니다.
+웹 검색을 통해 주어진 영문 호텔명에 해당하는 **공식 한글 호텔명**을 찾아주세요.
+
+규칙:
+- 네이버, 한국 관광 사이트, 호텔 공식 사이트 등에서 해당 호텔의 한국어 정식 명칭을 검색하세요.
+- 브랜드명은 정확한 한글 표기 사용 (예: Grand Hyatt → 그랜드 하얏트, Marriott → 메리어트)
+- 찾지 못하면 빈 문자열 "" 로 응답하세요.
+- 추측이나 일반 번역이 아닌, 실제로 사용되는 공식 한글명만 제공하세요.
+
+응답은 반드시 아래 JSON 형식으로만 출력하세요:
+{"propertyNameKo": ""}`
 
 function parseJsonFromResponse(text: string): Record<string, string> | null {
   const trimmed = text.trim()
@@ -75,14 +89,16 @@ function parseJsonFromResponse(text: string): Record<string, string> | null {
   }
 }
 
+/**
+ * JSON 응답에서만 Sabre ID 추출. 텍스트 내 임의의 숫자(연도·전화번호 등)는 사용하지 않음.
+ */
 function extractSabreIdFromText(text: string): string {
   const parsed = parseJsonFromResponse(text)
   if (parsed?.sabreId != null) {
     const s = String(parsed.sabreId).trim()
     if (/^\d+$/.test(s)) return s
   }
-  const match = text.match(/\b(\d{3,})\b/)
-  return match ? match[1] : ''
+  return ''
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<AiHotelLookupResponse>> {
@@ -159,11 +175,46 @@ export async function POST(request: NextRequest): Promise<NextResponse<AiHotelLo
 
     const detailsParsed = parseJsonFromResponse((detailsResponse.content ?? '').trim())
     const d = detailsParsed ?? {}
+    const propertyNameEn = String(d.propertyNameEn ?? '').trim() || hotelName
+
+    // 3) 한글 호텔명: 웹 검색으로 영문명에 매칭되는 공식 한글명 추출
+    let propertyNameKo = ''
+    if (propertyNameEn) {
+      const koUserMessage = `다음 영문 호텔명에 해당하는 공식 한글 호텔명을 웹 검색으로 찾아주세요: "${propertyNameEn}"`
+      try {
+        const koResponse = await callOpenAI({
+          apiKey,
+          systemMessage: KOREAN_NAME_SYSTEM_PROMPT,
+          userMessage: koUserMessage,
+          config: { temperature: 0.2, maxTokens: 256 },
+          enableWebSearch: true,
+        })
+        const koParsed = parseJsonFromResponse((koResponse.content ?? '').trim())
+        propertyNameKo = String(koParsed?.propertyNameKo ?? '').trim()
+      } catch {
+        // 빈 응답 등 오류 시 무시
+      }
+      if (!propertyNameKo) {
+        try {
+          const koRetry = await callOpenAI({
+            apiKey,
+            systemMessage: KOREAN_NAME_SYSTEM_PROMPT,
+            userMessage: koUserMessage,
+            config: { temperature: 0.2, maxTokens: 256 },
+            enableWebSearch: false,
+          })
+          const koParsedRetry = parseJsonFromResponse((koRetry.content ?? '').trim())
+          propertyNameKo = String(koParsedRetry?.propertyNameKo ?? '').trim()
+        } catch {
+          // 폴백 실패 시 빈 문자열 유지
+        }
+      }
+    }
 
     const data: AiHotelLookupResult = {
       sabreId,
-      propertyNameKo: String(d.propertyNameKo ?? '').trim() || hotelName,
-      propertyNameEn: String(d.propertyNameEn ?? '').trim() || hotelName,
+      propertyNameKo: propertyNameKo || hotelName,
+      propertyNameEn,
       city: String(d.city ?? ''),
       country: String(d.country ?? ''),
       addressEn: String(d.addressEn ?? ''),

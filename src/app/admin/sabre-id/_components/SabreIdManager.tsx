@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Loader2, CheckCircle, AlertCircle, Building2, MapPin, Globe, Sparkles, Layers, Plus } from 'lucide-react'
@@ -78,7 +78,9 @@ export default function SabreIdManager() {
   const [aiLookupResult, setAiLookupResult] = useState<AiHotelLookupResult | null>(null)
   const [aiLookupError, setAiLookupError] = useState<string | null>(null)
 
-  // 호텔 기본 데이터 생성
+  // Sabre ID 단일 편집 값 (AI 결과로 초기화되며 항상 수정 가능)
+  const [editableSabreId, setEditableSabreId] = useState('')
+  const aiLookupRequestIdRef = useRef(0)
   const [createLoading, setCreateLoading] = useState(false)
   const [createResult, setCreateResult] = useState<{ sabre_id: string; property_name_ko: string; property_name_en: string; property_address: string } | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -91,8 +93,10 @@ export default function SabreIdManager() {
     setAiLookupLoading(true)
     setAiLookupError(null)
     setAiLookupResult(null)
+    setEditableSabreId('')
     setCreateResult(null)
     setCreateError(null)
+    const thisRequestId = ++aiLookupRequestIdRef.current
     try {
       const res = await fetch('/api/sabre-id/ai-hotel-lookup', {
         method: 'POST',
@@ -100,28 +104,32 @@ export default function SabreIdManager() {
         body: JSON.stringify({ hotelName: bulkHotelName.trim() }),
       })
       const json = await res.json()
+      if (thisRequestId !== aiLookupRequestIdRef.current) return
       if (!res.ok) {
         throw new Error(json.error || '조회에 실패했습니다.')
       }
       if (json.success && json.data) {
-        setAiLookupResult(json.data)
+        const data = json.data
+        setAiLookupResult(data)
+        setEditableSabreId(data.sabreId?.trim() ?? '')
       } else {
         throw new Error(json.error || '결과를 찾을 수 없습니다.')
       }
     } catch (err) {
+      if (thisRequestId !== aiLookupRequestIdRef.current) return
       setAiLookupError(err instanceof Error ? err.message : 'AI 호텔 정보 조회 중 오류가 발생했습니다.')
     } finally {
-      setAiLookupLoading(false)
+      if (thisRequestId === aiLookupRequestIdRef.current) setAiLookupLoading(false)
     }
   }
 
   const handleCreateHotel = async () => {
     if (!aiLookupResult) return
-    if (!aiLookupResult.sabreId?.trim()) {
+    const effectiveSabreId = editableSabreId.trim()
+    if (!effectiveSabreId) {
       setCreateError(
-        '호텔 기본 데이터 생성이 불가능합니다. 저장할 Sabre ID 값이 없습니다. ' +
-        'AI 웹 검색에서 Sabre ID를 찾지 못한 경우, 하단 "Sabre API 기준 Sabre ID 검색"에서 직접 Sabre ID를 확인하거나 ' +
-        '다른 호텔명으로 다시 조회해 주세요.'
+        '저장할 Sabre ID 값을 입력해주세요. AI 웹 검색에서 Sabre ID를 찾지 못한 경우 위 "Sabre id" 필드에 직접 입력하거나, ' +
+        '하단 "Sabre API 기준 Sabre ID 검색"에서 Sabre ID를 확인한 뒤 입력해 주세요.'
       )
       return
     }
@@ -133,7 +141,7 @@ export default function SabreIdManager() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sabre_id: aiLookupResult.sabreId.trim(),
+          sabre_id: effectiveSabreId,
           hotel_data: {
             property_name_ko: aiLookupResult.propertyNameKo?.trim() || null,
             property_name_en: aiLookupResult.propertyNameEn?.trim() || null,
@@ -154,7 +162,7 @@ export default function SabreIdManager() {
       if (json.success && json.data) {
         const d = json.data
         setCreateResult({
-          sabre_id: String(d.sabre_id ?? aiLookupResult.sabreId),
+          sabre_id: String(d.sabre_id ?? effectiveSabreId),
           property_name_ko: String(d.property_name_ko ?? aiLookupResult.propertyNameKo ?? ''),
           property_name_en: String(d.property_name_en ?? aiLookupResult.propertyNameEn ?? ''),
           property_address: String(d.property_address ?? aiLookupResult.addressEn ?? ''),
@@ -329,7 +337,7 @@ export default function SabreIdManager() {
                 {aiLookupResult && (
                   <Button
                     onClick={handleCreateHotel}
-                    disabled={createLoading || !aiLookupResult.sabreId?.trim()}
+                    disabled={createLoading || !editableSabreId.trim()}
                     className="h-10 px-6 bg-green-600 hover:bg-green-700"
                     aria-label="호텔 기본 데이터 생성"
                   >
@@ -365,9 +373,14 @@ export default function SabreIdManager() {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="space-y-1">
                     <span className="text-xs font-medium text-gray-500">Sabre id</span>
-                    <p className="text-base font-mono font-semibold text-purple-700">
-                      {aiLookupResult.sabreId || '-'}
-                    </p>
+                    <Input
+                      type="text"
+                      placeholder="Sabre ID 입력 (AI 결과 없으면 직접 입력)"
+                      value={editableSabreId}
+                      onChange={(e) => setEditableSabreId(e.target.value)}
+                      className="font-mono h-9 text-base"
+                      aria-label="Sabre ID (편집 가능)"
+                    />
                   </div>
                   <div className="space-y-1">
                     <span className="text-xs font-medium text-gray-500">한글 호텔명</span>

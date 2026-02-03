@@ -984,7 +984,13 @@ export default function HotelSearchWidget({
         const res = await fetch(url, { signal: controller.signal });
         
         if (!res.ok) {
-          console.error('Suggestions fetch failed:', res.status)
+          if (res.status === 404) {
+            console.warn('Suggestions API not found (404). Ensure /api/hotel/suggest is available.')
+          } else {
+            console.error('Suggestions fetch failed:', res.status)
+          }
+          setSuggestions([])
+          setOpenSuggest(false)
           return
         }
 
