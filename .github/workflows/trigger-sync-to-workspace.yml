@@ -1,0 +1,25 @@
+name: Trigger Sync to Workspace
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger workspace sync
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.WORKSPACE_SYNC_TOKEN }}
+          repository: ts-cxdm/workspace
+          event-type: sync-select3-admin
+          client-payload: |
+            {
+              "source_repo": "${{ github.repository }}",
+              "source_branch": "${{ github.ref_name }}",
+              "source_sha": "${{ github.sha }}",
+              "source_commit_message": ${{ toJSON(github.event.head_commit.message) }},
+              "source_author": "${{ github.event.head_commit.author.name }}"
+            }
