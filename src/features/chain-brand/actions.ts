@@ -10,6 +10,7 @@ export type ChainFormData = {
   chain_slug?: string | null
   chain_sort_order?: number | null
   status?: string | null
+  rate_plan_code?: string | null
 }
 
 export type BrandFormData = {
@@ -37,15 +38,17 @@ export async function saveChain(formData: FormData): Promise<ActionResult<ChainF
   const nameEn = formData.get('name_en') as string || null
   const chainSlug = formData.get('chain_slug') as string || null
   const status = ((formData.get('status') as string) || 'active').trim()
-  
-  console.log('[chain-brand] saveChain input:', { chainId, nameKr, nameEn, chainSlug, status })
-  
+  const ratePlanCode = (formData.get('rate_plan_code') as string)?.trim() || null
+
+  console.log('[chain-brand] saveChain input:', { chainId, nameKr, nameEn, chainSlug, status, rate_plan_code: ratePlanCode })
+
   // hotel_chains 테이블의 실제 컬럼명 사용
   const chainData: Record<string, unknown> = {
     chain_name_ko: nameKr,
     chain_name_en: nameEn,
     chain_slug: chainSlug,
     status: status,
+    rate_plan_code: ratePlanCode,
   }
 
   console.log('[chain-brand] saveChain payload:', chainData)
@@ -77,7 +80,8 @@ export async function saveChain(formData: FormData): Promise<ActionResult<ChainF
     name_en: (dbData.chain_name_en as string) || null,
     chain_slug: (dbData.chain_slug as string) || null,
     chain_sort_order: (dbData.chain_sort_order as number) || null,
-    status: ((dbData.status as string) || 'active').trim()
+    status: ((dbData.status as string) || 'active').trim(),
+    rate_plan_code: (dbData.rate_plan_code as string)?.trim() || null,
   }
 
   revalidatePath('/admin/chain-brand')
@@ -91,13 +95,15 @@ export async function createChain(formData: FormData): Promise<ActionResult<Chai
   const nameEn = formData.get('name_en') as string || null
   const chainSlug = formData.get('chain_slug') as string || null
   const status = ((formData.get('status') as string) || 'active').trim()
-  
+  const ratePlanCode = (formData.get('rate_plan_code') as string)?.trim() || null
+
   // hotel_chains 테이블의 실제 컬럼명 사용
   const chainData: Record<string, unknown> = {
     chain_name_ko: nameKr,
     chain_name_en: nameEn,
     chain_slug: chainSlug,
     status: status,
+    rate_plan_code: ratePlanCode,
   }
 
   const { data, error } = await supabase
@@ -119,11 +125,51 @@ export async function createChain(formData: FormData): Promise<ActionResult<Chai
     name_en: (dbData.chain_name_en as string) || null,
     chain_slug: (dbData.chain_slug as string) || null,
     chain_sort_order: (dbData.chain_sort_order as number) || null,
-    status: ((dbData.status as string) || 'active').trim()
+    status: ((dbData.status as string) || 'active').trim(),
+    rate_plan_code: (dbData.rate_plan_code as string)?.trim() || null,
   }
 
   revalidatePath('/admin/chain-brand')
   return { success: true, data: mappedData }
+}
+
+/**
+ * 체인 rate_plan_code만 인라인 업데이트
+ */
+export async function updateChainRatePlanCode(chainId: number, ratePlanCode: string | null): Promise<ActionResult<ChainFormData>> {
+  try {
+    const supabase = createServiceRoleClient()
+    const value = ratePlanCode?.trim() || null
+
+    const { data, error } = await supabase
+      .from('hotel_chains')
+      .update({ rate_plan_code: value })
+      .eq('chain_id', chainId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[chain-brand] updateChainRatePlanCode error:', error)
+      return { success: false, error: error.message }
+    }
+
+    const dbData = data as Record<string, unknown>
+    const mappedData: ChainFormData = {
+      chain_id: dbData.chain_id as number,
+      name_kr: (dbData.chain_name_ko as string) || null,
+      name_en: (dbData.chain_name_en as string) || null,
+      chain_slug: (dbData.chain_slug as string) || null,
+      chain_sort_order: (dbData.chain_sort_order as number) ?? null,
+      status: ((dbData.status as string) || 'active').trim(),
+      rate_plan_code: (dbData.rate_plan_code as string)?.trim() || null,
+    }
+
+    revalidatePath('/admin/chain-brand')
+    return { success: true, data: mappedData }
+  } catch (e) {
+    console.error('[chain-brand] updateChainRatePlanCode exception:', e)
+    return { success: false, error: '서버 오류가 발생했습니다.' }
+  }
 }
 
 export async function deleteChain(chainId: number): Promise<ActionResult> {

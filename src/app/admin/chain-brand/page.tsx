@@ -8,6 +8,7 @@ type Chain = {
   chain_slug: string | null
   chain_sort_order?: number | null
   status?: string | null
+  rate_plan_code?: string | null
 }
 type Brand = { 
   brand_id: number
@@ -126,6 +127,11 @@ async function getData() {
         key.toLowerCase() === 'status'
       ) || 'status'
 
+      // rate_plan_code 컬럼 찾기
+      const ratePlanCodeKey = chainsColumns.find(key => 
+        key.toLowerCase() === 'rate_plan_code'
+      ) || 'rate_plan_code'
+
       const mappedChain = {
         chain_id: Number(r[chainIdKey] ?? 0),
         name_kr: safeString(r[nameKrKey]),
@@ -133,6 +139,7 @@ async function getData() {
         chain_slug: safeString(r[chainSlugKey]),
         chain_sort_order: r[sortOrderKey] ? Number(r[sortOrderKey]) : null,
         status: safeString(r[statusKey]) || 'active',
+        rate_plan_code: safeString(r[ratePlanCodeKey]) || null,
       }
       
       console.log('[chain-brand] Mapped chain:', mappedChain)

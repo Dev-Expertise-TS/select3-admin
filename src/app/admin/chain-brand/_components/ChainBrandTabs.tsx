@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Save, X, Trash2, Link2, Edit, GripVertical, PlusCircle, List, ChevronUp, ChevronDown } from 'lucide-react'
-import { saveChain, createChain, saveBrand, createBrand, updateChainSortOrder, updateBrandSortOrder, deleteChain, deleteBrand } from '@/features/chain-brand/actions'
+import { saveChain, createChain, saveBrand, createBrand, updateChainSortOrder, updateBrandSortOrder, deleteChain, deleteBrand, updateChainRatePlanCode } from '@/features/chain-brand/actions'
 import ConnectedHotelsModal from './ConnectedHotelsModal'
 import { slugify } from '@/lib/format'
 import {
@@ -32,6 +32,7 @@ export type Chain = {
   chain_slug: string | null
   chain_sort_order?: number | null
   status?: string | null
+  rate_plan_code?: string | null
 }
 
 export type Brand = {
@@ -278,6 +279,8 @@ function SortableChainRow({
   onFieldChange,
   onSaveEdit,
   onCancelEdit,
+  onRatePlanCodeSave,
+  savingRatePlanCodeChainId,
   isRecentlyUpdated
 }: {
   chain: Chain
@@ -291,9 +294,15 @@ function SortableChainRow({
   onFieldChange: (field: string, value: string | number | null) => void
   onSaveEdit: () => void
   onCancelEdit: () => void
+  onRatePlanCodeSave?: (chainId: number, value: string | null) => void
+  savingRatePlanCodeChainId?: number | null
   isRecentlyUpdated?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: chain.chain_id })
+  const [localRatePlanCode, setLocalRatePlanCode] = useState(chain.rate_plan_code ?? '')
+  React.useEffect(() => {
+    setLocalRatePlanCode(chain.rate_plan_code ?? '')
+  }, [chain.rate_plan_code])
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -347,6 +356,15 @@ function SortableChainRow({
           />
         </td>
         <td className="border p-2">
+          <input
+            type="text"
+            value={String(editingData.rate_plan_code ?? '')}
+            onChange={(e) => onFieldChange('rate_plan_code', e.target.value)}
+            className="w-full border rounded px-2 py-1 text-xs font-mono text-gray-700"
+            placeholder="API,ZP3 (쉼표 구분)"
+          />
+        </td>
+        <td className="border p-2">
           <select
             value={String(editingData.status ?? 'active')}
             onChange={(e) => onFieldChange('status', e.target.value)}
@@ -370,6 +388,12 @@ function SortableChainRow({
     )
   }
 
+  const handleRatePlanCodeBlur = () => {
+    if (onRatePlanCodeSave && (localRatePlanCode.trim() || '') !== (chain.rate_plan_code ?? '')) {
+      onRatePlanCodeSave(chain.chain_id, localRatePlanCode.trim() || null)
+    }
+  }
+
   return (
     <tr ref={setNodeRef} style={style} className="border-t hover:bg-gray-50">
       <td className="border p-2 text-center" style={{ width: '40px' }}>
@@ -381,6 +405,23 @@ function SortableChainRow({
       <td className="border p-2 text-sm">{chain.name_kr || '-'}</td>
       <td className="border p-2 text-sm">{chain.name_en || '-'}</td>
       <td className="border p-2 text-sm font-mono text-gray-700">{chain.chain_slug || '-'}</td>
+      <td className="border p-2">
+        <input
+          type="text"
+          value={localRatePlanCode}
+          onChange={(e) => setLocalRatePlanCode(e.target.value)}
+          onBlur={handleRatePlanCodeBlur}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur()
+            }
+          }}
+          placeholder="쉼표 구분"
+          disabled={savingRatePlanCodeChainId === chain.chain_id}
+          className="w-full min-w-[100px] border rounded px-2 py-1 text-xs font-mono text-gray-700 bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+          title="Rate Plan Code (인라인 편집, Enter 또는 포커스 아웃 시 저장)"
+        />
+      </td>
       <td className="border p-2 text-center">
         <span className={`px-2 py-1 rounded text-xs font-medium ${chain.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
           {chain.status === 'active' ? '활성' : '비활성'}
@@ -444,6 +485,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
   const [selectedItem, setSelectedItem] = useState<Brand | Chain | null>(null)
   const [recentlyUpdatedBrandId, setRecentlyUpdatedBrandId] = useState<number | null>(null)
   const [recentlyUpdatedChainId, setRecentlyUpdatedChainId] = useState<number | null>(null)
+  const [savingRatePlanCodeChainId, setSavingRatePlanCodeChainId] = useState<number | null>(null)
   const [showConnectedHotelsModal, setShowConnectedHotelsModal] = useState(false)
   const [connectedHotelsItem, setConnectedHotelsItem] = useState<{
     type: 'brand' | 'chain'
@@ -685,20 +727,22 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     fd.append('name_en', String(chain.name_en ?? ''))
     fd.append('chain_slug', String(chain.chain_slug ?? ''))
     fd.append('status', String(chain.status ?? 'active'))
-    
+    fd.append('rate_plan_code', String(chain.rate_plan_code ?? ''))
+
     console.log('[ChainBrandTabs] Saving chain with FormData:', {
       chain_id: fd.get('chain_id'),
       name_kr: fd.get('name_kr'),
       name_en: fd.get('name_en'),
       chain_slug: fd.get('chain_slug'),
-      status: fd.get('status')
+      status: fd.get('status'),
+      rate_plan_code: fd.get('rate_plan_code')
     })
-    
+
     const res = await saveChain(fd)
     setLoading(false)
     if (res.success && res.data) {
       console.log('[ChainBrandTabs] Chain save success, returned data:', res.data)
-      
+
       // DB에서 반환된 실제 데이터로 로컬 상태 업데이트
       const updatedChain: Chain = {
         chain_id: res.data.chain_id || chain.chain_id,
@@ -706,7 +750,8 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
         name_en: res.data.name_en ?? chain.name_en,
         chain_slug: res.data.chain_slug ?? chain.chain_slug,
         chain_sort_order: res.data.chain_sort_order ?? chain.chain_sort_order,
-        status: res.data.status ?? chain.status
+        status: res.data.status ?? chain.status,
+        rate_plan_code: res.data.rate_plan_code ?? chain.rate_plan_code
       }
       
       setChains(prev => sortChains(prev.map(c => 
@@ -803,16 +848,17 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     fd.append('name_en', String(editingChainData.name_en ?? ''))
     fd.append('chain_slug', String(editingChainData.chain_slug ?? ''))
     fd.append('status', String(editingChainData.status ?? 'active'))
+    fd.append('rate_plan_code', String(editingChainData.rate_plan_code ?? ''))
 
     const res = editingChainId === 'new' ? await createChain(fd) : await saveChain(fd)
     setLoading(false)
 
     if (res.success && res.data) {
       const savedChainId = editingChainId === 'new' ? (res.data.chain_id || 0) : (editingChainId as number)
-      
+
       setEditingChainId(null)
       setEditingChainData({})
-      
+
       if (editingChainId === 'new') {
         // 신규 생성: DB에서 반환된 실제 데이터로 추가
         const newChain: Chain = {
@@ -821,7 +867,8 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
           name_en: res.data.name_en ?? null,
           chain_slug: res.data.chain_slug ?? null,
           chain_sort_order: res.data.chain_sort_order ?? null,
-          status: res.data.status ?? 'active'
+          status: res.data.status ?? 'active',
+          rate_plan_code: res.data.rate_plan_code ?? null
         }
         setChains(prev => sortChains([...prev, newChain]))
       } else {
@@ -832,7 +879,8 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
           name_en: res.data.name_en ?? null,
           chain_slug: res.data.chain_slug ?? null,
           chain_sort_order: res.data.chain_sort_order ?? null,
-          status: res.data.status ?? 'active'
+          status: res.data.status ?? 'active',
+          rate_plan_code: res.data.rate_plan_code ?? null
         }
         setChains(prev => sortChains(prev.map(c =>
           c.chain_id === editingChainId ? updatedChain : c
@@ -925,6 +973,24 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
   const handleAddNewBrand = () => {
     setEditingBrandId('new')
     setEditingBrandData({ isNew: true, status: 'active' })
+  }
+
+  // 체인 Rate Plan Code 인라인 저장
+  const handleRatePlanCodeSave = async (chainId: number, value: string | null) => {
+    setSavingRatePlanCodeChainId(chainId)
+    const res = await updateChainRatePlanCode(chainId, value)
+    setSavingRatePlanCodeChainId(null)
+    if (res.success && res.data) {
+      setChains((prev) =>
+        sortChains(
+          prev.map((c) =>
+            c.chain_id === chainId ? { ...c, rate_plan_code: res.data!.rate_plan_code ?? null } : c
+          )
+        )
+      )
+    } else {
+      alert(res.error ?? '저장에 실패했습니다.')
+    }
   }
 
   // 신규 체인 추가
@@ -1057,6 +1123,15 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
             onChange={(e) => setEditingChainData(prev => ({ ...prev, chain_slug: e.target.value }))}
             className="w-full border rounded px-2 py-1 text-xs font-mono text-gray-700"
             placeholder="chain-slug"
+          />
+        </td>
+        <td className="border p-2">
+          <input
+            type="text"
+            value={String(editingChainData.rate_plan_code ?? '')}
+            onChange={(e) => setEditingChainData(prev => ({ ...prev, rate_plan_code: e.target.value }))}
+            className="w-full border rounded px-2 py-1 text-xs font-mono text-gray-700"
+            placeholder="API,ZP3 (쉼표 구분)"
           />
         </td>
         <td className="border p-2">
@@ -1220,6 +1295,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                       <th className="border p-2 text-left" style={{ width: '150px' }}>체인(한글)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>체인(영문)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>Chain Slug</th>
+                      <th className="border p-2 text-left" style={{ width: '140px' }}>Rate Plan Code</th>
                       <th 
                         className="border p-2 text-center cursor-pointer hover:bg-gray-200 select-none" 
                         style={{ width: '90px' }}
@@ -1256,6 +1332,8 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                             onFieldChange={(field, value) => setEditingChainData(prev => ({ ...prev, [field]: value }))}
                             onSaveEdit={handleSaveChainEdit}
                             onCancelEdit={() => { setEditingChainId(null); setEditingChainData({}); }}
+                            onRatePlanCodeSave={handleRatePlanCodeSave}
+                            savingRatePlanCodeChainId={savingRatePlanCodeChainId}
                           />
                         )
                       })}
