@@ -1,10 +1,31 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Button } from '@/components/ui/button'
+import { useState, useRef, useMemo } from 'react'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
-import { Search, Loader2, CheckCircle, AlertCircle, Building2, MapPin, Globe, Sparkles, Layers, Plus } from 'lucide-react'
+import {
+  Search,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  Building2,
+  MapPin,
+  Globe,
+  Sparkles,
+  Layers,
+  Plus,
+  FileSpreadsheet,
+  ListChecks,
+  ExternalLink,
+  ArrowUp,
+  ArrowDown,
+} from 'lucide-react'
 import type { AiHotelLookupResult } from '@/app/api/sabre-id/ai-hotel-lookup/route'
+
+const SABRE_SHEET_URL =
+  'https://docs.google.com/spreadsheets/d/1X_kFUoRbvY1SIv2Vv8dzzgGa51qbt91DdGgua8Q8I54/edit?gid=510702393#gid=510702393'
+const SHEET_DATA_SOURCE = 'tourvis.com API (sabre_api_hotel_list 시트 B열)'
 
 interface HotelInfo {
   HotelCode?: string
@@ -30,6 +51,26 @@ interface HotelInfo {
   email?: string
   website?: string
   description?: string
+}
+
+interface SheetCheckEntry {
+  sabreId: string
+  paragonId: string
+  hotelName: string
+  chain: string
+  exists: boolean
+  propertyNameKo: string | null
+  propertyNameEn: string | null
+}
+
+interface SheetCheckResult {
+  sheetRowCount: number
+  uniqueSabreIdCount: number
+  matchedCount: number
+  missingCount: number
+  duplicateCount: number
+  missingSabreIds: string[]
+  entries: SheetCheckEntry[]
 }
 
 // interface HotelDetailsResponse {
@@ -82,8 +123,43 @@ export default function SabreIdManager() {
   const [editableSabreId, setEditableSabreId] = useState('')
   const aiLookupRequestIdRef = useRef(0)
   const [createLoading, setCreateLoading] = useState(false)
+  const [hotelExistsWarning, setHotelExistsWarning] = useState<string | null>(null)
   const [createResult, setCreateResult] = useState<{ sabre_id: string; property_name_ko: string; property_name_en: string; property_address: string } | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
+
+  // Google Sheet 기반 시설 체크
+  const [sheetCheckLoading, setSheetCheckLoading] = useState(false)
+  const [sheetCheckError, setSheetCheckError] = useState<string | null>(null)
+  const [sheetCheckResult, setSheetCheckResult] = useState<SheetCheckResult | null>(null)
+
+  // 일괄 등록 - 선택된 미등록 시설
+  const [selectedMissingIds, setSelectedMissingIds] = useState<Set<string>>(new Set())
+  const [bulkCreateLoading, setBulkCreateLoading] = useState(false)
+  const [bulkCreateResult, setBulkCreateResult] = useState<{
+    createdCount: number
+    failedCount: number
+    results: Array<{ sabreId: string; success: boolean; error?: string }>
+  } | null>(null)
+  const [bulkCreateError, setBulkCreateError] = useState<string | null>(null)
+
+  // CHAIN 컬럼 정렬
+  const [chainSortDir, setChainSortDir] = useState<'asc' | 'desc' | null>(null)
+
+  const sortedEntries = useMemo(() => {
+    if (!sheetCheckResult?.entries) return []
+    const entries = sheetCheckResult.entries
+    if (chainSortDir === null) return entries
+    return [...entries].sort((a, b) => {
+      const va = (a.chain ?? '').toLowerCase()
+      const vb = (b.chain ?? '').toLowerCase()
+      const cmp = va.localeCompare(vb)
+      return chainSortDir === 'asc' ? cmp : -cmp
+    })
+  }, [sheetCheckResult?.entries, chainSortDir])
+
+  const handleChainSortClick = () => {
+    setChainSortDir((prev) => (prev === null || prev === 'desc' ? 'asc' : 'desc'))
+  }
 
   const handleAiHotelLookup = async () => {
     if (!bulkHotelName.trim()) {
@@ -96,6 +172,7 @@ export default function SabreIdManager() {
     setEditableSabreId('')
     setCreateResult(null)
     setCreateError(null)
+    setHotelExistsWarning(null)
     const thisRequestId = ++aiLookupRequestIdRef.current
     try {
       const res = await fetch('/api/sabre-id/ai-hotel-lookup', {
@@ -111,7 +188,25 @@ export default function SabreIdManager() {
       if (json.success && json.data) {
         const data = json.data
         setAiLookupResult(data)
-        setEditableSabreId(data.sabreId?.trim() ?? '')
+        const extractedSabreId = data.sabreId?.trim() ?? ''
+        setEditableSabreId(extractedSabreId)
+
+        // 추출된 sabre_id로 select_hotels 테이블 중복 확인
+        if (extractedSabreId && thisRequestId === aiLookupRequestIdRef.current) {
+          try {
+            const checkRes = await fetch(
+              `/api/hotel/check-sabre-id?sabreId=${encodeURIComponent(extractedSabreId)}`,
+              { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+            )
+            const checkJson = await checkRes.json()
+            if (thisRequestId !== aiLookupRequestIdRef.current) return
+            if (checkJson.success && checkJson.data?.exists) {
+              setHotelExistsWarning('이미 등록된 호텔 시설 입니다')
+            }
+          } catch {
+            // 중복 확인 실패 시 무시 (메인 결과는 이미 표시됨)
+          }
+        }
       } else {
         throw new Error(json.error || '결과를 찾을 수 없습니다.')
       }
@@ -212,6 +307,103 @@ export default function SabreIdManager() {
     }
   }
 
+  const handleSheetCheck = async (opts?: { preserveBulkResult?: boolean }) => {
+    setSheetCheckLoading(true)
+    setSheetCheckError(null)
+    setSelectedMissingIds(new Set())
+    setChainSortDir(null)
+    if (!opts?.preserveBulkResult) {
+      setBulkCreateResult(null)
+      setBulkCreateError(null)
+    }
+    try {
+      const response = await fetch('/api/sabre-id/google-sheet-check', {
+        method: 'POST',
+      })
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '구글 시트 데이터 조회에 실패했습니다.')
+      }
+
+      setSheetCheckResult(data.data as SheetCheckResult)
+    } catch (err) {
+      setSheetCheckError(err instanceof Error ? err.message : '구글 시트 데이터 조회 중 오류가 발생했습니다.')
+    } finally {
+      setSheetCheckLoading(false)
+    }
+  }
+
+  const missingEntries = sheetCheckResult?.entries.filter((e) => !e.exists) ?? []
+  const isAllMissingSelected =
+    missingEntries.length > 0 &&
+    missingEntries.every((e) => selectedMissingIds.has(e.sabreId))
+  const handleSelectAllMissing = (checked: boolean) => {
+    if (checked) {
+      setSelectedMissingIds(new Set(missingEntries.map((e) => e.sabreId)))
+    } else {
+      setSelectedMissingIds(new Set())
+    }
+  }
+  const handleToggleMissing = (sabreId: string, checked: boolean) => {
+    setSelectedMissingIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(sabreId)
+      else next.delete(sabreId)
+      return next
+    })
+  }
+
+  const handleBulkCreate = async () => {
+    if (selectedMissingIds.size === 0) {
+      setBulkCreateError('등록할 미등록 시설을 선택해주세요.')
+      return
+    }
+    if (!sheetCheckResult) return
+
+    const entriesToCreate = sheetCheckResult.entries.filter(
+      (e) => !e.exists && selectedMissingIds.has(e.sabreId)
+    )
+    if (entriesToCreate.length === 0) {
+      setBulkCreateError('선택한 시설 중 등록할 항목이 없습니다.')
+      return
+    }
+
+    setBulkCreateLoading(true)
+    setBulkCreateError(null)
+    setBulkCreateResult(null)
+    try {
+      const res = await fetch('/api/hotel/bulk-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: entriesToCreate.map((e) => ({
+            sabreId: e.sabreId,
+            propertyNameEn: e.hotelName || null,
+            propertyNameKo: null,
+          })),
+        }),
+      })
+      const json = await res.json()
+
+      if (!res.ok) {
+        throw new Error(json.error || '일괄 등록에 실패했습니다.')
+      }
+
+      if (json.success && json.data) {
+        setBulkCreateResult(json.data)
+        setSelectedMissingIds(new Set())
+        await handleSheetCheck({ preserveBulkResult: true })
+      } else {
+        throw new Error(json.error || '일괄 등록 결과를 확인할 수 없습니다.')
+      }
+    } catch (err) {
+      setBulkCreateError(err instanceof Error ? err.message : '일괄 등록 중 오류가 발생했습니다.')
+    } finally {
+      setBulkCreateLoading(false)
+    }
+  }
+
   const handleSearch = async () => {
     if (!sabreId.trim()) {
       setError('Sabre ID를 입력해주세요.')
@@ -295,7 +487,7 @@ export default function SabreIdManager() {
         <div className="space-y-6 p-6">
           <div className="flex items-center gap-2">
             <Layers className="h-5 w-5 text-purple-600" />
-            <h2 className="text-lg font-semibold">Sabre 시설 일괄 생성</h2>
+            <h2 className="text-lg font-semibold">Sabre 시설 조회 및 기초 데이터 생성</h2>
           </div>
 
           <div className="space-y-4">
@@ -361,6 +553,13 @@ export default function SabreIdManager() {
               <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
                 <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
                 <div>{createError ?? aiLookupError}</div>
+              </div>
+            )}
+
+            {hotelExistsWarning && (
+              <div className="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+                <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>{hotelExistsWarning}</div>
               </div>
             )}
 
@@ -451,6 +650,259 @@ export default function SabreIdManager() {
                 </div>
               </div>
             )}
+
+            <div className="border-t border-dashed pt-6 space-y-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-5 w-5 text-slate-700" />
+                    <h3 className="text-base font-semibold">구글 시트 시설 체크 및 기초 데이터 등록</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    구글 시트 B열의 Sabre ID를 불러와 <code className="font-mono">select_hotels</code> 테이블 존재 여부를 확인합니다.
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    데이터 소스: <span className="font-mono">{SHEET_DATA_SOURCE}</span>
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {SABRE_SHEET_URL && (
+                    <a
+                      href={SABRE_SHEET_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(buttonVariants({ variant: 'outline' }), 'h-10 px-6')}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      시트 열기
+                    </a>
+                  )}
+                  <Button
+                    onClick={handleSheetCheck}
+                    disabled={sheetCheckLoading}
+                    className="h-10 bg-slate-900 px-6 text-white hover:bg-slate-800"
+                  >
+                    {sheetCheckLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        불러오는 중
+                      </>
+                    ) : (
+                      <>
+                        <ListChecks className="mr-2 h-4 w-4" />
+                        시트 데이터 확인
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {sheetCheckError && (
+                <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <div>{sheetCheckError}</div>
+                </div>
+              )}
+
+              {sheetCheckLoading && (
+                <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white/60 p-4 text-sm text-slate-600">
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
+                  구글 시트에서 Sabre ID를 불러오고 있습니다. 잠시만 기다려주세요.
+                </div>
+              )}
+
+              {sheetCheckResult && (
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      {
+                        label: '시트 행 수',
+                        value: sheetCheckResult.sheetRowCount,
+                        description: '중복 포함',
+                      },
+                      {
+                        label: '고유 Sabre ID',
+                        value: sheetCheckResult.uniqueSabreIdCount,
+                        description:
+                          sheetCheckResult.duplicateCount > 0
+                            ? `중복 ${sheetCheckResult.duplicateCount}건`
+                            : '중복 없음',
+                      },
+                      {
+                        label: '등록 완료',
+                        value: sheetCheckResult.matchedCount,
+                        description: 'select_hotels 존재',
+                      },
+                      {
+                        label: '미등록',
+                        value: sheetCheckResult.missingCount,
+                        description: 'select_hotels 부재',
+                      },
+                    ].map((stat) => (
+                      <div key={stat.label} className="rounded-lg border bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">{stat.label}</p>
+                        <p className="mt-2 text-2xl font-semibold text-gray-900">{stat.value.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500">{stat.description}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {sheetCheckResult.missingCount === 0 && (
+                    <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+                      <CheckCircle className="h-4 w-4" />
+                      <p className="text-sm font-medium">모든 Sabre ID가 select_hotels 테이블에 이미 등록되어 있습니다.</p>
+                    </div>
+                  )}
+
+                  <div className="rounded-lg border">
+                    <div className="overflow-auto max-h-80">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          <tr>
+                            <th scope="col" className="px-4 py-2 text-left w-10">
+                              <input
+                                type="checkbox"
+                                checked={isAllMissingSelected}
+                                onChange={(e) => handleSelectAllMissing(e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                aria-label="미등록 시설 전체 선택"
+                              />
+                            </th>
+                            <th scope="col" className="px-4 py-2 text-left">
+                              #
+                            </th>
+                            <th scope="col" className="px-4 py-2 text-left">
+                              Sabre ID
+                            </th>
+                            <th scope="col" className="px-4 py-2 text-left">
+                              Paragon ID
+                            </th>
+                            <th scope="col" className="px-4 py-2 text-left">
+                              Hotel name
+                            </th>
+                            <th scope="col" className="px-4 py-2 text-left">
+                              <button
+                                type="button"
+                                onClick={handleChainSortClick}
+                                className="inline-flex items-center gap-1 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                                aria-label={chainSortDir ? `Chain ${chainSortDir === 'asc' ? '오름차순' : '내림차순'} 정렬` : 'Chain 정렬'}
+                              >
+                                Chain
+                                {chainSortDir === 'asc' && <ArrowUp className="h-4 w-4" />}
+                                {chainSortDir === 'desc' && <ArrowDown className="h-4 w-4" />}
+                              </button>
+                            </th>
+                            <th scope="col" className="px-4 py-2 text-left">
+                              상태
+                            </th>
+                            <th scope="col" className="px-4 py-2 text-left">
+                              등록된 호텔명
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 bg-white text-gray-900">
+                          {sortedEntries.map((entry, index) => (
+                            <tr key={`${entry.sabreId}-${index}`} className={entry.exists ? '' : 'bg-rose-50/60'}>
+                              <td className="px-4 py-3">
+                                {!entry.exists ? (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedMissingIds.has(entry.sabreId)}
+                                    onChange={(e) => handleToggleMissing(entry.sabreId, e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    aria-label={`${entry.sabreId} 선택`}
+                                  />
+                                ) : (
+                                  <span className="text-gray-300">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-xs text-gray-500">{index + 1}</td>
+                              <td className="px-4 py-3 font-mono text-sm font-semibold">{entry.sabreId}</td>
+                              <td className="px-4 py-3 text-sm">{entry.paragonId || '-'}</td>
+                              <td className="px-4 py-3 text-sm max-w-[200px] truncate" title={entry.hotelName || ''}>
+                                {entry.hotelName || '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm">{entry.chain || '-'}</td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                                    entry.exists
+                                      ? 'bg-emerald-50 text-emerald-700'
+                                      : 'bg-rose-100 text-rose-700'
+                                  }`}
+                                >
+                                  {entry.exists ? '등록됨' : '미등록'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {entry.exists ? (
+                                  <div className="space-y-0.5">
+                                    <p className="text-sm font-medium text-gray-900">{entry.propertyNameKo || '-'}</p>
+                                    <p className="text-xs text-gray-500">{entry.propertyNameEn || '-'}</p>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-gray-500">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="border-t bg-gray-50 px-4 py-2 text-xs text-gray-500 space-y-1">
+                      <p>총 {sheetCheckResult.entries.length.toLocaleString()}건 · 최신 상태로 확인하려면 상단 버튼을 다시 실행하세요.</p>
+                      <p>위 목록은 select_hotels 테이블에 존재하지 않아 신규 등록이 필요한 Sabre ID입니다.</p>
+                    </div>
+
+                    {sheetCheckResult.missingCount > 0 && (
+                      <div className="border-t p-4 space-y-3">
+                        {bulkCreateError && (
+                          <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                            <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                            <div>{bulkCreateError}</div>
+                          </div>
+                        )}
+                        {bulkCreateResult && (
+                          <div className="flex items-start gap-2 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">
+                            <CheckCircle className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="font-medium">선택 시설 일괄 기초 데이터 등록 완료</p>
+                              <p className="text-xs mt-1">
+                                등록 성공 {bulkCreateResult.createdCount}건
+                                {bulkCreateResult.failedCount > 0
+                                  ? ` · 실패 ${bulkCreateResult.failedCount}건`
+                                  : ''}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        <Button
+                          onClick={handleBulkCreate}
+                          disabled={bulkCreateLoading || selectedMissingIds.size === 0}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {bulkCreateLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              등록 중...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="mr-2 h-4 w-4" />
+                              선택 시설 일괄 기초 데이터 등록
+                              {selectedMissingIds.size > 0
+                                ? ` (${selectedMissingIds.size}건)`
+                                : ' (미등록 시설을 선택해주세요)'}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

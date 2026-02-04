@@ -1,0 +1,151 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServiceRoleClient } from '@/lib/supabase/server'
+import { generateHotelSlug, slugWithSuffix } from '@/lib/hotel-slug'
+
+type BulkCreateItem = {
+  sabreId: string
+  propertyNameEn?: string | null
+  propertyNameKo?: string | null
+}
+
+type BulkCreateResultItem = {
+  sabreId: string
+  success: boolean
+  error?: string
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { items } = body as { items?: BulkCreateItem[] }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return NextResponse.json(
+        { success: false, error: '등록할 시설 목록(items)이 필요합니다.' },
+        { status: 400 }
+      )
+    }
+
+    const supabase = createServiceRoleClient()
+    const results: BulkCreateResultItem[] = []
+    let createdCount = 0
+    let failedCount = 0
+
+    const duplicateMessage =
+      '동일한 Sabre ID가 이미 존재합니다. 호텔 정보 수정은 호텔 정보 업데이트 메뉴에서 진행해주세요.'
+
+    for (const item of items) {
+      const sabreId = String(item?.sabreId ?? '').trim()
+      if (!sabreId) {
+        results.push({ sabreId: '(빈값)', success: false, error: 'Sabre ID가 비어 있습니다.' })
+        failedCount++
+        continue
+      }
+
+      const propertyNameEn = item?.propertyNameEn?.trim() || null
+      const propertyNameKo = item?.propertyNameKo?.trim() || null
+
+      const { data: existingHotel, error: checkError } = await supabase
+        .from('select_hotels')
+        .select('sabre_id')
+        .eq('sabre_id', sabreId)
+        .single()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        results.push({
+          sabreId,
+          success: false,
+          error: '존재 여부 확인 중 오류가 발생했습니다.',
+        })
+        failedCount++
+        continue
+      }
+
+      if (existingHotel) {
+        results.push({ sabreId, success: false, error: duplicateMessage })
+        failedCount++
+        continue
+      }
+
+      const slug = generateHotelSlug(propertyNameEn, propertyNameKo, sabreId)
+      const insertData = {
+        sabre_id: sabreId,
+        slug,
+        property_name_ko: propertyNameKo,
+        property_name_en: propertyNameEn,
+        property_address: null,
+        publish: false,
+        created_at: new Date().toISOString(),
+      }
+
+      let { error: insertError } = await supabase
+        .from('select_hotels')
+        .insert(insertData)
+        .select()
+        .single()
+
+      if (insertError) {
+        const err = insertError as { code?: string; message?: string }
+        const isUniqueViolation = err.code === '23505'
+        const message = (err.message || '').toLowerCase()
+        const isSabreIdConflict =
+          isUniqueViolation && (message.includes('sabre_id') || message.includes('sabre id'))
+        const isSlugConflict = isUniqueViolation && message.includes('slug')
+
+        if (isSabreIdConflict) {
+          results.push({ sabreId, success: false, error: duplicateMessage })
+          failedCount++
+          continue
+        }
+
+        if (isSlugConflict) {
+          const retryData = { ...insertData, slug: slugWithSuffix(slug, sabreId) }
+          const retry = await supabase
+            .from('select_hotels')
+            .insert(retryData)
+            .select()
+            .single()
+
+          if (retry.error) {
+            results.push({
+              sabreId,
+              success: false,
+              error: '호텔 데이터 생성 중 오류가 발생했습니다.',
+            })
+            failedCount++
+            continue
+          }
+        } else {
+          results.push({
+            sabreId,
+            success: false,
+            error: '호텔 데이터 생성 중 오류가 발생했습니다.',
+          })
+          failedCount++
+          continue
+        }
+      }
+
+      results.push({ sabreId, success: true })
+      createdCount++
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        results,
+        createdCount,
+        failedCount,
+      },
+    })
+  } catch (error) {
+    console.error('[hotel/bulk-create] unexpected error:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : '일괄 등록 중 오류가 발생했습니다.',
+      },
+      { status: 500 }
+    )
+  }
+}
