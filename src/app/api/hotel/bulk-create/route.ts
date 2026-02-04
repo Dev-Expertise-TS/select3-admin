@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { generateHotelSlug, slugWithSuffix } from '@/lib/hotel-slug'
-import { lookupHotelByName } from '@/lib/ai-hotel-lookup'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -10,6 +9,7 @@ type BulkCreateItem = {
   sabreId: string
   hotelName?: string | null
   paragonId?: string | null
+  chain?: string | null
 }
 
 type BulkCreateResultItem = {
@@ -38,14 +38,6 @@ export async function POST(request: NextRequest) {
     const duplicateMessage =
       '동일한 Sabre ID가 이미 존재합니다. 호텔 정보 수정은 호텔 정보 업데이트 메뉴에서 진행해주세요.'
 
-    const apiKey = process.env.OPENAI_API_KEY
-    if (!apiKey) {
-      return NextResponse.json(
-        { success: false, error: 'OPENAI_API_KEY가 설정되지 않았습니다. AI 호텔 조회를 사용할 수 없습니다.' },
-        { status: 500 }
-      )
-    }
-
     for (const item of items) {
       const sabreId = String(item?.sabreId ?? '').trim()
       if (!sabreId) {
@@ -54,23 +46,11 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      // 구글 시트에서 전달된 값만 사용하여 select_hotels 필수 컬럼을 생성
       const hotelName = item?.hotelName?.trim() || ''
-      let propertyNameEn: string | null = null
-      let propertyNameKo: string | null = null
-      let propertyAddress: string | null = null
-
-      if (hotelName.length >= 2) {
-        try {
-          const aiResult = await lookupHotelByName(apiKey, hotelName, sabreId)
-          propertyNameEn = aiResult.propertyNameEn?.trim() || null
-          propertyNameKo = aiResult.propertyNameKo?.trim() || null
-          propertyAddress = aiResult.addressEn?.trim() || null
-        } catch (lookupErr) {
-          console.warn(`[hotel/bulk-create] AI lookup failed for ${sabreId}:`, lookupErr)
-          propertyNameEn = hotelName
-        }
-      }
-      if (!propertyNameEn) propertyNameEn = hotelName || null
+      const propertyNameEn: string | null = hotelName || null
+      const propertyNameKo: string | null = null
+      const propertyAddress: string | null = null
 
       const { data: existingHotel, error: checkError } = await supabase
         .from('select_hotels')
@@ -95,6 +75,7 @@ export async function POST(request: NextRequest) {
       }
 
       const paragonId = item?.paragonId?.trim() || null
+      const chainEn = item?.chain?.trim() || null
 
       const slug = generateHotelSlug(propertyNameEn, propertyNameKo, sabreId)
       const insertData = {
@@ -104,6 +85,7 @@ export async function POST(request: NextRequest) {
         property_name_ko: propertyNameKo,
         property_name_en: propertyNameEn,
         property_address: propertyAddress,
+        chain_en: chainEn,
         publish: false,
         created_at: new Date().toISOString(),
       }

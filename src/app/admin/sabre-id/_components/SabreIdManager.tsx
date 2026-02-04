@@ -386,6 +386,7 @@ export default function SabreIdManager() {
             sabreId: e.sabreId,
             hotelName: e.hotelName || null,
             paragonId: e.paragonId || null,
+            chain: e.chain || null,
           })),
         }),
       })
