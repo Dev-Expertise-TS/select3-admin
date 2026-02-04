@@ -423,7 +423,7 @@ function SortableChainRow({
 }
 
 export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
-  const [activeTab, setActiveTab] = useState<TabType>('brands')
+  const [activeTab, setActiveTab] = useState<TabType>('chains')
   
   // 중복 제거 후 초기화
   const uniqueChains = initialChains.reduce((acc: Chain[], current) => {
@@ -1117,16 +1117,6 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
       <div className="flex gap-2 border-b">
         <button
           className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-            activeTab === 'brands'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          }`}
-          onClick={() => setActiveTab('brands')}
-        >
-          브랜드 관리
-        </button>
-        <button
-          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             activeTab === 'chains'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -1135,7 +1125,92 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
         >
           체인 관리
         </button>
+        <button
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+            activeTab === 'brands'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+          onClick={() => setActiveTab('brands')}
+        >
+          브랜드 관리
+        </button>
       </div>
+
+      {/* 체인 관리 탭 */}
+      {activeTab === 'chains' && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Button onClick={handleAddNewChain} className="bg-green-600 hover:bg-green-700" disabled={editingChainId !== null}>
+              <PlusCircle className="h-4 w-4" />
+              <span className="ml-2">신규 체인 추가</span>
+            </Button>
+          </div>
+
+          <div className="border rounded-lg overflow-hidden bg-white shadow">
+            <div className="overflow-x-auto">
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleChainDragEnd}>
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-gray-100 border-b">
+                    <tr>
+                      <th className="border p-2 text-center" style={{ width: '40px' }}>
+                        <GripVertical className="h-4 w-4 text-gray-400 mx-auto" />
+                      </th>
+                      <th className="border p-2 text-center" style={{ width: '70px' }}>순서</th>
+                      <th className="border p-2 text-left" style={{ width: '150px' }}>체인(한글)</th>
+                      <th className="border p-2 text-left" style={{ width: '150px' }}>체인(영문)</th>
+                      <th className="border p-2 text-left" style={{ width: '150px' }}>Chain Slug</th>
+                      <th className="border p-2 text-left" style={{ width: '140px' }}>Rate Plan Code</th>
+                      <th 
+                        className="border p-2 text-center cursor-pointer hover:bg-gray-200 select-none" 
+                        style={{ width: '90px' }}
+                        onClick={() => handleChainSort('status')}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          상태
+                          {chainSortField === 'status' && (
+                            chainSortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                          )}
+                        </div>
+                      </th>
+                      <th className="border p-2 text-left" style={{ width: '200px' }}>작업</th>
+                    </tr>
+                  </thead>
+                  <SortableContext items={sortedChains.map(c => c.chain_id)} strategy={verticalListSortingStrategy}>
+                    <tbody>
+                      {renderNewChainRow()}
+                      {sortedChains.map((chain) => {
+                        const isEditing = editingChainId === chain.chain_id
+                        const isRecentlyUpdated = recentlyUpdatedChainId === chain.chain_id
+                        return (
+                          <SortableChainRow
+                            key={`chain-${chain.chain_id}`}
+                            chain={chain}
+                            isEditing={isEditing}
+                            editingData={editingChainData}
+                            onEdit={() => handleEditChain(chain)}
+                            onSave={() => handleSaveChain(chain)}
+                            isRecentlyUpdated={isRecentlyUpdated}
+                            onDelete={() => handleDeleteChain(chain.chain_id)}
+                            onConnect={() => handleConnect(chain)}
+                            onViewConnected={() => handleViewConnectedHotelsChain(chain)}
+                            onFieldChange={(field, value) => setEditingChainData(prev => ({ ...prev, [field]: value }))}
+                            onSaveEdit={handleSaveChainEdit}
+                            onCancelEdit={() => { setEditingChainId(null); setEditingChainData({}); }}
+                          />
+                        )
+                      })}
+                    </tbody>
+                  </SortableContext>
+                </table>
+              </DndContext>
+            </div>
+            <div className="p-3 border-t bg-gray-50 text-sm text-gray-600">
+              총 {sortedChains.length}개 체인
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 브랜드 관리 탭 */}
       {activeTab === 'brands' && (
@@ -1220,81 +1295,6 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
             </div>
             <div className="p-3 border-t bg-gray-50 text-sm text-gray-600">
               총 {sortedBrands.length}개 브랜드
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 체인 관리 탭 */}
-      {activeTab === 'chains' && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Button onClick={handleAddNewChain} className="bg-green-600 hover:bg-green-700" disabled={editingChainId !== null}>
-              <PlusCircle className="h-4 w-4" />
-              <span className="ml-2">신규 체인 추가</span>
-            </Button>
-          </div>
-
-          <div className="border rounded-lg overflow-hidden bg-white shadow">
-            <div className="overflow-x-auto">
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleChainDragEnd}>
-                <table className="w-full border-collapse text-sm">
-                  <thead className="bg-gray-100 border-b">
-                    <tr>
-                      <th className="border p-2 text-center" style={{ width: '40px' }}>
-                        <GripVertical className="h-4 w-4 text-gray-400 mx-auto" />
-                      </th>
-                      <th className="border p-2 text-center" style={{ width: '70px' }}>순서</th>
-                      <th className="border p-2 text-left" style={{ width: '150px' }}>체인(한글)</th>
-                      <th className="border p-2 text-left" style={{ width: '150px' }}>체인(영문)</th>
-                      <th className="border p-2 text-left" style={{ width: '150px' }}>Chain Slug</th>
-                      <th className="border p-2 text-left" style={{ width: '140px' }}>Rate Plan Code</th>
-                      <th 
-                        className="border p-2 text-center cursor-pointer hover:bg-gray-200 select-none" 
-                        style={{ width: '90px' }}
-                        onClick={() => handleChainSort('status')}
-                      >
-                        <div className="flex items-center justify-center gap-1">
-                          상태
-                          {chainSortField === 'status' && (
-                            chainSortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
-                          )}
-                        </div>
-                      </th>
-                      <th className="border p-2 text-left" style={{ width: '200px' }}>작업</th>
-                    </tr>
-                  </thead>
-                  <SortableContext items={sortedChains.map(c => c.chain_id)} strategy={verticalListSortingStrategy}>
-                    <tbody>
-                      {renderNewChainRow()}
-                      {sortedChains.map((chain) => {
-                        const isEditing = editingChainId === chain.chain_id
-                        const isRecentlyUpdated = recentlyUpdatedChainId === chain.chain_id
-                        return (
-                          <SortableChainRow
-                            key={`chain-${chain.chain_id}`}
-                            chain={chain}
-                            isEditing={isEditing}
-                            editingData={editingChainData}
-                            onEdit={() => handleEditChain(chain)}
-                            onSave={() => handleSaveChain(chain)}
-                            isRecentlyUpdated={isRecentlyUpdated}
-                            onDelete={() => handleDeleteChain(chain.chain_id)}
-                            onConnect={() => handleConnect(chain)}
-                            onViewConnected={() => handleViewConnectedHotelsChain(chain)}
-                            onFieldChange={(field, value) => setEditingChainData(prev => ({ ...prev, [field]: value }))}
-                            onSaveEdit={handleSaveChainEdit}
-                            onCancelEdit={() => { setEditingChainId(null); setEditingChainData({}); }}
-                          />
-                        )
-                      })}
-                    </tbody>
-                  </SortableContext>
-                </table>
-              </DndContext>
-            </div>
-            <div className="p-3 border-t bg-gray-50 text-sm text-gray-600">
-              총 {sortedChains.length}개 체인
             </div>
           </div>
         </div>
