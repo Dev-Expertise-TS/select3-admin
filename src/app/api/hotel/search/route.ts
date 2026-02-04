@@ -6,6 +6,7 @@ async function searchHotels(query: string, limit: number = 20, offset: number = 
   
   const selectFields = `
     sabre_id, 
+    publish,
     property_name_ko, 
     property_name_en, 
     property_address, 

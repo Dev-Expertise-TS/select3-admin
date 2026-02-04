@@ -465,6 +465,9 @@ export function HotelListTable({
                 </th>
               )}
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                PUBLISH
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Sabre ID
               </th>
               {showInitialHotels ? (
@@ -494,7 +497,7 @@ export function HotelListTable({
               ) : (
                 <>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Framer CMS ID (id_old)
+                    PARAGON ID
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     호텔명 (한글)
@@ -548,6 +551,17 @@ export function HotelListTable({
                         />
                       </td>
                     )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {hotel.publish === true ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                          오픈
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                          미오픈
+                        </span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
                       {hotel.sabre_id ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -631,9 +645,9 @@ export function HotelListTable({
                     ) : (
                       <>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
-                          {(hotel as any).id_old ? (
+                          {hotel.paragon_id ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {(hotel as any).id_old}
+                              {hotel.paragon_id}
                             </span>
                           ) : (
                             <span className="text-gray-400 italic">N/A</span>

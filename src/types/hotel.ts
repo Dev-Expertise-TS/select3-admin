@@ -13,6 +13,7 @@ export interface SearchHotelRequest {
 // 호텔 검색 결과 타입
 export interface HotelSearchResult {
   sabre_id: string | null
+  publish?: boolean | null
   paragon_id: string | null
   id_old: number | null
   property_name_ko: string | null

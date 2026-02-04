@@ -50,10 +50,13 @@ export async function POST() {
     for (const chunk of chunks) {
       if (chunk.length === 0) continue
 
+      const normalizedChunk = chunk.map((id) => String(id).trim()).filter(Boolean)
+      if (normalizedChunk.length === 0) continue
+
       const { data, error } = await supabase
         .from('select_hotels')
         .select('sabre_id, property_name_ko, property_name_en')
-        .in('sabre_id', chunk)
+        .in('sabre_id', normalizedChunk)
 
       if (error) {
         console.error('[sabre-id/google-sheet-check] select_hotels error:', error)
@@ -64,20 +67,22 @@ export async function POST() {
       }
 
       data?.forEach((row) => {
-        if (row?.sabre_id) {
-          matchMap.set(row.sabre_id, row as SelectHotelRow)
+        if (row?.sabre_id != null && row.sabre_id !== '') {
+          const key = String(row.sabre_id).trim()
+          matchMap.set(key, row as SelectHotelRow)
         }
       })
     }
 
     const rowBySabreId = new Map<string, SabreSheetRow>()
     for (const row of orderedRows) {
-      rowBySabreId.set(row.sabreId, row)
+      rowBySabreId.set(String(row.sabreId).trim(), row)
     }
 
     const entries: SheetEntry[] = orderedSabreIds.map((sabreId) => {
-      const match = matchMap.get(sabreId)
-      const sheetRow = rowBySabreId.get(sabreId)
+      const normalizedSabreId = String(sabreId).trim()
+      const match = matchMap.get(normalizedSabreId)
+      const sheetRow = rowBySabreId.get(normalizedSabreId)
       return {
         sabreId,
         paragonId: sheetRow?.paragonId ?? '',

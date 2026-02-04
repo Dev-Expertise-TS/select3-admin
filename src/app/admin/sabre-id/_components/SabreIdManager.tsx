@@ -20,8 +20,10 @@ import {
   ExternalLink,
   ArrowUp,
   ArrowDown,
+  Maximize2,
 } from 'lucide-react'
 import type { AiHotelLookupResult } from '@/app/api/sabre-id/ai-hotel-lookup/route'
+import { Modal } from '@/components/shared/modal'
 
 const SABRE_SHEET_URL =
   'https://docs.google.com/spreadsheets/d/1X_kFUoRbvY1SIv2Vv8dzzgGa51qbt91DdGgua8Q8I54/edit?gid=510702393#gid=510702393'
@@ -144,6 +146,9 @@ export default function SabreIdManager() {
 
   // CHAIN 컬럼 정렬
   const [chainSortDir, setChainSortDir] = useState<'asc' | 'desc' | null>(null)
+
+  // 크게 보기 레이어 팝업
+  const [showLargeViewModal, setShowLargeViewModal] = useState(false)
 
   const sortedEntries = useMemo(() => {
     if (!sheetCheckResult?.entries) return []
@@ -379,8 +384,8 @@ export default function SabreIdManager() {
         body: JSON.stringify({
           items: entriesToCreate.map((e) => ({
             sabreId: e.sabreId,
-            propertyNameEn: e.hotelName || null,
-            propertyNameKo: null,
+            hotelName: e.hotelName || null,
+            paragonId: e.paragonId || null,
           })),
         }),
       })
@@ -755,6 +760,19 @@ export default function SabreIdManager() {
                     </div>
                   )}
 
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowLargeViewModal(true)}
+                      className="h-9"
+                    >
+                      <Maximize2 className="mr-2 h-4 w-4" />
+                      크게 보기
+                    </Button>
+                  </div>
+
                   <div className="rounded-lg border">
                     <div className="overflow-auto max-h-80">
                       <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -906,6 +924,146 @@ export default function SabreIdManager() {
           </div>
         </div>
       </div>
+
+      {/* 크게 보기 레이어 팝업 */}
+      <Modal
+        isOpen={showLargeViewModal}
+        onClose={() => setShowLargeViewModal(false)}
+        title="시설 데이터 테이블"
+        size="full"
+        className="max-h-[90vh]"
+      >
+        {sheetCheckResult && (
+          <div className="space-y-4">
+            <div className="rounded-lg border">
+              <div className="overflow-auto max-h-[40rem]">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500 sticky top-0">
+                    <tr>
+                      <th scope="col" className="px-4 py-2 text-left w-10">
+                        <input
+                          type="checkbox"
+                          checked={isAllMissingSelected}
+                          onChange={(e) => handleSelectAllMissing(e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          aria-label="미등록 시설 전체 선택"
+                        />
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-left">#</th>
+                      <th scope="col" className="px-4 py-2 text-left">Sabre ID</th>
+                      <th scope="col" className="px-4 py-2 text-left">Paragon ID</th>
+                      <th scope="col" className="px-4 py-2 text-left">Hotel name</th>
+                      <th scope="col" className="px-4 py-2 text-left">
+                        <button
+                          type="button"
+                          onClick={handleChainSortClick}
+                          className="inline-flex items-center gap-1 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                          aria-label={chainSortDir ? `Chain ${chainSortDir === 'asc' ? '오름차순' : '내림차순'} 정렬` : 'Chain 정렬'}
+                        >
+                          Chain
+                          {chainSortDir === 'asc' && <ArrowUp className="h-4 w-4" />}
+                          {chainSortDir === 'desc' && <ArrowDown className="h-4 w-4" />}
+                        </button>
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-left">상태</th>
+                      <th scope="col" className="px-4 py-2 text-left">등록된 호텔명</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white text-gray-900">
+                    {sortedEntries.map((entry, index) => (
+                      <tr key={`${entry.sabreId}-${index}`} className={entry.exists ? '' : 'bg-rose-50/60'}>
+                        <td className="px-4 py-3">
+                          {!entry.exists ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedMissingIds.has(entry.sabreId)}
+                              onChange={(e) => handleToggleMissing(entry.sabreId, e.target.checked)}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              aria-label={`${entry.sabreId} 선택`}
+                            />
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500">{index + 1}</td>
+                        <td className="px-4 py-3 font-mono text-sm font-semibold">{entry.sabreId}</td>
+                        <td className="px-4 py-3 text-sm">{entry.paragonId || '-'}</td>
+                        <td className="px-4 py-3 text-sm max-w-[200px] truncate" title={entry.hotelName || ''}>
+                          {entry.hotelName || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm">{entry.chain || '-'}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                              entry.exists ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                            }`}
+                          >
+                            {entry.exists ? '등록됨' : '미등록'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {entry.exists ? (
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-medium text-gray-900">{entry.propertyNameKo || '-'}</p>
+                              <p className="text-xs text-gray-500">{entry.propertyNameEn || '-'}</p>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-500">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="border-t bg-gray-50 px-4 py-2 text-xs text-gray-500 space-y-1">
+                <p>총 {sheetCheckResult.entries.length.toLocaleString()}건 · 최신 상태로 확인하려면 상단 버튼을 다시 실행하세요.</p>
+                <p>위 목록은 select_hotels 테이블에 존재하지 않아 신규 등록이 필요한 Sabre ID입니다.</p>
+              </div>
+              {sheetCheckResult.missingCount > 0 && (
+                <div className="border-t p-4 space-y-3">
+                  {bulkCreateError && (
+                    <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                      <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                      <div>{bulkCreateError}</div>
+                    </div>
+                  )}
+                  {bulkCreateResult && (
+                    <div className="flex items-start gap-2 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">
+                      <CheckCircle className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium">선택 시설 일괄 기초 데이터 등록 완료</p>
+                        <p className="text-xs mt-1">
+                          등록 성공 {bulkCreateResult.createdCount}건
+                          {bulkCreateResult.failedCount > 0 ? ` · 실패 ${bulkCreateResult.failedCount}건` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <Button
+                    onClick={handleBulkCreate}
+                    disabled={bulkCreateLoading || selectedMissingIds.size === 0}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {bulkCreateLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        등록 중...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 h-4 w-4" />
+                        선택 시설 일괄 기초 데이터 등록
+                        {selectedMissingIds.size > 0 ? ` (${selectedMissingIds.size}건)` : ' (미등록 시설을 선택해주세요)'}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Sabre API 기준 Sabre ID 검색 - 아래로 이동 */}
       <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
