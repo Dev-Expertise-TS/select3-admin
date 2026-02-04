@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Save, X, Trash2, Link2, Edit, GripVertical, PlusCircle, List, ChevronUp, ChevronDown } from 'lucide-react'
-import { saveChain, createChain, saveBrand, createBrand, updateChainSortOrder, updateBrandSortOrder, deleteChain, deleteBrand, updateChainRatePlanCode } from '@/features/chain-brand/actions'
+import { saveChain, createChain, saveBrand, createBrand, updateChainSortOrder, updateBrandSortOrder, deleteChain, deleteBrand } from '@/features/chain-brand/actions'
 import ConnectedHotelsModal from './ConnectedHotelsModal'
 import { slugify } from '@/lib/format'
 import {
@@ -294,15 +294,9 @@ function SortableChainRow({
   onFieldChange: (field: string, value: string | number | null) => void
   onSaveEdit: () => void
   onCancelEdit: () => void
-  onRatePlanCodeSave?: (chainId: number, value: string | null) => void
-  savingRatePlanCodeChainId?: number | null
   isRecentlyUpdated?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: chain.chain_id })
-  const [localRatePlanCode, setLocalRatePlanCode] = useState(chain.rate_plan_code ?? '')
-  React.useEffect(() => {
-    setLocalRatePlanCode(chain.rate_plan_code ?? '')
-  }, [chain.rate_plan_code])
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -388,12 +382,6 @@ function SortableChainRow({
     )
   }
 
-  const handleRatePlanCodeBlur = () => {
-    if (onRatePlanCodeSave && (localRatePlanCode.trim() || '') !== (chain.rate_plan_code ?? '')) {
-      onRatePlanCodeSave(chain.chain_id, localRatePlanCode.trim() || null)
-    }
-  }
-
   return (
     <tr ref={setNodeRef} style={style} className="border-t hover:bg-gray-50">
       <td className="border p-2 text-center" style={{ width: '40px' }}>
@@ -405,23 +393,7 @@ function SortableChainRow({
       <td className="border p-2 text-sm">{chain.name_kr || '-'}</td>
       <td className="border p-2 text-sm">{chain.name_en || '-'}</td>
       <td className="border p-2 text-sm font-mono text-gray-700">{chain.chain_slug || '-'}</td>
-      <td className="border p-2">
-        <input
-          type="text"
-          value={localRatePlanCode}
-          onChange={(e) => setLocalRatePlanCode(e.target.value)}
-          onBlur={handleRatePlanCodeBlur}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.currentTarget.blur()
-            }
-          }}
-          placeholder="쉼표 구분"
-          disabled={savingRatePlanCodeChainId === chain.chain_id}
-          className="w-full min-w-[100px] border rounded px-2 py-1 text-xs font-mono text-gray-700 bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
-          title="Rate Plan Code (인라인 편집, Enter 또는 포커스 아웃 시 저장)"
-        />
-      </td>
+      <td className="border p-2 text-sm font-mono text-gray-700">{chain.rate_plan_code || '-'}</td>
       <td className="border p-2 text-center">
         <span className={`px-2 py-1 rounded text-xs font-medium ${chain.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
           {chain.status === 'active' ? '활성' : '비활성'}
@@ -485,7 +457,6 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
   const [selectedItem, setSelectedItem] = useState<Brand | Chain | null>(null)
   const [recentlyUpdatedBrandId, setRecentlyUpdatedBrandId] = useState<number | null>(null)
   const [recentlyUpdatedChainId, setRecentlyUpdatedChainId] = useState<number | null>(null)
-  const [savingRatePlanCodeChainId, setSavingRatePlanCodeChainId] = useState<number | null>(null)
   const [showConnectedHotelsModal, setShowConnectedHotelsModal] = useState(false)
   const [connectedHotelsItem, setConnectedHotelsItem] = useState<{
     type: 'brand' | 'chain'
@@ -975,24 +946,6 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     setEditingBrandData({ isNew: true, status: 'active' })
   }
 
-  // 체인 Rate Plan Code 인라인 저장
-  const handleRatePlanCodeSave = async (chainId: number, value: string | null) => {
-    setSavingRatePlanCodeChainId(chainId)
-    const res = await updateChainRatePlanCode(chainId, value)
-    setSavingRatePlanCodeChainId(null)
-    if (res.success && res.data) {
-      setChains((prev) =>
-        sortChains(
-          prev.map((c) =>
-            c.chain_id === chainId ? { ...c, rate_plan_code: res.data!.rate_plan_code ?? null } : c
-          )
-        )
-      )
-    } else {
-      alert(res.error ?? '저장에 실패했습니다.')
-    }
-  }
-
   // 신규 체인 추가
   const handleAddNewChain = () => {
     setEditingChainId('new')
@@ -1332,8 +1285,6 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                             onFieldChange={(field, value) => setEditingChainData(prev => ({ ...prev, [field]: value }))}
                             onSaveEdit={handleSaveChainEdit}
                             onCancelEdit={() => { setEditingChainId(null); setEditingChainData({}); }}
-                            onRatePlanCodeSave={handleRatePlanCodeSave}
-                            savingRatePlanCodeChainId={savingRatePlanCodeChainId}
                           />
                         )
                       })}
