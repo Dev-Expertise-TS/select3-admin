@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { generateHotelSlug, slugWithSuffix } from '@/lib/hotel-slug'
+import { getRatePlanCodeForChain } from '@/config/chain-rate-plan-map'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -76,9 +77,10 @@ export async function POST(request: NextRequest) {
 
       const paragonId = item?.paragonId?.trim() || null
       const chainEn = item?.chain?.trim() || null
+      const ratePlanCode = getRatePlanCodeForChain(chainEn)
 
       const slug = generateHotelSlug(propertyNameEn, propertyNameKo, sabreId)
-      const insertData = {
+      const insertData: Record<string, unknown> = {
         sabre_id: sabreId,
         paragon_id: paragonId,
         slug,
@@ -88,6 +90,9 @@ export async function POST(request: NextRequest) {
         chain_en: chainEn,
         publish: false,
         created_at: new Date().toISOString(),
+      }
+      if (ratePlanCode != null) {
+        insertData.rate_plan_code = ratePlanCode
       }
 
       let { error: insertError } = await supabase
