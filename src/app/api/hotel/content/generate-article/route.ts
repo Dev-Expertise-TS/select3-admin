@@ -6,7 +6,8 @@ import {
   getHotelArticleUserMessage,
 } from '@/config/hotel-article-prompt'
 
-export const maxDuration = 60
+// AI 생성(웹 검색 + 긴 출력)으로 60초 초과 가능 → Vercel Pro 상한까지 확대
+export const maxDuration = 300
 
 /** 전체 HTML에서 호텔 위치 섹션을 분리해 property_details / property_location 으로 나눔 */
 function splitHotelLocationSection(html: string): {

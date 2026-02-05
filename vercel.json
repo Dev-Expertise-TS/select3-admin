@@ -4,6 +4,9 @@
   "functions": {
     "src/app/api/**/*.ts": {
       "maxDuration": 30
+    },
+    "src/app/api/hotel/content/generate-article/route.ts": {
+      "maxDuration": 300
     }
   }
 }
