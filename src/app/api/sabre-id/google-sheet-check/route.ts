@@ -12,10 +12,12 @@ type SelectHotelRow = {
 }
 
 type SheetEntry = {
+  rowIndex: number
   sabreId: string
   paragonId: string
   hotelName: string
   chain: string
+  ratePlanCode: string
   exists: boolean
   propertyNameKo: string | null
   propertyNameEn: string | null
@@ -30,9 +32,30 @@ const chunkArray = <T,>(items: T[], chunkSize: number): T[][] => {
   return chunks
 }
 
+/** select_hotels.sabre_id는 bigint 타입이므로 숫자 형태만 DB 조회에 사용 가능 */
+const isValidBigintString = (s: string): boolean =>
+  /^-?\d+$/.test(String(s).trim()) && s.trim() !== ''
+
 export async function POST() {
   try {
     const { orderedRows, orderedSabreIds, uniqueSabreIds } = await fetchSabreSheetIds()
+
+    const naRows = orderedRows
+      .map((row, index) => ({ row, sheetRowNumber: index + 2 }))
+      .filter(({ row }) => String(row.sabreId).trim().toUpperCase() === 'N/A')
+    if (naRows.length > 0) {
+      console.warn(
+        '[sabre-id/google-sheet-check] B열 Sabre ID가 "N/A"인 행:',
+        naRows.map(({ row, sheetRowNumber }) => ({
+          시트행번호: sheetRowNumber,
+          sabreId: row.sabreId,
+          paragonId: row.paragonId,
+          hotelName: row.hotelName,
+          chain: row.chain,
+          ratePlanCode: row.ratePlanCode,
+        })),
+      )
+    }
 
     if (orderedSabreIds.length === 0) {
       return NextResponse.json(
@@ -50,7 +73,10 @@ export async function POST() {
     for (const chunk of chunks) {
       if (chunk.length === 0) continue
 
-      const normalizedChunk = chunk.map((id) => String(id).trim()).filter(Boolean)
+      const normalizedChunk = chunk
+        .map((id) => String(id).trim())
+        .filter(Boolean)
+        .filter(isValidBigintString)
       if (normalizedChunk.length === 0) continue
 
       const { data, error } = await supabase
@@ -74,20 +100,16 @@ export async function POST() {
       })
     }
 
-    const rowBySabreId = new Map<string, SabreSheetRow>()
-    for (const row of orderedRows) {
-      rowBySabreId.set(String(row.sabreId).trim(), row)
-    }
-
-    const entries: SheetEntry[] = orderedSabreIds.map((sabreId) => {
-      const normalizedSabreId = String(sabreId).trim()
+    const entries: SheetEntry[] = orderedRows.map((row, idx) => {
+      const normalizedSabreId = String(row.sabreId).trim()
       const match = matchMap.get(normalizedSabreId)
-      const sheetRow = rowBySabreId.get(normalizedSabreId)
       return {
-        sabreId,
-        paragonId: sheetRow?.paragonId ?? '',
-        hotelName: sheetRow?.hotelName ?? '',
-        chain: sheetRow?.chain ?? '',
+        rowIndex: idx,
+        sabreId: row.sabreId,
+        paragonId: row.paragonId ?? '',
+        hotelName: row.hotelName ?? '',
+        chain: row.chain ?? '',
+        ratePlanCode: row.ratePlanCode ?? '',
         exists: Boolean(match),
         propertyNameKo: (match?.property_name_ko as string | null) ?? null,
         propertyNameEn: (match?.property_name_en as string | null) ?? null,

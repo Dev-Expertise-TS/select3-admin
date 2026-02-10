@@ -19,15 +19,16 @@ const toCleanString = (value: string | number | null | undefined): string => {
   return String(value).trim()
 }
 
-/** 시트 행: B=Sabre ID, C=Paragon ID, D=Hotel name, E=(미사용), F=Chain */
+/** 시트 행: B=Sabre ID, C=Paragon ID, D=Hotel name, E=Chain(영문), F=Rate Plan Code */
 export type SabreSheetRow = {
   sabreId: string
   paragonId: string
   hotelName: string
   chain: string
+  ratePlanCode: string
 }
 
-/** B열은 2번째 행(인덱스 1)부터 Sabre ID. 1번째 행(인덱스 0)은 헤더로 건너뜀. */
+/** B열은 2번째 행(인덱스 1)부터 Sabre ID. 1번째 행(인덱스 0)은 헤더로 건너뜀. E열=Chain, F열=Rate Plan Code */
 const extractOrderedRows = (rows: TabularValues): SabreSheetRow[] => {
   const result: SabreSheetRow[] = []
   for (let i = 1; i < rows.length; i++) {
@@ -39,7 +40,8 @@ const extractOrderedRows = (rows: TabularValues): SabreSheetRow[] => {
       sabreId,
       paragonId: toCleanString(row[1]),
       hotelName: toCleanString(row[2]),
-      chain: toCleanString(row[4]),
+      chain: toCleanString(row[3]),
+      ratePlanCode: toCleanString(row[4]),
     })
   }
   return result

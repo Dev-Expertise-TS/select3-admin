@@ -56,10 +56,12 @@ interface HotelInfo {
 }
 
 interface SheetCheckEntry {
+  rowIndex: number
   sabreId: string
   paragonId: string
   hotelName: string
   chain: string
+  ratePlanCode: string
   exists: boolean
   propertyNameKo: string | null
   propertyNameEn: string | null
@@ -134,11 +136,12 @@ export default function SabreIdManager() {
   const [sheetCheckError, setSheetCheckError] = useState<string | null>(null)
   const [sheetCheckResult, setSheetCheckResult] = useState<SheetCheckResult | null>(null)
 
-  // 일괄 등록 - 선택된 미등록 시설
-  const [selectedMissingIds, setSelectedMissingIds] = useState<Set<string>>(new Set())
+  // 일괄 등록 - 선택된 미등록 시설 (행 인덱스로 선택, 동일 sabreId 중복 행 개별 선택 가능)
+  const [selectedRowIndices, setSelectedRowIndices] = useState<Set<number>>(new Set())
   const [bulkCreateLoading, setBulkCreateLoading] = useState(false)
   const [bulkCreateResult, setBulkCreateResult] = useState<{
     createdCount: number
+    updatedCount?: number
     failedCount: number
     results: Array<{ sabreId: string; success: boolean; error?: string }>
   } | null>(null)
@@ -147,20 +150,46 @@ export default function SabreIdManager() {
   // CHAIN 컬럼 정렬
   const [chainSortDir, setChainSortDir] = useState<'asc' | 'desc' | null>(null)
 
+  // 시트 데이터 내 Sabre ID / 상태 필터
+  const [sheetSabreIdFilter, setSheetSabreIdFilter] = useState('')
+  const [sheetStatusFilter, setSheetStatusFilter] = useState<'all' | 'missing' | 'duplicate'>('all')
+
   // 크게 보기 레이어 팝업
   const [showLargeViewModal, setShowLargeViewModal] = useState(false)
 
   const sortedEntries = useMemo(() => {
     if (!sheetCheckResult?.entries) return []
     const entries = sheetCheckResult.entries
-    if (chainSortDir === null) return entries
-    return [...entries].sort((a, b) => {
+
+    // 중복 Sabre ID 판별을 위한 카운트 맵
+    const freqMap: Record<string, number> = {}
+    for (const e of entries) {
+      freqMap[e.sabreId] = (freqMap[e.sabreId] ?? 0) + 1
+    }
+
+    let filtered = entries
+
+    // Sabre ID 부분 검색
+    if (sheetSabreIdFilter.trim()) {
+      const q = sheetSabreIdFilter.trim()
+      filtered = filtered.filter((e) => e.sabreId.includes(q))
+    }
+
+    // 상태 필터: 미등록 / 중복 Sabre ID
+    if (sheetStatusFilter === 'missing') {
+      filtered = filtered.filter((e) => !e.exists)
+    } else if (sheetStatusFilter === 'duplicate') {
+      filtered = filtered.filter((e) => freqMap[e.sabreId] > 1)
+    }
+
+    if (chainSortDir === null) return filtered
+    return [...filtered].sort((a, b) => {
       const va = (a.chain ?? '').toLowerCase()
       const vb = (b.chain ?? '').toLowerCase()
       const cmp = va.localeCompare(vb)
       return chainSortDir === 'asc' ? cmp : -cmp
     })
-  }, [sheetCheckResult?.entries, chainSortDir])
+  }, [sheetCheckResult?.entries, chainSortDir, sheetSabreIdFilter, sheetStatusFilter])
 
   const handleChainSortClick = () => {
     setChainSortDir((prev) => (prev === null || prev === 'desc' ? 'asc' : 'desc'))
@@ -315,7 +344,7 @@ export default function SabreIdManager() {
   const handleSheetCheck = async (opts?: { preserveBulkResult?: boolean }) => {
     setSheetCheckLoading(true)
     setSheetCheckError(null)
-    setSelectedMissingIds(new Set())
+    setSelectedRowIndices(new Set())
     setChainSortDir(null)
     if (!opts?.preserveBulkResult) {
       setBulkCreateResult(null)
@@ -342,32 +371,32 @@ export default function SabreIdManager() {
   const missingEntries = sheetCheckResult?.entries.filter((e) => !e.exists) ?? []
   const isAllMissingSelected =
     missingEntries.length > 0 &&
-    missingEntries.every((e) => selectedMissingIds.has(e.sabreId))
+    missingEntries.every((e) => selectedRowIndices.has(e.rowIndex))
   const handleSelectAllMissing = (checked: boolean) => {
     if (checked) {
-      setSelectedMissingIds(new Set(missingEntries.map((e) => e.sabreId)))
+      setSelectedRowIndices(new Set(missingEntries.map((e) => e.rowIndex)))
     } else {
-      setSelectedMissingIds(new Set())
+      setSelectedRowIndices(new Set())
     }
   }
-  const handleToggleMissing = (sabreId: string, checked: boolean) => {
-    setSelectedMissingIds((prev) => {
+  const handleToggleMissing = (rowIndex: number, checked: boolean) => {
+    setSelectedRowIndices((prev) => {
       const next = new Set(prev)
-      if (checked) next.add(sabreId)
-      else next.delete(sabreId)
+      if (checked) next.add(rowIndex)
+      else next.delete(rowIndex)
       return next
     })
   }
 
   const handleBulkCreate = async () => {
-    if (selectedMissingIds.size === 0) {
+    if (selectedRowIndices.size === 0) {
       setBulkCreateError('등록할 미등록 시설을 선택해주세요.')
       return
     }
     if (!sheetCheckResult) return
 
     const entriesToCreate = sheetCheckResult.entries.filter(
-      (e) => !e.exists && selectedMissingIds.has(e.sabreId)
+      (e) => !e.exists && selectedRowIndices.has(e.rowIndex)
     )
     if (entriesToCreate.length === 0) {
       setBulkCreateError('선택한 시설 중 등록할 항목이 없습니다.')
@@ -398,7 +427,7 @@ export default function SabreIdManager() {
 
       if (json.success && json.data) {
         setBulkCreateResult(json.data)
-        setSelectedMissingIds(new Set())
+        setSelectedRowIndices(new Set())
         await handleSheetCheck({ preserveBulkResult: true })
       } else {
         throw new Error(json.error || '일괄 등록 결과를 확인할 수 없습니다.')
@@ -761,7 +790,50 @@ export default function SabreIdManager() {
                     </div>
                   )}
 
-                  <div className="flex justify-end">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Sabre ID 필터</span>
+                        <Input
+                          value={sheetSabreIdFilter}
+                          onChange={(e) => setSheetSabreIdFilter(e.target.value)}
+                          placeholder="예: 205709"
+                          className="h-8 w-32 sm:w-40"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-gray-500">상태</span>
+                        <div className="inline-flex rounded-md border bg-white p-0.5">
+                          <Button
+                            type="button"
+                            variant={sheetStatusFilter === 'all' ? 'default' : 'outline'}
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setSheetStatusFilter('all')}
+                          >
+                            전체
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={sheetStatusFilter === 'missing' ? 'default' : 'outline'}
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setSheetStatusFilter('missing')}
+                          >
+                            미등록
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={sheetStatusFilter === 'duplicate' ? 'default' : 'outline'}
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setSheetStatusFilter('duplicate')}
+                          >
+                            중복 Sabre ID
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                     <Button
                       type="button"
                       variant="outline"
@@ -813,6 +885,9 @@ export default function SabreIdManager() {
                               </button>
                             </th>
                             <th scope="col" className="px-4 py-2 text-left">
+                              Rate Plan Code
+                            </th>
+                            <th scope="col" className="px-4 py-2 text-left">
                               상태
                             </th>
                             <th scope="col" className="px-4 py-2 text-left">
@@ -827,8 +902,8 @@ export default function SabreIdManager() {
                                 {!entry.exists ? (
                                   <input
                                     type="checkbox"
-                                    checked={selectedMissingIds.has(entry.sabreId)}
-                                    onChange={(e) => handleToggleMissing(entry.sabreId, e.target.checked)}
+                                    checked={selectedRowIndices.has(entry.rowIndex)}
+                                    onChange={(e) => handleToggleMissing(entry.rowIndex, e.target.checked)}
                                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     aria-label={`${entry.sabreId} 선택`}
                                   />
@@ -843,6 +918,7 @@ export default function SabreIdManager() {
                                 {entry.hotelName || '-'}
                               </td>
                               <td className="px-4 py-3 text-sm">{entry.chain || '-'}</td>
+                              <td className="px-4 py-3 text-sm font-mono">{entry.ratePlanCode || '-'}</td>
                               <td className="px-4 py-3">
                                 <span
                                   className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
@@ -889,6 +965,7 @@ export default function SabreIdManager() {
                               <p className="font-medium">선택 시설 일괄 기초 데이터 등록 완료</p>
                               <p className="text-xs mt-1">
                                 등록 성공 {bulkCreateResult.createdCount}건
+                                {(bulkCreateResult.updatedCount ?? 0) > 0 && ` · 중복 upsert ${bulkCreateResult.updatedCount}건`}
                                 {bulkCreateResult.failedCount > 0
                                   ? ` · 실패 ${bulkCreateResult.failedCount}건`
                                   : ''}
@@ -898,7 +975,7 @@ export default function SabreIdManager() {
                         )}
                         <Button
                           onClick={handleBulkCreate}
-                          disabled={bulkCreateLoading || selectedMissingIds.size === 0}
+                          disabled={bulkCreateLoading || selectedRowIndices.size === 0}
                           className="bg-green-600 hover:bg-green-700"
                         >
                           {bulkCreateLoading ? (
@@ -910,8 +987,8 @@ export default function SabreIdManager() {
                             <>
                               <Plus className="mr-2 h-4 w-4" />
                               선택 시설 일괄 기초 데이터 등록
-                              {selectedMissingIds.size > 0
-                                ? ` (${selectedMissingIds.size}건)`
+                              {selectedRowIndices.size > 0
+                                ? ` (${selectedRowIndices.size}건)`
                                 : ' (미등록 시설을 선택해주세요)'}
                             </>
                           )}
@@ -966,6 +1043,7 @@ export default function SabreIdManager() {
                           {chainSortDir === 'desc' && <ArrowDown className="h-4 w-4" />}
                         </button>
                       </th>
+                      <th scope="col" className="px-4 py-2 text-left">Rate Plan Code</th>
                       <th scope="col" className="px-4 py-2 text-left">상태</th>
                       <th scope="col" className="px-4 py-2 text-left">등록된 호텔명</th>
                     </tr>
@@ -977,8 +1055,8 @@ export default function SabreIdManager() {
                           {!entry.exists ? (
                             <input
                               type="checkbox"
-                              checked={selectedMissingIds.has(entry.sabreId)}
-                              onChange={(e) => handleToggleMissing(entry.sabreId, e.target.checked)}
+                              checked={selectedRowIndices.has(entry.rowIndex)}
+                              onChange={(e) => handleToggleMissing(entry.rowIndex, e.target.checked)}
                               className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                               aria-label={`${entry.sabreId} 선택`}
                             />
@@ -993,6 +1071,7 @@ export default function SabreIdManager() {
                           {entry.hotelName || '-'}
                         </td>
                         <td className="px-4 py-3 text-sm">{entry.chain || '-'}</td>
+                        <td className="px-4 py-3 text-sm font-mono">{entry.ratePlanCode || '-'}</td>
                         <td className="px-4 py-3">
                           <span
                             className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
@@ -1036,6 +1115,7 @@ export default function SabreIdManager() {
                         <p className="font-medium">선택 시설 일괄 기초 데이터 등록 완료</p>
                         <p className="text-xs mt-1">
                           등록 성공 {bulkCreateResult.createdCount}건
+                          {(bulkCreateResult.updatedCount ?? 0) > 0 && ` · 중복 upsert ${bulkCreateResult.updatedCount}건`}
                           {bulkCreateResult.failedCount > 0 ? ` · 실패 ${bulkCreateResult.failedCount}건` : ''}
                         </p>
                       </div>
@@ -1043,7 +1123,7 @@ export default function SabreIdManager() {
                   )}
                   <Button
                     onClick={handleBulkCreate}
-                    disabled={bulkCreateLoading || selectedMissingIds.size === 0}
+                    disabled={bulkCreateLoading || selectedRowIndices.size === 0}
                     className="bg-green-600 hover:bg-green-700"
                   >
                     {bulkCreateLoading ? (
@@ -1055,7 +1135,7 @@ export default function SabreIdManager() {
                       <>
                         <Plus className="mr-2 h-4 w-4" />
                         선택 시설 일괄 기초 데이터 등록
-                        {selectedMissingIds.size > 0 ? ` (${selectedMissingIds.size}건)` : ' (미등록 시설을 선택해주세요)'}
+                        {selectedRowIndices.size > 0 ? ` (${selectedRowIndices.size}건)` : ' (미등록 시설을 선택해주세요)'}
                       </>
                     )}
                   </Button>

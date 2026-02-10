@@ -16,7 +16,23 @@ type BulkCreateItem = {
 type BulkCreateResultItem = {
   sabreId: string
   success: boolean
+  created?: boolean
+  updated?: boolean
   error?: string
+}
+
+/** 기존 rate_plan_code에 새 코드를 병합 (중복 제거, 콤마 구분) */
+function mergeRatePlanCodes(
+  existing: string | null | undefined,
+  newCodes: string | null | undefined
+): string | null {
+  const parse = (s: string | null | undefined): string[] =>
+    (s ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean)
+  const combined = [...new Set([...parse(existing), ...parse(newCodes)])]
+  return combined.length > 0 ? combined.join(',') : null
 }
 
 export async function POST(request: NextRequest) {
@@ -34,6 +50,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceRoleClient()
     const results: BulkCreateResultItem[] = []
     let createdCount = 0
+    let updatedCount = 0
     let failedCount = 0
 
     const duplicateMessage =
@@ -53,9 +70,12 @@ export async function POST(request: NextRequest) {
       const propertyNameKo: string | null = null
       const propertyAddress: string | null = null
 
+      const chainEn = item?.chain?.trim() || null
+      const newRatePlanCode = getRatePlanCodeForChain(chainEn)
+
       const { data: existingHotel, error: checkError } = await supabase
         .from('select_hotels')
-        .select('sabre_id')
+        .select('sabre_id, rate_plan_code')
         .eq('sabre_id', sabreId)
         .single()
 
@@ -70,14 +90,41 @@ export async function POST(request: NextRequest) {
       }
 
       if (existingHotel) {
-        results.push({ sabreId, success: false, error: duplicateMessage })
-        failedCount++
+        const mergedRatePlanCode = mergeRatePlanCodes(
+          (existingHotel as { rate_plan_code?: string | null }).rate_plan_code,
+          newRatePlanCode
+        )
+        const updateData: Record<string, unknown> = {
+          brand_name_en_2: chainEn || null,
+        }
+        if (mergedRatePlanCode != null) {
+          updateData.rate_plan_code = mergedRatePlanCode
+        }
+
+        const { error: updateError } = await supabase
+          .from('select_hotels')
+          .update(updateData)
+          .eq('sabre_id', sabreId)
+          .select()
+          .single()
+
+        if (updateError) {
+          results.push({
+            sabreId,
+            success: false,
+            error: '중복 sabre_id 업데이트 실패: rate_plan_code·brand_name_en_2 병합 중 오류가 발생했습니다.',
+          })
+          failedCount++
+          continue
+        }
+
+        results.push({ sabreId, success: true, updated: true })
+        updatedCount++
         continue
       }
 
       const paragonId = item?.paragonId?.trim() || null
-      const chainEn = item?.chain?.trim() || null
-      const ratePlanCode = getRatePlanCodeForChain(chainEn)
+      const ratePlanCode = newRatePlanCode
 
       const slug = generateHotelSlug(propertyNameEn, propertyNameKo, sabreId)
       const insertData: Record<string, unknown> = {
@@ -143,7 +190,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      results.push({ sabreId, success: true })
+      results.push({ sabreId, success: true, created: true })
       createdCount++
     }
 
@@ -152,6 +199,7 @@ export async function POST(request: NextRequest) {
       data: {
         results,
         createdCount,
+        updatedCount,
         failedCount,
       },
     })
