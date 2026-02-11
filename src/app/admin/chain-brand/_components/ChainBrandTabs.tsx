@@ -464,11 +464,14 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     name: string
   } | null>(null)
   
-  // 정렬 상태
-  const [brandSortField, setBrandSortField] = useState<'chain' | 'status' | null>(null)
+  // 정렬 상태 (브랜드: 기본 체인별 소팅으로 같은 체인끼리 묶어서 표시)
+  const [brandSortField, setBrandSortField] = useState<'chain' | 'status' | 'order' | null>('chain')
   const [brandSortDirection, setBrandSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [chainSortField, setChainSortField] = useState<'status' | null>(null)
+  const [chainSortField, setChainSortField] = useState<'status' | 'order' | null>(null)
   const [chainSortDirection, setChainSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  // 브랜드 탭: 체인 필터 (선택한 체인만 표시, 비어 있으면 전체)
+  const [brandChainFilterIds, setBrandChainFilterIds] = useState<Set<number>>(new Set())
 
   // 드래그앤 드롭 센서
   const sensors = useSensors(
@@ -543,7 +546,7 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
   }
 
   // 브랜드 정렬 핸들러
-  const handleBrandSort = (field: 'chain' | 'status') => {
+  const handleBrandSort = (field: 'chain' | 'status' | 'order') => {
     if (brandSortField === field) {
       setBrandSortDirection(brandSortDirection === 'asc' ? 'desc' : 'asc')
     } else {
@@ -552,8 +555,26 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     }
   }
 
+  // 체인 필터: 특정 체인만 보기
+  const toggleBrandChainFilter = (chainId: number) => {
+    setBrandChainFilterIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(chainId)) next.delete(chainId)
+      else next.add(chainId)
+      return next
+    })
+  }
+
+  const selectAllChainFilters = () => {
+    setBrandChainFilterIds(new Set(chains.map((c) => c.chain_id)))
+  }
+
+  const clearAllChainFilters = () => {
+    setBrandChainFilterIds(new Set())
+  }
+
   // 체인 정렬 핸들러
-  const handleChainSort = (field: 'status') => {
+  const handleChainSort = (field: 'status' | 'order') => {
     if (chainSortField === field) {
       setChainSortDirection(chainSortDirection === 'asc' ? 'desc' : 'asc')
     } else {
@@ -580,6 +601,14 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
         return brandSortDirection === 'asc' ? comparison : -comparison
       })
       return sorted
+    } else if (brandSortField === 'order') {
+      sorted.sort((a, b) => {
+        const aOrder = a.brand_sort_order ?? Infinity
+        const bOrder = b.brand_sort_order ?? Infinity
+        const comparison = aOrder - bOrder
+        return brandSortDirection === 'asc' ? comparison : -comparison
+      })
+      return sorted
     } else if (brandSortField === 'status') {
       sorted.sort((a, b) => {
         const aStatus = a.status || ''
@@ -600,10 +629,25 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
     return sortBrands(sorted)
   }, [brands, chains, brandSortField, brandSortDirection])
 
+  // 체인 필터 적용된 브랜드 목록 (체인 필터 비어 있으면 전체, 아니면 선택한 체인만)
+  const filteredAndSortedBrands = React.useMemo(() => {
+    if (brandChainFilterIds.size === 0) return sortedBrands
+    return sortedBrands.filter((b) => b.chain_id != null && brandChainFilterIds.has(b.chain_id))
+  }, [sortedBrands, brandChainFilterIds])
+
   // 정렬된 체인 목록
   const sortedChains = React.useMemo(() => {
     let sorted = [...chains]
     
+    if (chainSortField === 'order') {
+      sorted.sort((a, b) => {
+        const aOrder = a.chain_sort_order ?? Infinity
+        const bOrder = b.chain_sort_order ?? Infinity
+        const comparison = aOrder - bOrder
+        return chainSortDirection === 'asc' ? comparison : -comparison
+      })
+      return sorted
+    }
     if (chainSortField === 'status') {
       sorted.sort((a, b) => {
         const aStatus = a.status || ''
@@ -1156,7 +1200,18 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                       <th className="border p-2 text-center" style={{ width: '40px' }}>
                         <GripVertical className="h-4 w-4 text-gray-400 mx-auto" />
                       </th>
-                      <th className="border p-2 text-center" style={{ width: '70px' }}>순서</th>
+                      <th
+                        className="border p-2 text-center cursor-pointer hover:bg-gray-200 select-none"
+                        style={{ width: '70px' }}
+                        onClick={() => handleChainSort('order')}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          순서
+                          {chainSortField === 'order' && (
+                            chainSortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                          )}
+                        </div>
+                      </th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>체인(한글)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>체인(영문)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>Chain Slug</th>
@@ -1215,11 +1270,50 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
       {/* 브랜드 관리 탭 */}
       {activeTab === 'brands' && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button onClick={handleAddNewBrand} className="bg-green-600 hover:bg-green-700" disabled={editingBrandId !== null}>
               <PlusCircle className="h-4 w-4" />
               <span className="ml-2">신규 브랜드 추가</span>
             </Button>
+          </div>
+
+          {/* 체인 필터: 특정 체인만 골라서 보기 */}
+          <div className="rounded-lg border bg-gray-50 p-3">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-sm font-medium text-gray-700">체인 필터</span>
+              <button
+                type="button"
+                onClick={selectAllChainFilters}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                전체 선택
+              </button>
+              <button
+                type="button"
+                onClick={clearAllChainFilters}
+                className="text-xs text-gray-500 hover:underline"
+              >
+                전체 해제
+              </button>
+              {brandChainFilterIds.size > 0 && (
+                <span className="text-xs text-gray-500">
+                  ({brandChainFilterIds.size}개 체인 선택 중 · 선택 해제 시 전체 표시)
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 max-h-32 overflow-y-auto">
+              {sortChains([...chains]).map((chain) => (
+                <label key={chain.chain_id} className="inline-flex items-center gap-1.5 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    checked={brandChainFilterIds.has(chain.chain_id)}
+                    onChange={() => toggleBrandChainFilter(chain.chain_id)}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-800">{chain.name_kr || chain.name_en || `Chain ${chain.chain_id}`}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="border rounded-lg overflow-hidden bg-white shadow">
@@ -1231,7 +1325,18 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                       <th className="border p-2 text-center" style={{ width: '40px' }}>
                         <GripVertical className="h-4 w-4 text-gray-400 mx-auto" />
                       </th>
-                      <th className="border p-2 text-center" style={{ width: '70px' }}>순서</th>
+                      <th
+                        className="border p-2 text-center cursor-pointer hover:bg-gray-200 select-none"
+                        style={{ width: '70px' }}
+                        onClick={() => handleBrandSort('order')}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          순서
+                          {brandSortField === 'order' && (
+                            brandSortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                          )}
+                        </div>
+                      </th>
                       <th className="border p-2 text-center" style={{ width: '80px' }}>Brand ID</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>브랜드(한글)</th>
                       <th className="border p-2 text-left" style={{ width: '150px' }}>브랜드(영문)</th>
@@ -1263,10 +1368,10 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
                       <th className="border p-2 text-left" style={{ width: '200px' }}>작업</th>
                     </tr>
                   </thead>
-                  <SortableContext items={sortedBrands.map(b => b.brand_id)} strategy={verticalListSortingStrategy}>
+                  <SortableContext items={filteredAndSortedBrands.map(b => b.brand_id)} strategy={verticalListSortingStrategy}>
                     <tbody>
                       {renderNewBrandRow()}
-                      {sortedBrands.map((brand) => {
+                      {filteredAndSortedBrands.map((brand) => {
                         const isEditing = editingBrandId === brand.brand_id
                         const isRecentlyUpdated = recentlyUpdatedBrandId === brand.brand_id
                         return (
@@ -1294,7 +1399,8 @@ export function ChainBrandTabs({ initialChains, initialBrands }: Props) {
               </DndContext>
             </div>
             <div className="p-3 border-t bg-gray-50 text-sm text-gray-600">
-              총 {sortedBrands.length}개 브랜드
+              총 {filteredAndSortedBrands.length}개 브랜드
+              {brandChainFilterIds.size > 0 && ` (전체 ${sortedBrands.length}개 중)`}
             </div>
           </div>
         </div>
