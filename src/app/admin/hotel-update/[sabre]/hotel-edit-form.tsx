@@ -13,6 +13,7 @@ import { Tabs } from '@/components/shared/tabs'
 
 import { cn } from '@/lib/utils'
 import { updateHotel } from '@/features/hotels/actions'
+import { getChainBrandList } from '@/features/chain-brand/actions'
 
 interface Props {
   initialData: Record<string, unknown>
@@ -184,8 +185,7 @@ export function HotelEditForm({ initialData, mappedBenefits, isNewHotel = false 
       
       try {
         const brandIds = brandIdsToLoad.map(b => b.brandId)
-        const response = await fetch(`/api/chain-brand/list`)
-        const result = await response.json()
+        const result = await getChainBrandList()
         
         if (result.success && result.data?.brands) {
           const brands = result.data.brands as Brand[]

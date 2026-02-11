@@ -23,6 +23,7 @@ import {
   Maximize2,
 } from 'lucide-react'
 import type { AiHotelLookupResult } from '@/app/api/sabre-id/ai-hotel-lookup/route'
+import type { ParagonDiffEntry } from '@/app/api/sabre-id/paragon-id-diff/route'
 import { Modal } from '@/components/shared/modal'
 
 const SABRE_SHEET_URL =
@@ -157,6 +158,20 @@ export default function SabreIdManager() {
   // 크게 보기 레이어 팝업
   const [showLargeViewModal, setShowLargeViewModal] = useState(false)
 
+  // Paragon ID 업데이트 대상 조회 (시트 vs DB 차이)
+  const [paragonDiffLoading, setParagonDiffLoading] = useState(false)
+  const [paragonDiffError, setParagonDiffError] = useState<string | null>(null)
+  const [paragonDiffList, setParagonDiffList] = useState<ParagonDiffEntry[] | null>(null)
+  const [paragonUpdateSelected, setParagonUpdateSelected] = useState<Set<string>>(new Set())
+  const [paragonUpdateLoading, setParagonUpdateLoading] = useState(false)
+  const [paragonUpdateResult, setParagonUpdateResult] = useState<{
+    successCount: number
+    failedCount: number
+    results: Array<{ sabreId: string; success: boolean; error?: string }>
+  } | null>(null)
+  const [paragonUpdateError, setParagonUpdateError] = useState<string | null>(null)
+  const [paragonDiffSabreIdFilter, setParagonDiffSabreIdFilter] = useState('')
+
   const sortedEntries = useMemo(() => {
     if (!sheetCheckResult?.entries) return []
     const entries = sheetCheckResult.entries
@@ -190,6 +205,13 @@ export default function SabreIdManager() {
       return chainSortDir === 'asc' ? cmp : -cmp
     })
   }, [sheetCheckResult?.entries, chainSortDir, sheetSabreIdFilter, sheetStatusFilter])
+
+  const filteredParagonDiffList = useMemo(() => {
+    if (!paragonDiffList?.length) return []
+    const q = paragonDiffSabreIdFilter.trim()
+    if (!q) return paragonDiffList
+    return paragonDiffList.filter((e) => e.sabreId.includes(q))
+  }, [paragonDiffList, paragonDiffSabreIdFilter])
 
   const handleChainSortClick = () => {
     setChainSortDir((prev) => (prev === null || prev === 'desc' ? 'asc' : 'desc'))
@@ -436,6 +458,80 @@ export default function SabreIdManager() {
       setBulkCreateError(err instanceof Error ? err.message : '일괄 등록 중 오류가 발생했습니다.')
     } finally {
       setBulkCreateLoading(false)
+    }
+  }
+
+  const handleParagonDiffFetch = async () => {
+    setParagonDiffLoading(true)
+    setParagonDiffError(null)
+    setParagonDiffList(null)
+    setParagonUpdateSelected(new Set())
+    setParagonUpdateResult(null)
+    setParagonUpdateError(null)
+    try {
+      const res = await fetch('/api/sabre-id/paragon-id-diff')
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Paragon ID 차이 조회에 실패했습니다.')
+      }
+      setParagonDiffList(data.data?.entries ?? [])
+    } catch (err) {
+      setParagonDiffError(err instanceof Error ? err.message : 'Paragon ID 업데이트 대상 조회 중 오류가 발생했습니다.')
+    } finally {
+      setParagonDiffLoading(false)
+    }
+  }
+
+  const handleParagonUpdateSelectAll = (checked: boolean) => {
+    if (!filteredParagonDiffList.length) return
+    if (checked) {
+      setParagonUpdateSelected(new Set(filteredParagonDiffList.map((e) => e.sabreId)))
+    } else {
+      setParagonUpdateSelected(new Set())
+    }
+  }
+
+  const handleParagonUpdateToggle = (sabreId: string, checked: boolean) => {
+    setParagonUpdateSelected((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(sabreId)
+      else next.delete(sabreId)
+      return next
+    })
+  }
+
+  const handleParagonUpdate = async () => {
+    if (!paragonDiffList?.length || paragonUpdateSelected.size === 0) {
+      setParagonUpdateError('업데이트할 항목을 선택해주세요.')
+      return
+    }
+    const items = paragonDiffList
+      .filter((e) => paragonUpdateSelected.has(e.sabreId))
+      .map((e) => ({ sabreId: e.sabreId, htlMasterId: e.sheetHtlMasterId }))
+    setParagonUpdateLoading(true)
+    setParagonUpdateError(null)
+    setParagonUpdateResult(null)
+    try {
+      const res = await fetch('/api/sabre-id/paragon-id-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error || 'Paragon ID 업데이트에 실패했습니다.')
+      }
+      if (json.success && json.data) {
+        setParagonUpdateResult(json.data)
+        setParagonUpdateSelected(new Set())
+        // 페이지 리프레시 없이 실행 결과만 버튼 아래에 표시 (재조회 생략)
+      } else {
+        throw new Error(json.error || '업데이트 결과를 확인할 수 없습니다.')
+      }
+    } catch (err) {
+      setParagonUpdateError(err instanceof Error ? err.message : 'Paragon ID 업데이트 중 오류가 발생했습니다.')
+    } finally {
+      setParagonUpdateLoading(false)
     }
   }
 
@@ -950,55 +1046,224 @@ export default function SabreIdManager() {
                       <p>위 목록은 select_hotels 테이블에 존재하지 않아 신규 등록이 필요한 Sabre ID입니다.</p>
                     </div>
 
-                    {sheetCheckResult.missingCount > 0 && (
-                      <div className="border-t p-4 space-y-3">
-                        {bulkCreateError && (
-                          <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
-                            <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-                            <div>{bulkCreateError}</div>
-                          </div>
+                    <div className="border-t p-4 space-y-3">
+                        {sheetCheckResult.missingCount > 0 && (
+                          <>
+                            {bulkCreateError && (
+                              <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                                <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                                <div>{bulkCreateError}</div>
+                              </div>
+                            )}
+                            {bulkCreateResult && (
+                              <div className="flex items-start gap-2 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">
+                                <CheckCircle className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <p className="font-medium">선택 시설 일괄 기초 데이터 등록 완료</p>
+                                  <p className="text-xs mt-1">
+                                    등록 성공 {bulkCreateResult.createdCount}건
+                                    {(bulkCreateResult.updatedCount ?? 0) > 0 && ` · 중복 upsert ${bulkCreateResult.updatedCount}건`}
+                                    {bulkCreateResult.failedCount > 0
+                                      ? ` · 실패 ${bulkCreateResult.failedCount}건`
+                                      : ''}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
-                        {bulkCreateResult && (
-                          <div className="flex items-start gap-2 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">
-                            <CheckCircle className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="font-medium">선택 시설 일괄 기초 데이터 등록 완료</p>
-                              <p className="text-xs mt-1">
-                                등록 성공 {bulkCreateResult.createdCount}건
-                                {(bulkCreateResult.updatedCount ?? 0) > 0 && ` · 중복 upsert ${bulkCreateResult.updatedCount}건`}
-                                {bulkCreateResult.failedCount > 0
-                                  ? ` · 실패 ${bulkCreateResult.failedCount}건`
-                                  : ''}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        <Button
-                          onClick={handleBulkCreate}
-                          disabled={bulkCreateLoading || selectedRowIndices.size === 0}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          {bulkCreateLoading ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              등록 중...
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="mr-2 h-4 w-4" />
-                              선택 시설 일괄 기초 데이터 등록
-                              {selectedRowIndices.size > 0
-                                ? ` (${selectedRowIndices.size}건)`
-                                : ' (미등록 시설을 선택해주세요)'}
-                            </>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {sheetCheckResult.missingCount > 0 && (
+                            <Button
+                              onClick={handleBulkCreate}
+                              disabled={bulkCreateLoading || selectedRowIndices.size === 0}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              {bulkCreateLoading ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  등록 중...
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  선택 시설 일괄 기초 데이터 등록
+                                  {selectedRowIndices.size > 0
+                                    ? ` (${selectedRowIndices.size}건)`
+                                    : ' (미등록 시설을 선택해주세요)'}
+                                </>
+                              )}
+                            </Button>
                           )}
-                        </Button>
-                      </div>
-                    )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleParagonDiffFetch}
+                            disabled={paragonDiffLoading}
+                          >
+                            {paragonDiffLoading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                조회 중...
+                              </>
+                            ) : (
+                              'Paragon ID 업데이트 대상 조회'
+                            )}
+                          </Button>
+                        </div>
+                    </div>
                   </div>
                 </div>
               )}
             </div>
+
+            {/* Paragon ID 업데이트 대상 - 시트 vs DB 차이 테이블 */}
+            {(paragonDiffList !== null || paragonDiffLoading) && (
+              <div className="border-t border-dashed pt-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold">Paragon ID 업데이트 대상</h3>
+                </div>
+                {paragonDiffError && (
+                  <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                    <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div>{paragonDiffError}</div>
+                  </div>
+                )}
+                {paragonDiffLoading && (
+                  <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white/60 p-4 text-sm text-slate-600">
+                    <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
+                    구글 시트와 DB를 비교 중입니다.
+                  </div>
+                )}
+                {!paragonDiffLoading && paragonDiffList !== null && (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-lg border bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Paragon ID 차이 개수</p>
+                        <p className="mt-2 text-2xl font-semibold text-gray-900">{paragonDiffList.length.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500">시트 C열(htlMasterId) ≠ DB paragon_id</p>
+                      </div>
+                      <div className="rounded-lg border bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Select DB Paragon ID Null 개수</p>
+                        <p className="mt-2 text-2xl font-semibold text-gray-900">
+                          {paragonDiffList.filter((e) => e.dbParagonId == null || String(e.dbParagonId ?? '').trim() === '').length.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500">차이 목록 중 DB paragon_id가 비어 있는 건수</p>
+                      </div>
+                    </div>
+                    {paragonDiffList.length === 0 ? (
+                      <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+                        <CheckCircle className="h-4 w-4" />
+                        <p className="text-sm font-medium">구글 시트 C열(htlMasterId)과 DB paragon_id가 모두 일치합니다.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">Sabre ID 필터</span>
+                            <Input
+                              value={paragonDiffSabreIdFilter}
+                              onChange={(e) => setParagonDiffSabreIdFilter(e.target.value)}
+                              placeholder="예: 205709"
+                              className="h-8 w-32 sm:w-40"
+                            />
+                          </div>
+                          {paragonDiffSabreIdFilter.trim() && (
+                            <span className="text-xs text-gray-500">
+                              표시: {filteredParagonDiffList.length}건 / 전체 {paragonDiffList.length}건
+                            </span>
+                          )}
+                        </div>
+                        <div className="rounded-lg border overflow-auto max-h-80">
+                          <table className="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead className="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              <tr>
+                                <th scope="col" className="px-4 py-2 text-left w-10">
+                                  <input
+                                    type="checkbox"
+                                    checked={filteredParagonDiffList.length > 0 && filteredParagonDiffList.every((e) => paragonUpdateSelected.has(e.sabreId))}
+                                    onChange={(e) => handleParagonUpdateSelectAll(e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    aria-label="전체 선택"
+                                  />
+                                </th>
+                                <th scope="col" className="px-4 py-2 text-left">Sabre ID</th>
+                                <th scope="col" className="px-4 py-2 text-left">구글 시트 Paragon ID (htlMasterId)</th>
+                                <th scope="col" className="px-4 py-2 text-left">DB Paragon ID</th>
+                                <th scope="col" className="px-4 py-2 text-left">Hotel name</th>
+                                <th scope="col" className="px-4 py-2 text-left">등록된 호텔명</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 bg-white text-gray-900">
+                              {filteredParagonDiffList.map((entry, index) => (
+                                <tr key={`paragon-diff-${entry.sabreId}-${index}`} className="bg-amber-50/50">
+                                  <td className="px-4 py-3">
+                                    <input
+                                      type="checkbox"
+                                      checked={paragonUpdateSelected.has(entry.sabreId)}
+                                      onChange={(e) => handleParagonUpdateToggle(entry.sabreId, e.target.checked)}
+                                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      aria-label={`${entry.sabreId} 선택`}
+                                    />
+                                  </td>
+                                  <td className="px-4 py-3 font-mono text-sm font-semibold">{entry.sabreId}</td>
+                                  <td className="px-4 py-3 text-sm">{entry.sheetHtlMasterId || '-'}</td>
+                                  <td className="px-4 py-3 text-sm">{entry.dbParagonId ?? '-'}</td>
+                                  <td className="px-4 py-3 text-sm max-w-[200px] truncate" title={entry.hotelName || ''}>
+                                    {entry.hotelName || '-'}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="space-y-0.5">
+                                      <p className="text-sm text-gray-900">{entry.propertyNameKo || '-'}</p>
+                                      <p className="text-xs text-gray-500">{entry.propertyNameEn || '-'}</p>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                          {paragonUpdateError && (
+                            <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                              <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                              <div>{paragonUpdateError}</div>
+                            </div>
+                          )}
+                          {paragonUpdateResult && (
+                            <div className="flex items-start gap-2 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">
+                              <CheckCircle className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="font-medium">구글시트 Paragon ID to Select DB Paragon ID 업데이트 완료</p>
+                                <p className="text-xs mt-1">
+                                  성공 {paragonUpdateResult.successCount}건
+                                  {paragonUpdateResult.failedCount > 0 ? ` · 실패 ${paragonUpdateResult.failedCount}건` : ''}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          <Button
+                            type="button"
+                            onClick={handleParagonUpdate}
+                            disabled={paragonUpdateLoading || paragonUpdateSelected.size === 0}
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            {paragonUpdateLoading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                업데이트 중...
+                              </>
+                            ) : (
+                              '구글시트 Paragon ID to Select DB Paragon ID 업데이트'
+                            )}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
