@@ -20,6 +20,8 @@ export type ParagonDiffEntry = {
   chain: string
   propertyNameKo: string | null
   propertyNameEn: string | null
+  /** paragon_id 불일치로 업데이트 필요 여부 */
+  needsUpdate?: boolean
 }
 
 const chunkArray = <T,>(items: T[], chunkSize: number): T[][] => {
@@ -34,9 +36,22 @@ const chunkArray = <T,>(items: T[], chunkSize: number): T[][] => {
 const isValidBigintString = (s: string): boolean =>
   /^-?\d+$/.test(String(s).trim()) && s.trim() !== ''
 
-/** 시트/DB 값 비교 시 빈 문자열과 null 동일 취급 */
-const normalizeParagon = (v: string | null | undefined): string =>
-  v == null || String(v).trim() === '' ? '' : String(v).trim()
+/** 시트/DB 값 비교: 빈 값 통일, 숫자는 앞의 0 제거 후 비교 (12345 vs "012345" 동일 처리) */
+function paragonValuesEqual(
+  sheetVal: string | number | null | undefined,
+  dbVal: string | number | null | undefined,
+): boolean {
+  const s = (v: string | number | null | undefined): string =>
+    v == null || String(v).trim() === '' ? '' : String(v).trim()
+  const a = s(sheetVal)
+  const b = s(dbVal)
+  if (a === b) return true
+  if (a === '' || b === '') return false
+  const na = parseInt(a, 10)
+  const nb = parseInt(b, 10)
+  if (!Number.isNaN(na) && !Number.isNaN(nb) && na === nb) return true
+  return false
+}
 
 export async function GET() {
   try {
@@ -83,15 +98,13 @@ export async function GET() {
       })
     }
 
-    const diffEntries: ParagonDiffEntry[] = []
+    const allMatchedEntries: ParagonDiffEntry[] = []
     for (const row of orderedRows) {
       const normalizedSabreId = String(row.sabreId).trim()
       const dbRow = hotelMap.get(normalizedSabreId)
       if (!dbRow) continue
-      const sheetVal = normalizeParagon(row.paragonId)
-      const dbVal = normalizeParagon(dbRow.paragon_id)
-      if (sheetVal === dbVal) continue
-      diffEntries.push({
+      const needsUpdate = !paragonValuesEqual(row.paragonId, dbRow.paragon_id)
+      allMatchedEntries.push({
         sabreId: row.sabreId,
         sheetHtlMasterId: row.paragonId ?? '',
         dbParagonId: dbRow.paragon_id,
@@ -99,14 +112,23 @@ export async function GET() {
         chain: row.chain ?? '',
         propertyNameKo: dbRow.property_name_ko,
         propertyNameEn: dbRow.property_name_en,
+        needsUpdate,
       })
     }
+
+    const diffEntries = allMatchedEntries.filter((e) => e.needsUpdate)
 
     return NextResponse.json({
       success: true,
       data: {
-        entries: diffEntries,
-        count: diffEntries.length,
+        entries: allMatchedEntries,
+        count: allMatchedEntries.length,
+        diffCount: diffEntries.length,
+      },
+      meta: {
+        sheetRowCount: orderedRows.length,
+        uniqueSabreIdCount: uniqueSabreIds.length,
+        dbMatchedCount: hotelMap.size,
       },
     })
   } catch (error) {

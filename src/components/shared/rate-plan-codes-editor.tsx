@@ -151,7 +151,7 @@ export function RatePlanCodesEditor({ value, onChange, disabled }: RatePlanCodes
                   <div className="text-sm text-gray-500">로딩 중...</div>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-4 gap-3">
                   {allCodes.map((code) => {
                     const isSelected = selectedCodes.includes(code)
                     const isInOriginalDb = value.includes(code)

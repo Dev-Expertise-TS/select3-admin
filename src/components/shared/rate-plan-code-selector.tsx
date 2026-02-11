@@ -150,7 +150,7 @@ export function RatePlanCodeSelector({
       ) : codes.length === 0 ? (
         <div className="text-sm text-gray-500 italic">Rate plan codes가 설정되어 있지 않습니다.</div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto border border-gray-200 rounded p-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-64 overflow-y-auto border border-gray-200 rounded p-3">
           {codes.map((code) => {
             const isSelected = selectedCodes.includes(code)
             const isDbCode = dbCodes.includes(code)

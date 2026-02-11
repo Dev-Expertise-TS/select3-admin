@@ -208,9 +208,10 @@ export default function SabreIdManager() {
 
   const filteredParagonDiffList = useMemo(() => {
     if (!paragonDiffList?.length) return []
+    const diffOnly = paragonDiffList.filter((e) => e.needsUpdate)
     const q = paragonDiffSabreIdFilter.trim()
-    if (!q) return paragonDiffList
-    return paragonDiffList.filter((e) => e.sabreId.includes(q))
+    if (!q) return diffOnly
+    return diffOnly.filter((e) => e.sabreId.includes(q))
   }, [paragonDiffList, paragonDiffSabreIdFilter])
 
   const handleChainSortClick = () => {
@@ -482,10 +483,15 @@ export default function SabreIdManager() {
     }
   }
 
+  const needsUpdateList = useMemo(
+    () => filteredParagonDiffList.filter((e) => e.needsUpdate),
+    [filteredParagonDiffList],
+  )
+
   const handleParagonUpdateSelectAll = (checked: boolean) => {
-    if (!filteredParagonDiffList.length) return
+    if (!needsUpdateList.length) return
     if (checked) {
-      setParagonUpdateSelected(new Set(filteredParagonDiffList.map((e) => e.sabreId)))
+      setParagonUpdateSelected(new Set(needsUpdateList.map((e) => e.sabreId)))
     } else {
       setParagonUpdateSelected(new Set())
     }
@@ -524,7 +530,9 @@ export default function SabreIdManager() {
       if (json.success && json.data) {
         setParagonUpdateResult(json.data)
         setParagonUpdateSelected(new Set())
-        // 페이지 리프레시 없이 실행 결과만 버튼 아래에 표시 (재조회 생략)
+        console.log('[Paragon ID 업데이트] 구글시트 Paragon ID to Select DB Paragon ID 업데이트 결과:', json.data)
+        // 업데이트 후 최신 DB 상태를 반영하기 위해 재조회
+        await handleParagonDiffFetch()
       } else {
         throw new Error(json.error || '업데이트 결과를 확인할 수 없습니다.')
       }
@@ -1137,21 +1145,33 @@ export default function SabreIdManager() {
                 )}
                 {!paragonDiffLoading && paragonDiffList !== null && (
                   <div className="space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="rounded-lg border bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">전체 목록 (DB 매칭)</p>
+                        <p className="mt-2 text-2xl font-semibold text-gray-900">{paragonDiffList.length.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500">시트 + DB 일치 행 전체</p>
+                      </div>
                       <div className="rounded-lg border bg-white p-4 shadow-sm">
                         <p className="text-xs uppercase tracking-wide text-gray-500">Paragon ID 차이 개수</p>
-                        <p className="mt-2 text-2xl font-semibold text-gray-900">{paragonDiffList.length.toLocaleString()}</p>
+                        <p className="mt-2 text-2xl font-semibold text-gray-900">
+                          {paragonDiffList.filter((e) => e.needsUpdate).length.toLocaleString()}
+                        </p>
                         <p className="text-xs text-gray-500">시트 C열(htlMasterId) ≠ DB paragon_id</p>
                       </div>
                       <div className="rounded-lg border bg-white p-4 shadow-sm">
                         <p className="text-xs uppercase tracking-wide text-gray-500">Select DB Paragon ID Null 개수</p>
                         <p className="mt-2 text-2xl font-semibold text-gray-900">
-                          {paragonDiffList.filter((e) => e.dbParagonId == null || String(e.dbParagonId ?? '').trim() === '').length.toLocaleString()}
+                          {paragonDiffList.filter((e) => e.needsUpdate && (e.dbParagonId == null || String(e.dbParagonId ?? '').trim() === '')).length.toLocaleString()}
                         </p>
                         <p className="text-xs text-gray-500">차이 목록 중 DB paragon_id가 비어 있는 건수</p>
                       </div>
                     </div>
                     {paragonDiffList.length === 0 ? (
+                      <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-gray-700">
+                        <AlertCircle className="h-4 w-4" />
+                        <p className="text-sm font-medium">매칭된 행이 없습니다. (시트 Sabre ID ↔ DB sabre_id 일치 여부 확인)</p>
+                      </div>
+                    ) : paragonDiffList.filter((e) => e.needsUpdate).length === 0 ? (
                       <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
                         <CheckCircle className="h-4 w-4" />
                         <p className="text-sm font-medium">구글 시트 C열(htlMasterId)과 DB paragon_id가 모두 일치합니다.</p>
@@ -1170,21 +1190,24 @@ export default function SabreIdManager() {
                           </div>
                           {paragonDiffSabreIdFilter.trim() && (
                             <span className="text-xs text-gray-500">
-                              표시: {filteredParagonDiffList.length}건 / 전체 {paragonDiffList.length}건
+                              표시: {filteredParagonDiffList.length}건 / 전체 {paragonDiffList.filter((e) => e.needsUpdate).length}건
                             </span>
                           )}
                         </div>
-                        <div className="rounded-lg border overflow-auto max-h-80">
+                        <div className="rounded-lg border overflow-auto max-h-[85vh]">
                           <table className="min-w-full divide-y divide-gray-200 text-sm">
                             <thead className="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
                               <tr>
                                 <th scope="col" className="px-4 py-2 text-left w-10">
                                   <input
                                     type="checkbox"
-                                    checked={filteredParagonDiffList.length > 0 && filteredParagonDiffList.every((e) => paragonUpdateSelected.has(e.sabreId))}
+                                    checked={needsUpdateList.length > 0 && needsUpdateList.every((e) => paragonUpdateSelected.has(e.sabreId))}
+                                    ref={(el) => {
+                                      if (el) el.indeterminate = needsUpdateList.length > 0 && paragonUpdateSelected.size > 0 && !needsUpdateList.every((e) => paragonUpdateSelected.has(e.sabreId))
+                                    }}
                                     onChange={(e) => handleParagonUpdateSelectAll(e.target.checked)}
                                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    aria-label="전체 선택"
+                                    aria-label="전체 선택 (차이 있는 행만)"
                                   />
                                 </th>
                                 <th scope="col" className="px-4 py-2 text-left">Sabre ID</th>
@@ -1196,15 +1219,22 @@ export default function SabreIdManager() {
                             </thead>
                             <tbody className="divide-y divide-gray-100 bg-white text-gray-900">
                               {filteredParagonDiffList.map((entry, index) => (
-                                <tr key={`paragon-diff-${entry.sabreId}-${index}`} className="bg-amber-50/50">
+                                <tr
+                                  key={`paragon-diff-${entry.sabreId}-${index}`}
+                                  className={entry.needsUpdate ? 'bg-amber-50/50' : 'bg-white'}
+                                >
                                   <td className="px-4 py-3">
-                                    <input
-                                      type="checkbox"
-                                      checked={paragonUpdateSelected.has(entry.sabreId)}
-                                      onChange={(e) => handleParagonUpdateToggle(entry.sabreId, e.target.checked)}
-                                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                      aria-label={`${entry.sabreId} 선택`}
-                                    />
+                                    {entry.needsUpdate ? (
+                                      <input
+                                        type="checkbox"
+                                        checked={paragonUpdateSelected.has(entry.sabreId)}
+                                        onChange={(e) => handleParagonUpdateToggle(entry.sabreId, e.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        aria-label={`${entry.sabreId} 선택`}
+                                      />
+                                    ) : (
+                                      <span className="text-gray-300" aria-hidden>—</span>
+                                    )}
                                   </td>
                                   <td className="px-4 py-3 font-mono text-sm font-semibold">{entry.sabreId}</td>
                                   <td className="px-4 py-3 text-sm">{entry.sheetHtlMasterId || '-'}</td>

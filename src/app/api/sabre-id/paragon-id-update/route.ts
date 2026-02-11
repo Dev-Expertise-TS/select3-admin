@@ -12,6 +12,7 @@ type UpdateItem = {
 type UpdateResultItem = {
   sabreId: string
   success: boolean
+  updatedParagonId?: string | null
   error?: string
 }
 
@@ -32,28 +33,55 @@ export async function POST(request: NextRequest) {
     let successCount = 0
     let failedCount = 0
 
+    const parseBigint = (v: string): number | null => {
+      const s = String(v).trim()
+      if (!s || !/^-?\d+$/.test(s)) return null
+      const n = parseInt(s, 10)
+      return Number.isNaN(n) ? null : n
+    }
+
     for (const item of items) {
-      const sabreId = String(item?.sabreId ?? '').trim()
+      const sabreIdRaw = String(item?.sabreId ?? '').trim()
       const htlMasterId = item?.htlMasterId != null ? String(item.htlMasterId).trim() : ''
 
-      if (!sabreId) {
+      if (!sabreIdRaw) {
         results.push({ sabreId: '(빈값)', success: false, error: 'Sabre ID가 비어 있습니다.' })
         failedCount++
         continue
       }
 
-      const paragonIdToSet = htlMasterId === '' ? null : htlMasterId
+      const sabreIdNum = parseBigint(sabreIdRaw)
+      if (sabreIdNum == null) {
+        results.push({ sabreId: sabreIdRaw, success: false, error: 'Sabre ID는 숫자 형태여야 합니다.' })
+        failedCount++
+        continue
+      }
 
-      const { error } = await supabase
+      let paragonIdToSet: number | null = null
+      if (htlMasterId !== '') {
+        const parsed = parseBigint(htlMasterId)
+        if (parsed == null) {
+          results.push({
+            sabreId: sabreIdRaw,
+            success: false,
+            error: `Paragon ID(htlMasterId)는 숫자 형태여야 합니다: "${htlMasterId}"`,
+          })
+          failedCount++
+          continue
+        }
+        paragonIdToSet = parsed
+      }
+
+      const { data, error } = await supabase
         .from('select_hotels')
         .update({ paragon_id: paragonIdToSet })
-        .eq('sabre_id', sabreId)
-        .select()
-        .single()
+        .eq('sabre_id', sabreIdNum)
+        .select('sabre_id, paragon_id')
+        .maybeSingle()
 
       if (error) {
         results.push({
-          sabreId,
+          sabreId: sabreIdRaw,
           success: false,
           error: error.message ?? '업데이트 실패',
         })
@@ -61,17 +89,29 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      results.push({ sabreId, success: true })
+      if (!data) {
+        results.push({ sabreId: sabreIdRaw, success: false, error: '업데이트 대상 호텔이 DB에 없습니다.' })
+        failedCount++
+        continue
+      }
+
+      results.push({
+        sabreId: sabreIdRaw,
+        success: true,
+        updatedParagonId: data.paragon_id != null ? String(data.paragon_id) : null,
+      })
       successCount++
     }
 
+    const responseData = {
+      successCount,
+      failedCount,
+      results,
+    }
+    console.log('[paragon-id-update] 구글시트 Paragon ID to Select DB Paragon ID 업데이트 결과:', responseData)
     return NextResponse.json({
       success: true,
-      data: {
-        successCount,
-        failedCount,
-        results,
-      },
+      data: responseData,
     })
   } catch (error) {
     console.error('[sabre-id/paragon-id-update] unexpected error:', error)
