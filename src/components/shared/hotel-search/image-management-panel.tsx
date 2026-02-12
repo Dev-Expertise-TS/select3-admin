@@ -293,6 +293,7 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [importing, setImporting] = useState(false)
+  const [importingSabreV51, setImportingSabreV51] = useState(false)
   
   const [syncing, setSyncing] = useState(false)
   const [hotelVersion, setHotelVersion] = useState<number>(1)
@@ -396,6 +397,48 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
       alert(`가져오기 중 오류가 발생했습니다: ${err instanceof Error ? err.message : '알 수 없는 오류'}`)
     } finally {
       setImporting(false)
+    }
+  }
+
+  const importFromSabreV51 = async () => {
+    const sabreId = String(hotel.sabre_id || '')
+
+    if (!sabreId) {
+      alert('Sabre ID가 없습니다.')
+      return
+    }
+
+    if (!confirm('Sabre API v5.1을 사용하여 호텔 이미지를 가져옵니다.\n\n이미지가 많을 경우 시간이 걸릴 수 있습니다.\n계속하시겠습니까?')) {
+      return
+    }
+
+    setImportingSabreV51(true)
+
+    try {
+      const res = await fetch('/api/hotel-images/import-from-sabre-v51', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sabreId })
+      })
+
+      const data = await res.json()
+
+      if (data?.success) {
+        const errorResults = data.data.results.filter((r: any) => !r.success)
+        if (errorResults.length > 0) {
+          alert(`가져오기 완료: ${data.data.uploaded}/${data.data.total}\n\n오류:\n${errorResults.slice(0, 5).map((r: any) => `- ${r.url || '알 수 없음'}: ${r.error}`).join('\n')}${errorResults.length > 5 ? `\n... 외 ${errorResults.length - 5}개` : ''}`)
+        } else {
+          alert(`가져오기 완료: ${data.data.uploaded}/${data.data.total}개의 이미지를 저장했습니다.`)
+        }
+        onLoadStorageImages(hotelId, sabreId)
+      } else {
+        alert(`가져오기 실패: ${data?.error || '알 수 없는 오류'}`)
+      }
+    } catch (err) {
+      console.error('[importFromSabreV51] 오류:', err)
+      alert(`가져오기 중 오류가 발생했습니다: ${err instanceof Error ? err.message : '알 수 없는 오류'}`)
+    } finally {
+      setImportingSabreV51(false)
     }
   }
 
@@ -670,14 +713,14 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                   type="button"
                   className="bg-blue-600 hover:bg-blue-700"
                   onClick={() => setUrlModalOpen(true)}
-                  disabled={syncing || fileUploading || importing}
+                  disabled={syncing || fileUploading || importing || importingSabreV51}
                 >
                   <Plus className="h-4 w-4 mr-2" /> 이미지 URL로 업로드
                 </Button>
               <Button
                 type="button"
                 variant="outline"
-                disabled={syncing || importing}
+                  disabled={syncing || importing || importingSabreV51}
                 onClick={async () => {
                   try {
                     setSyncing(true)
@@ -740,7 +783,7 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                 type="button"
                 className="bg-purple-600 hover:bg-purple-700"
                 onClick={importFromDetails}
-                disabled={importing || fileUploading || syncing}
+                disabled={importing || importingSabreV51 || fileUploading || syncing}
               >
                 {importing ? (
                   <>
@@ -750,6 +793,23 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                 ) : (
                   <>
                     <Download className="h-4 w-4 mr-2" /> 호텔 상세 페이지 이미지 가져오기
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                className="bg-indigo-600 hover:bg-indigo-700"
+                onClick={importFromSabreV51}
+                disabled={importing || importingSabreV51 || fileUploading || syncing}
+              >
+                {importingSabreV51 ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    가져오는 중...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" /> Sabre API v5.1 이미지 가져오기
                   </>
                 )}
               </Button>
@@ -787,7 +847,7 @@ export const ImageManagementPanel: React.FC<ImageManagementPanelProps> = ({
                     setSyncing(false);
                   }
                 }}
-                disabled={syncing || importing || fileUploading}
+                disabled={syncing || importing || importingSabreV51 || fileUploading}
               >
                 {syncing ? (
                   <>
